@@ -1,0 +1,19 @@
+# encx
+
+`encx` is a Go package for handling field-level encryption and hashing in structs. It supports:
+
+- **AES-GCM encryption** for securing sensitive data.
+- **Argon2id hashing** for secure password storage.
+- **SHA-256 hashing** for fast, non-reversible identifiers.
+
+## Usage
+
+Simply tag struct fields with `encx` to specify how they should be processed.
+
+```go
+type User struct {
+    Email    string `encx:"hash_basic"`
+    Password string `encx:"hash_secure"`
+    Address  string `encx:"encrypt"`
+}
+
