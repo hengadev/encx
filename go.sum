@@ -1,3 +1,7 @@
+github.com/hengadev/errsx v0.0.0-20250311095341-41f2d3115cf1 h1:c0oRfX/mc3zSjopvMq5BxCXDHZEyteI/SVYh7x4Zzng=
+github.com/hengadev/errsx v0.0.0-20250311095341-41f2d3115cf1/go.mod h1:pdDfbKMqwVro0kRlCfPhiASTcnXFXR7/d4WxqtuNaC8=
+github.com/hengadev/errsx v0.0.0-20250311100209-ae76b02c33f2 h1:MHydUyJfHt/LDy45P19XB+WSd4QNmhdAby/WahsHWkI=
+github.com/hengadev/errsx v0.0.0-20250311100209-ae76b02c33f2/go.mod h1:pdDfbKMqwVro0kRlCfPhiASTcnXFXR7/d4WxqtuNaC8=
 golang.org/x/crypto v0.36.0 h1:AnAEvhDddvBdpY+uR+MyHmuZzzNqXSe/GvuDeob5L34=
 golang.org/x/crypto v0.36.0/go.mod h1:Y4J0ReaxCR1IMaabaSMugxJES1EpwhBHhv2bDHklZvc=
 golang.org/x/sys v0.31.0 h1:ioabZlmFYtWhL+TRYpcnNlLwhyxaM9kWTDEmfnprqik=
