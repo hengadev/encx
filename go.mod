@@ -1,4 +1,4 @@
-module encryptor
+module github.com/hengadev/encx
 
 go 1.23.0
 
