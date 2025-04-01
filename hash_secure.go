@@ -63,7 +63,6 @@ func handleSecureHashing(
 
 	// Find target hashed field
 	targetFieldName := field.Name + HASHED_FIELD_SUFFIX
-	fmt.Println("target field name:", targetFieldName)
 	targetField := structValue.FieldByName(targetFieldName)
 
 	if !targetField.IsValid() || !targetField.CanSet() {

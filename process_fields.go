@@ -67,20 +67,15 @@ func (s Encryptor) ProcessFields(obj any) error {
 			continue
 		}
 
-		fmt.Println("encrypting", field.Name)
-
 		tags := strings.Split(tagValue, ",")
 		for _, tag := range tags {
 			switch tag {
 			case "encrypt":
 				handleEncryption(field, fieldValue, v, gcm, &errs)
-
 			case "hash_basic":
-				// if err := handle(helper.HashBasicString, helper.HashBasicInt, helper.HashBasicTime); err != nil {
-				// }
+				handleBasicHashing(field, fieldValue, v, &errs)
 			case "hash_secure":
-				// NOTE: that thing does not work the way I want it to
-				// handleSecureHashing(field, fieldValue, v, s.Argon2Params, s.Pepper, &errs)
+				handleSecureHashing(field, fieldValue, v, s.Argon2Params, s.Pepper, &errs)
 			}
 		}
 	}
