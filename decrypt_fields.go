@@ -11,7 +11,7 @@ import (
 )
 
 // DecryptFields decrypts all fields in a struct marked with the encrypt tag
-func (s *Encryptor) DecryptFields(data any) error {
+func (s *CryptoEngine) DecryptFields(data any) error {
 	// Create error collector
 	var errs errsx.Map
 

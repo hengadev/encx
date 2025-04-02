@@ -11,7 +11,7 @@ import (
 	"github.com/hengadev/errsx"
 )
 
-func (s Encryptor) ProcessFields(obj any) error {
+func (s CryptoEngine) ProcessFields(obj any) error {
 	errs := make(errsx.Map)
 
 	v := reflect.ValueOf(obj)

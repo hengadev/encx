@@ -6,13 +6,13 @@ import (
 	"io"
 )
 
-type Encryptor struct {
+type CryptoEngine struct {
 	KeyEncryptionKey  []byte // 32 bytes for AES-256
 	Pepper            []byte // Additional security for password hashing
 	Argon2Params      *Argon2Params
 }
 
-func New(encryptionKey string) (*Encryptor, error) {
+func New(encryptionKey string) (*CryptoEngine, error) {
 	// Convert hex-encoded key to bytes
 	key, err := hex.DecodeString(encryptionKey)
 	if err != nil {
@@ -23,7 +23,7 @@ func New(encryptionKey string) (*Encryptor, error) {
 	if _, err := io.ReadFull(rand.Reader, pepper); err != nil {
 		return nil, err
 	}
-	return &Encryptor{
+	return &CryptoEngine{
 		KeyEncryptionKey: key,
 		Pepper:           pepper,
 		Argon2Params:     DefaultArgon2Params(),

@@ -10,8 +10,7 @@ import (
 	"golang.org/x/crypto/argon2"
 )
 
-// func (s Encryptor) CompareBasicHashAndValue(value string, hash string) (bool, error) {
-func (s Encryptor) CompareSecureHashAndValue(value any, hashValue string) (bool, error) {
+func (s CryptoEngine) CompareSecureHashAndValue(value any, hashValue string) (bool, error) {
 	// Extract the hash parameters
 	parts := strings.Split(hashValue, "$")
 	if len(parts) != 6 {
@@ -80,7 +79,7 @@ func (s Encryptor) CompareSecureHashAndValue(value any, hashValue string) (bool,
 	return subtle.ConstantTimeCompare(decodedHash, computedHash) == 1, nil
 }
 
-func (s Encryptor) CompareBasicHashAndValue(value any, hashValue string) (bool, error) {
+func (s CryptoEngine) CompareBasicHashAndValue(value any, hashValue string) (bool, error) {
 	// Convert the input value to a string based on its type
 	var strValue string
 	switch v := value.(type) {
