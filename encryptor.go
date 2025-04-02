@@ -7,9 +7,9 @@ import (
 )
 
 type CryptoEngine struct {
-	KeyEncryptionKey  []byte // 32 bytes for AES-256
-	Pepper            []byte // Additional security for password hashing
-	Argon2Params      *Argon2Params
+	KeyEncryptionKey []byte // 32 bytes for AES-256
+	Pepper           []byte // Additional security for password hashing
+	Argon2Params     *Argon2Params
 }
 
 func New(encryptionKey string) (*CryptoEngine, error) {
