@@ -9,6 +9,22 @@ type Argon2Params struct {
 	KeyLength   uint32
 }
 
+func NewArgon2Params(
+	memory uint32,
+	iterations uint32,
+	parallelism uint8,
+	saltLength uint32,
+	keyLength uint32,
+) *Argon2Params {
+	return &Argon2Params{
+		Memory:      memory,
+		Iterations:  iterations,
+		Parallelism: parallelism,
+		SaltLength:  saltLength,
+		KeyLength:   keyLength,
+	}
+}
+
 // DefaultArgon2Params returns recommended parameters for Argon2id
 func DefaultArgon2Params() *Argon2Params {
 	return &Argon2Params{
