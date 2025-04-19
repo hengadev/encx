@@ -4,13 +4,36 @@ import (
 	"crypto/subtle"
 	"encoding/base64"
 	"fmt"
+	"reflect"
 	"strings"
 	"time"
+
+	"github.com/hengadev/encx/internal/hash"
 
 	"golang.org/x/crypto/argon2"
 )
 
-func (s CryptoEngine) CompareSecureHashAndValue(value any, hashValue string) (bool, error) {
+func (s *Crypto) CompareSecureHashAndValue(value any, hashValue string) (bool, error) {
+	// Handle nil value
+	if value == nil {
+		return false, fmt.Errorf("value cannot be nil for secure comparison")
+	}
+
+	// Get the value type using reflection
+	valueType := reflect.TypeOf(value)
+	valueVal := reflect.ValueOf(value)
+
+	// Handle nil pointer
+	if valueType.Kind() == reflect.Ptr && valueVal.IsNil() {
+		return false, fmt.Errorf("value pointer cannot be nil for secure comparison")
+	}
+
+	// Dereference pointer if needed
+	if valueType.Kind() == reflect.Ptr {
+		valueVal = valueVal.Elem()
+		value = valueVal.Interface()
+	}
+
 	// Extract the hash parameters
 	parts := strings.Split(hashValue, "$")
 	if len(parts) != 6 {
@@ -63,7 +86,8 @@ func (s CryptoEngine) CompareSecureHashAndValue(value any, hashValue string) (bo
 	}
 
 	// Combine value with pepper
-	peppered := append([]byte(strValue), s.Pepper...)
+	// peppered := append([]byte(strValue), s.pepper...)
+	peppered := append([]byte(strValue), s.pepper[:]...)
 
 	// Hash the input value with the same parameters
 	computedHash := argon2.IDKey(
@@ -79,7 +103,28 @@ func (s CryptoEngine) CompareSecureHashAndValue(value any, hashValue string) (bo
 	return subtle.ConstantTimeCompare(decodedHash, computedHash) == 1, nil
 }
 
-func (s CryptoEngine) CompareBasicHashAndValue(value any, hashValue string) (bool, error) {
+func (s *Crypto) CompareBasicHashAndValue(value any, hashValue string) (bool, error) {
+	// Handle nil value
+	if value == nil {
+		return hash.Basic("") == hashValue, nil
+	}
+
+	// Get the value type using reflection
+	valueType := reflect.TypeOf(value)
+	valueVal := reflect.ValueOf(value)
+
+	// Dereference pointer if needed
+	if valueType.Kind() == reflect.Ptr {
+		// Handle nil pointer
+		if valueVal.IsNil() {
+			return hash.Basic("") == hashValue, nil
+		}
+		// Update to the dereferenced value
+		valueVal = valueVal.Elem()
+		valueType = valueType.Elem()
+		value = valueVal.Interface()
+	}
+
 	// Convert the input value to a string based on its type
 	var strValue string
 	switch v := value.(type) {
@@ -101,9 +146,6 @@ func (s CryptoEngine) CompareBasicHashAndValue(value any, hashValue string) (boo
 		return false, fmt.Errorf("unsupported value type: %T", value)
 	}
 
-	// Compute hash of the provided value
-	computedHash := hashBasic(strValue)
-
 	// Compare the computed hash with the provided hash
-	return computedHash == hashValue, nil
+	return hash.Basic(strValue) == hashValue, nil
 }
