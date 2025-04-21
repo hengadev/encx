@@ -1,4 +1,4 @@
-package encxerr
+package encx
 
 type Action int8
 
