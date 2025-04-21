@@ -14,6 +14,7 @@ type Crypto struct {
 	kekAlias     string
 	pepper       [16]byte
 	argon2Params *types.Argon2Params
+	serializer   Serializer // Add the Serializer field
 }
 
 // NewCrypto creates a new Crypto instance, initializing the KMS service and retrieving necessary secrets and KEK ID.
@@ -23,6 +24,7 @@ func New(
 	kekAlias string,
 	argon2Params *types.Argon2Params,
 	pepperSecretPath string,
+	serializer ...Serializer,
 ) (*Crypto, error) {
 	pepperBytes, err := kmsService.GetSecret(ctx, pepperSecretPath)
 	if err != nil {
@@ -45,6 +47,13 @@ func New(
 		pepper:       pepper,
 		argon2Params: argon2Params,
 	}
+
+	if len(serializer) > 0 {
+		cryptoInstance.serializer = serializer[0]
+	} else {
+		cryptoInstance.serializer = JSONSerializer{} // Set a default serializer
+	}
+
 	// Ensure an initial KEK exists for this alias
 	err = cryptoInstance.ensureInitialKEK(ctx)
 	if err != nil {
