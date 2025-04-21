@@ -60,13 +60,10 @@ func (a *Argon2Params) Validate() error {
 	return errs.AsError()
 }
 
-// DefaultArgon2Params returns recommended parameters for Argon2id
-func DefaultArgon2Params() *Argon2Params {
-	return &Argon2Params{
-		Memory:      64 * 1024, // 64MB
-		Iterations:  3,
-		Parallelism: 2,
-		SaltLength:  16,
-		KeyLength:   32,
-	}
+var DefaultArgon2Params = &Argon2Params{
+	Memory:      64 * 1024, // 64MB
+	Iterations:  3,
+	Parallelism: 2,
+	SaltLength:  16,
+	KeyLength:   32,
 }
