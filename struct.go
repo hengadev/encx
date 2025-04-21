@@ -10,21 +10,22 @@ import (
 // or if the pointer is not settable.
 func validateObjectForProcessing(object any) error {
 	if object == nil {
-		return fmt.Errorf("nil object encountered: the object can not be processed for encryption")
+		return fmt.Errorf("%w: object cannot be nil", ErrNilPointer)
 	}
 	v := reflect.ValueOf(object)
 	if v.Kind() != reflect.Ptr {
-		return NewInvalidKindError("Must be a pointer to a struct.")
+		return fmt.Errorf("%w: must be a pointer to a struct", ErrInvalidFieldType)
+
 	}
 	if v.IsNil() { // Check for nil pointer after getting Value
-		return fmt.Errorf("nil pointer to struct encountered: the object cannot be processed")
+		return fmt.Errorf("%w: pointer to struct cannot be nil", ErrNilPointer)
 	}
 	elem := v.Elem()
 	if elem.Kind() != reflect.Struct {
-		return NewInvalidKindError("Must be a pointer to a struct.")
+		return fmt.Errorf("%w: must be a pointer to a struct", ErrInvalidFieldType)
 	}
 	if !v.CanSet() { // Check if the pointer's value can be modified
-		return fmt.Errorf("cannot set value on the provided pointer")
+		return fmt.Errorf("%w: cannot set value on the provided pointer", ErrOperationFailed)
 	}
 	return nil
 }
