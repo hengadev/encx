@@ -75,3 +75,15 @@ func (c *Crypto) validateDEKField(object any) ([]byte, error) {
 
 	return dek, errs.AsError()
 }
+
+
+// setEncryptedDEK encrypts the provided DEK using the KMS and sets the resulting ciphertext in the DEKEncrypted field of the given reflect.Value.
+func (c *Crypto) setEncryptedDEK(ctx context.Context, v reflect.Value, dek []byte) error {
+	encryptedDEK, err := c.EncryptDEK(ctx, dek)
+	if err != nil {
+		return fmt.Errorf("failed to encrypt DEK: %w", err)
+	}
+	encryptedDEKField := v.FieldByName(DEK_ENCRYPTED_FIELD)
+	encryptedDEKField.SetBytes(encryptedDEK)
+	return nil
+}
