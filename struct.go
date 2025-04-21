@@ -1,6 +1,7 @@
 package encx
 
 import (
+	"context"
 	"encoding/base64"
 	"fmt"
 	"reflect"
@@ -8,6 +9,43 @@ import (
 
 	"github.com/hengadev/errsx"
 )
+
+func (c *Crypto) Process(ctx context.Context, object any) error {
+	var validErrs errsx.Map
+	if err := validateObjectForProcessing(object); err != nil {
+		validErrs.Set("validate object for struct encryption", err)
+	}
+
+	v := reflect.ValueOf(object).Elem()
+	t := v.Type()
+
+	dek, err := c.validateDEKField(object)
+	if err != nil {
+		validErrs.Set("validate DEK related field for struct encryption", err)
+	}
+
+	if validErrs.IsEmpty() {
+		return validErrs.AsError()
+	}
+
+	var processErrs errsx.Map
+	for i := range t.NumField() {
+		field := t.Field(i)
+		if tag := field.Tag.Get(STRUCT_TAG); tag != "" {
+			if err := c.processField(ctx, v, field); err != nil {
+				processErrs.Set(fmt.Sprintf("processing field '%s'", field.Name), err)
+			}
+		}
+	}
+
+	// TODO: I also need to set the version for this (using the database and shit if the latest version is not up to date)
+	if err := c.setEncryptedDEK(ctx, v, dek); err != nil {
+		processErrs.Set("set encrypted DEK field", err)
+	}
+
+	return processErrs.AsError()
+}
+
 // validateObjectForProcessing checks if the provided object is a non-nil pointer to a struct.
 // It returns an error if the object is nil, not a pointer, or not pointing to a struct,
 // or if the pointer is not settable.
