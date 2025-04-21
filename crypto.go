@@ -6,15 +6,14 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/hengadev/encx/internal/types"
 )
 
 type Crypto struct {
 	kmsService   KeyManagementService
 	kekAlias     string
 	pepper       [16]byte
-	argon2Params *types.Argon2Params
 	serializer   Serializer // Add the Serializer field
+	argon2Params  *Argon2Params
 }
 
 // NewCrypto creates a new Crypto instance, initializing the KMS service and retrieving necessary secrets and KEK ID.
