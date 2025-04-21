@@ -94,48 +94,60 @@ func (c *Crypto) processField(ctx context.Context, v reflect.Value, field reflec
 		case ENCRYPT:
 			encryptedFieldName := field.Name + ENCRYPTED_FIELD_SUFFIX
 			encryptedField := v.FieldByName(encryptedFieldName)
-			if encryptedField.IsValid() && encryptedField.CanSet() {
-				plaintext, err := c.serializer.Serialize(fieldVal)
-				if err != nil {
-					return fmt.Errorf("failed to serialize field '%s': %w", field.Name, err)
-				}
-				dekField := v.FieldByName(DEK_FIELD)
-				dek, ok := dekField.Interface().([]byte)
-				if !ok || len(dek) != 32 {
-					return fmt.Errorf("invalid DEK in field '%s'", DEK_FIELD)
-				}
-				ciphertext, err := c.EncryptData(plaintext, dek)
-				if err != nil {
-					return fmt.Errorf("encryption failed for field '%s': %w", field.Name, err)
-				}
-				// Set the encrypted value
-				encryptedField.SetString(base64.StdEncoding.EncodeToString(ciphertext))
+			if !encryptedField.IsValid() {
+				return NewMissingTargetFieldError(field.Name, encryptedFieldName, Encrypt)
 			}
+			if !encryptedField.CanSet() {
+				return NewOperationFailedError(encryptedFieldName, Encrypt, "field is not settable")
+			}
+			plaintext, err := c.serializer.Serialize(fieldVal)
+			if err != nil {
+				return fmt.Errorf("failed to serialize field '%s' for encryption: %w", field.Name, err) // Keep underlying error
+			}
+			dekField := v.FieldByName(DEK_FIELD)
+			dek, ok := dekField.Interface().([]byte)
+			if !ok || len(dek) != 32 {
+				return NewInvalidFormatError(DEK_FIELD, "32-byte []byte", Encrypt)
+			}
+			ciphertext, err := c.EncryptData(plaintext, dek)
+			if err != nil {
+				return fmt.Errorf("encryption failed for field '%s': %w", field.Name, err) // Keep underlying error
+			}
+			// Set the encrypted value
+			encryptedField.SetString(base64.StdEncoding.EncodeToString(ciphertext))
 		case SECURE:
 			hashFieldName := field.Name + HASHED_FIELD_SUFFIX
 			hashField := v.FieldByName(hashFieldName)
-			if hashField.IsValid() && hashField.CanSet() {
-				valueToHashBytes, err := c.serializer.Serialize(fieldVal)
-				if err != nil {
-					return fmt.Errorf("failed to serialize field '%s' for hashing: %w", field.Name, err)
-				}
-				hashedValue, err := c.HashSecure(valueToHashBytes)
-				if err != nil {
-					return fmt.Errorf("secure hashing failed for field '%s': %w", field.Name, err)
-				}
-				hashField.SetString(hashedValue)
+			if !hashField.IsValid() {
+				return NewMissingTargetFieldError(field.Name, hashFieldName, SecureHash)
 			}
+			if !hashField.CanSet() {
+				return NewOperationFailedError(hashFieldName, SecureHash, "field is not settable")
+			}
+			valueToHashBytes, err := c.serializer.Serialize(fieldVal)
+			if err != nil {
+				return fmt.Errorf("failed to serialize field '%s' for secure hashing: %w", field.Name, err) // Keep underlying error
+			}
+			hashedValue, err := c.HashSecure(valueToHashBytes)
+			if err != nil {
+				return fmt.Errorf("secure hashing failed for field '%s': %w", field.Name, err) // Keep underlying error
+			}
+			hashField.SetString(hashedValue)
 		case BASIC:
 			hashFieldName := field.Name + HASHED_FIELD_SUFFIX
 			hashField := v.FieldByName(hashFieldName)
-			if hashField.IsValid() && hashField.CanSet() {
-				valueToHash, err := c.serializer.Serialize(fieldVal)
-				if err != nil {
-					return fmt.Errorf("failed to serialize field '%s' for basic hashing: %w", field.Name, err)
-				}
-				hashedValue := c.HashBasic(valueToHash)
-				hashField.SetString(hashedValue)
+			if !hashField.IsValid() {
+				return NewMissingTargetFieldError(field.Name, hashFieldName, BasicHash)
 			}
+			if !hashField.CanSet() {
+				return NewOperationFailedError(hashFieldName, BasicHash, "field is not settable")
+			}
+			valueToHash, err := c.serializer.Serialize(fieldVal)
+			if err != nil {
+				return fmt.Errorf("failed to serialize field '%s' for basic hashing: %w", field.Name, err)
+			}
+			hashedValue := c.HashBasic(valueToHash)
+			hashField.SetString(hashedValue)
 		}
 	}
 
