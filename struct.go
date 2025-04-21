@@ -90,7 +90,7 @@ func (c *Crypto) processField(ctx context.Context, v reflect.Value, field reflec
 	for _, op := range operations {
 		op = strings.TrimSpace(op)
 		switch op {
-		case "encrypt":
+		case ENCRYPT:
 			encryptedFieldName := field.Name + ENCRYPTED_FIELD_SUFFIX
 			encryptedField := v.FieldByName(encryptedFieldName)
 			if encryptedField.IsValid() && encryptedField.CanSet() {
@@ -110,7 +110,7 @@ func (c *Crypto) processField(ctx context.Context, v reflect.Value, field reflec
 				// Set the encrypted value
 				encryptedField.SetString(base64.StdEncoding.EncodeToString(ciphertext))
 			}
-		case "hash_secure":
+		case SECURE:
 			hashFieldName := field.Name + HASHED_FIELD_SUFFIX
 			hashField := v.FieldByName(hashFieldName)
 			if hashField.IsValid() && hashField.CanSet() {
@@ -124,7 +124,7 @@ func (c *Crypto) processField(ctx context.Context, v reflect.Value, field reflec
 				}
 				hashField.SetString(hashedValue)
 			}
-		case "hash_basic":
+		case BASIC:
 			hashFieldName := field.Name + HASHED_FIELD_SUFFIX
 			hashField := v.FieldByName(hashFieldName)
 			if hashField.IsValid() && hashField.CanSet() {
