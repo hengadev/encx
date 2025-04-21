@@ -7,9 +7,10 @@ import (
 
 var (
 	// Field errors
-	ErrMissingField     = errors.New("missing required field")
-	ErrInvalidFieldType = errors.New("invalid field type")
-	ErrUnsupportedType  = errors.New("unsupported type")
+	ErrMissingField       = errors.New("missing required field")
+	ErrMissingTargetField = errors.New("missing required target field")
+	ErrInvalidFieldType   = errors.New("invalid field type")
+	ErrUnsupportedType    = errors.New("unsupported type")
 
 	// Conversion errors
 	ErrTypeConversion = errors.New("type conversion failed")
@@ -20,8 +21,12 @@ var (
 	ErrInvalidFormat   = errors.New("invalid format")
 )
 
-func NewMissingFieldError(fieldName string, targetFieldName string, action Action) error {
-	return fmt.Errorf("%w: '%s' is required to %s %s", ErrMissingField, targetFieldName, action, fieldName)
+func NewMissingFieldError(fieldName string, action Action) error {
+	return fmt.Errorf("%w: '%s' is required to %s", ErrMissingTargetField, fieldName, action)
+}
+
+func NewMissingTargetFieldError(fieldName string, targetFieldName string, action Action) error {
+	return fmt.Errorf("%w: '%s' is required to %s %s", ErrMissingTargetField, targetFieldName, action, fieldName)
 }
 
 func NewInvalidFieldTypeError(fieldName string, expectedType, actualType string, action Action) error {
