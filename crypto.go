@@ -1,0 +1,79 @@
+package encx
+
+import (
+	"context"
+	"database/sql"
+	"encoding/base64"
+	"fmt"
+	"log"
+
+	"github.com/hengadev/encx/internal/types"
+)
+
+type Crypto struct {
+	kmsService   KeyManagementService
+	kekAlias     string
+	pepper       [16]byte
+	argon2Params *types.Argon2Params
+}
+
+// NewCrypto creates a new Crypto instance, initializing the KMS service and retrieving necessary secrets and KEK ID.
+func New(
+	ctx context.Context,
+	kmsService KeyManagementService,
+	kekAlias string,
+	argon2Params *types.Argon2Params,
+	pepperSecretPath string,
+) (*Crypto, error) {
+	pepperBytes, err := kmsService.GetSecret(ctx, pepperSecretPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to retrieve pepper from KMS: %w", err)
+	}
+	if len(pepperBytes) != 16 {
+		return nil, fmt.Errorf("invalid pepper length retrieved from KMS: expected 16, got %d", len(pepperBytes))
+	}
+	var pepper [16]byte
+	copy(pepper[:], pepperBytes)
+
+	// handle nil case for argon2Params
+	if argon2Params == nil {
+		argon2Params = types.DefaultArgon2Params()
+	}
+
+	cryptoInstance := &Crypto{
+		kmsService:   kmsService,
+		kekAlias:     kekAlias,
+		pepper:       pepper,
+		argon2Params: argon2Params,
+	}
+	// Ensure an initial KEK exists for this alias
+	err = cryptoInstance.ensureInitialKEK(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to ensure initial KEK: %w", err)
+	}
+
+	return cryptoInstance, nil
+}
+
+// ensureInitialKEK checks if a KEK exists for the given alias and creates one if not.
+func (c *Crypto) ensureInitialKEK(ctx context.Context) error {
+	currentVersion, err := c.getCurrentKEKVersion(ctx, c.kekAlias)
+	if err != nil {
+		return err
+	}
+	if currentVersion == 0 {
+		// No key exists, create the first one
+		kmsKeyID, err := c.kmsService.CreateKey(ctx, c.kekAlias) // Use the alias as a description
+		if err != nil {
+			return fmt.Errorf("failed to create initial KEK in KMS: %w", err)
+		}
+		_, err = keyMetadataDB.Exec(`
+			INSERT INTO kek_versions (alias, version, kms_key_id) VALUES (?, ?, ?)
+		`, c.kekAlias, 1, kmsKeyID)
+		if err != nil {
+			return fmt.Errorf("failed to record initial KEK in metadata DB: %w", err)
+		}
+		log.Printf("Initial KEK created for alias '%s' with KMS ID '%s'", c.kekAlias, kmsKeyID)
+	}
+	return nil
+}
