@@ -43,7 +43,8 @@ func (c *Crypto) validateDEKField(object any) ([]byte, error) {
 
 	dekFieldValue := v.FieldByName(DEK_FIELD)
 	if !dekFieldValue.IsValid() {
-		return nil, fmt.Errorf("field '%s' is required", DEK_FIELD)
+		return nil, NewMissingFieldError(DEK_FIELD, Encrypt)
+
 	}
 
 	var dek []byte
@@ -54,27 +55,27 @@ func (c *Crypto) validateDEKField(object any) ([]byte, error) {
 		// Generate default DEK
 		defaultDEK, err := c.GenerateDEK()
 		if err != nil {
-			return nil, fmt.Errorf("failed to generate default DEK: %w", err)
+			return nil, fmt.Errorf("failed to generate default DEK: %w", err) // Keep standard error for internal failure
 		}
 		dek = defaultDEK
 		dekFieldValue.Set(reflect.ValueOf(dek)) // Set the generated DEK back to the struct
 	} else {
-		return nil, fmt.Errorf("field '%s' must be a 32-byte []byte or nil/empty for default generation", DEK_FIELD)
+		return nil, NewInvalidFieldTypeError(DEK_FIELD, "[]byte (length 32) or empty for default generation", dekFieldValue.Type().String(), Encrypt)
 	}
 
 	if !dekFieldValue.CanSet() {
-		return nil, fmt.Errorf("field '%s' is not settable", DEK_FIELD)
+		return nil, NewOperationFailedError(DEK_FIELD, Encrypt, "field is not settable")
 	}
 
 	encryptedDEKField := v.FieldByName(DEK_ENCRYPTED_FIELD)
 	if !encryptedDEKField.IsValid() {
-		return nil, fmt.Errorf("field '%s' is required for storing the encrypted DEK", DEK_ENCRYPTED_FIELD)
+		return nil, NewMissingTargetFieldError(DEK_FIELD, DEK_ENCRYPTED_FIELD, Encrypt)
 	}
 	if encryptedDEKField.Kind() != reflect.Slice || encryptedDEKField.Type().Elem().Kind() != reflect.Uint8 {
-		return nil, fmt.Errorf("field '%s' must be of type []byte", DEK_ENCRYPTED_FIELD)
+		return nil, NewInvalidFieldTypeError(DEK_ENCRYPTED_FIELD, "[]byte", encryptedDEKField.Type().String(), Encrypt)
 	}
 	if !encryptedDEKField.CanSet() {
-		return nil, fmt.Errorf("field '%s' is not settable", DEK_ENCRYPTED_FIELD)
+		return nil, NewOperationFailedError(DEK_ENCRYPTED_FIELD, Encrypt, "field is not settable")
 	}
 
 	return dek, errs.AsError()
