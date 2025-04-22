@@ -5,16 +5,18 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
+	"os"
+	"path/filepath"
 
 	_ "github.com/mattn/go-sqlite3"
 )
 
 type Crypto struct {
-	kmsService   KeyManagementService
-	kekAlias     string
-	pepper       [16]byte
-	serializer   Serializer // Add the Serializer field
+	kmsService    KeyManagementService
+	kekAlias      string
+	pepper        [16]byte
 	argon2Params  *Argon2Params
+	serializer    Serializer // Add the Serializer field
 	keyMetadataDB *sql.DB
 }
 
@@ -23,9 +25,8 @@ func New(
 	ctx context.Context,
 	kmsService KeyManagementService,
 	kekAlias string,
-	argon2Params *types.Argon2Params,
 	pepperSecretPath string,
-	serializer ...Serializer,
+	options ...CryptoOption,
 ) (*Crypto, error) {
 	pepperBytes, err := kmsService.GetSecret(ctx, pepperSecretPath)
 	if err != nil {
@@ -37,22 +38,53 @@ func New(
 	var pepper [16]byte
 	copy(pepper[:], pepperBytes)
 
-	// handle nil case for argon2Params
-	if argon2Params == nil {
-		argon2Params = types.DefaultArgon2Params()
-	}
-
+	var dbPath string
 	cryptoInstance := &Crypto{
-		kmsService:   kmsService,
-		kekAlias:     kekAlias,
-		pepper:       pepper,
-		argon2Params: argon2Params,
+		kmsService:    kmsService,
+		kekAlias:      kekAlias,
+		pepper:        pepper,
+		argon2Params:  DefaultArgon2Params,
+		serializer:    JSONSerializer{}, // default serializer
+		keyMetadataDB: nil,
 	}
 
-	if len(serializer) > 0 {
-		cryptoInstance.serializer = serializer[0]
-	} else {
-		cryptoInstance.serializer = JSONSerializer{} // Set a default serializer
+	for _, opt := range options {
+		if err := opt(cryptoInstance); err != nil {
+			return nil, fmt.Errorf("setting option: %w", err)
+		}
+		if cryptoInstance.keyMetadataDB != nil {
+			dbPath = ""
+		}
+	}
+
+	if dbPath == "" {
+		cwd, err := os.Getwd()
+		if err != nil {
+			return nil, fmt.Errorf("failed to get current working directory for default DB path: %w", err)
+		}
+		dbPath := filepath.Join(cwd, defaultDBFileName)
+		db, err := sql.Open("sqlite3", dbPath)
+		if err != nil {
+			return nil, fmt.Errorf("failed to open key metadata database: %v", err)
+		}
+		cryptoInstance.keyMetadataDB = db
+	} else if cryptoInstance.keyMetadataDB == nil {
+		// This case should ideally not happen if WithKeyMetadataDBPath works correctly
+		return nil, fmt.Errorf("keyMetadataDB path was provided but database connection was not established")
+	}
+
+	_, err = cryptoInstance.keyMetadataDB.Exec(`
+		CREATE TABLE IF NOT EXISTS kek_versions (
+			alias TEXT NOT NULL,
+			version INTEGER NOT NULL,
+			creation_time DATETIME DEFAULT CURRENT_TIMESTAMP,
+			is_deprecated BOOLEAN DEFAULT FALSE,
+			kms_key_id TEXT NOT NULL,
+			PRIMARY KEY (alias, version)
+		);
+	`)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create kek_versions table in database at '%s': %w", dbPath, err)
 	}
 
 	// Ensure an initial KEK exists for this alias
