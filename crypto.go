@@ -14,7 +14,7 @@ import (
 type Crypto struct {
 	kmsService    KeyManagementService
 	kekAlias      string
-	pepper        [16]byte
+	pepper        []byte
 	argon2Params  *Argon2Params
 	serializer    Serializer // Add the Serializer field
 	keyMetadataDB *sql.DB
@@ -35,7 +35,7 @@ func New(
 	if len(pepperBytes) != 16 {
 		return nil, fmt.Errorf("invalid pepper length retrieved from KMS: expected 16, got %d", len(pepperBytes))
 	}
-	var pepper [16]byte
+	var pepper []byte
 	copy(pepper[:], pepperBytes)
 
 	var dbPath string

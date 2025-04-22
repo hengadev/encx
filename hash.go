@@ -57,7 +57,7 @@ func (c *Crypto) HashSecure(value []byte) (string, error) {
 	return params, nil
 }
 
-func isZeroPepper(pepper [16]byte) bool {
+func isZeroPepper(pepper []byte) bool {
 	for _, b := range pepper {
 		if b != 0 {
 			return false
