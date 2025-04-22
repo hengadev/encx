@@ -38,12 +38,31 @@ func (c *Crypto) Process(ctx context.Context, object any) error {
 		}
 	}
 
-	// TODO: I also need to set the version for this (using the database and shit if the latest version is not up to date)
 	if err := c.setEncryptedDEK(ctx, v, dek); err != nil {
 		processErrs.Set("set encrypted DEK field", err)
 	}
 
+	if err := c.setKeyVersion(ctx, v); err != nil {
+		processErrs.Set("set key version field", err)
+	}
+
 	return processErrs.AsError()
+}
+
+func (c *Crypto) setKeyVersion(ctx context.Context, v reflect.Value) error {
+	// Get the current KEK version
+	currentVersion, err := c.getCurrentKEKVersion(ctx, c.kekAlias)
+	if err != nil {
+		return fmt.Errorf("failed to get current KEK version: %w", err)
+	}
+	// Set the KeyVersion field in the struct
+	keyVersionField := v.FieldByName(VERSION_FIELD)
+	if keyVersionField.IsValid() && keyVersionField.CanSet() && keyVersionField.Kind() == reflect.Int {
+		keyVersionField.SetInt(int64(currentVersion))
+	} else {
+		return fmt.Errorf("invalid or non-settable '%s' field in struct", VERSION_FIELD)
+	}
+	return nil
 }
 
 // validateObjectForProcessing checks if the provided object is a non-nil pointer to a struct.
@@ -56,7 +75,6 @@ func validateObjectForProcessing(object any) error {
 	v := reflect.ValueOf(object)
 	if v.Kind() != reflect.Ptr {
 		return fmt.Errorf("%w: must be a pointer to a struct", ErrInvalidFieldType)
-
 	}
 	if v.IsNil() { // Check for nil pointer after getting Value
 		return fmt.Errorf("%w: pointer to struct cannot be nil", ErrNilPointer)
@@ -82,7 +100,6 @@ func (c *Crypto) validateDEKField(object any) ([]byte, error) {
 	dekFieldValue := v.FieldByName(DEK_FIELD)
 	if !dekFieldValue.IsValid() {
 		return nil, NewMissingFieldError(DEK_FIELD, Encrypt)
-
 	}
 
 	var dek []byte
