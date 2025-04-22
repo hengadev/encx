@@ -16,4 +16,13 @@ type User struct {
     Password string `encx:"hash_secure"`
     Address  string `encx:"encrypt"`
 }
+``````
+
+## Important: Version Control (.gitignore)
+
+When using the `encx` package, it's **highly recommended** to add the following line to your project's `.gitignore` file:
+
+```gitignore
+.encx/
+```
 

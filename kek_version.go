@@ -13,12 +13,9 @@ import (
 
 const defaultDBFileName = ".key_metadata.db" // Name of your SQLite database file
 
-type KEKVersion struct {
-	Alias        string    `gorm:"primaryKey"`
-	Version      int       `gorm:"primaryKey;autoIncrement:false"`
-	CreationTime time.Time `gorm:"default:CURRENT_TIMESTAMP"`
-	IsDeprecated bool      `gorm:"default:false"`
-	KMSKeyID     string    // Identifier of the key in your KMS (e.g., Vault's transit key name, AWS KMS ARN)
+func generateDBname() string {
+	timestamp := time.Now().Format("20060102_150405")
+	return fmt.Sprintf("%s_%s.db", defaultDBFileName, timestamp)
 }
 
 // getKMSKeyIDForVersion retrieves the KMS Key ID for a specific KEK version and alias.

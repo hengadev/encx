@@ -16,7 +16,7 @@ type Crypto struct {
 	kekAlias      string
 	pepper        []byte
 	argon2Params  *Argon2Params
-	serializer    Serializer // Add the Serializer field
+	serializer    Serializer
 	keyMetadataDB *sql.DB
 }
 
@@ -39,6 +39,8 @@ func New(
 	copy(pepper[:], pepperBytes)
 
 	var dbPath string
+	foundDBPathOption := false
+
 	cryptoInstance := &Crypto{
 		kmsService:    kmsService,
 		kekAlias:      kekAlias,
@@ -53,24 +55,33 @@ func New(
 			return nil, fmt.Errorf("setting option: %w", err)
 		}
 		if cryptoInstance.keyMetadataDB != nil {
-			dbPath = ""
+			foundDBPathOption = true
 		}
 	}
 
-	if dbPath == "" {
+	if foundDBPathOption {
 		cwd, err := os.Getwd()
 		if err != nil {
 			return nil, fmt.Errorf("failed to get current working directory for default DB path: %w", err)
 		}
-		dbPath := filepath.Join(cwd, defaultDBFileName)
+		defaultDataDir := filepath.Join(cwd, ".encx")
+		if err := os.MkdirAll(defaultDataDir, 0700); err != nil {
+			return nil, fmt.Errorf("failed to create default '.encx' directory to store key tracking database: %w", err)
+		}
+		dbPath = filepath.Join(defaultDataDir, generateDBname())
+	} else if cryptoInstance.keyMetadataDB != nil {
+		dbPath = ""
+	} else {
+		// This case should ideally not happen if WithKeyMetadataDBPath works correctly
+		return nil, fmt.Errorf("keyMetadataDB path was provided but database connection was not established")
+	}
+
+	if dbPath != "" {
 		db, err := sql.Open("sqlite3", dbPath)
 		if err != nil {
 			return nil, fmt.Errorf("failed to open key metadata database: %v", err)
 		}
 		cryptoInstance.keyMetadataDB = db
-	} else if cryptoInstance.keyMetadataDB == nil {
-		// This case should ideally not happen if WithKeyMetadataDBPath works correctly
-		return nil, fmt.Errorf("keyMetadataDB path was provided but database connection was not established")
 	}
 
 	_, err = cryptoInstance.keyMetadataDB.Exec(`
