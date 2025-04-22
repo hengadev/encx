@@ -2,7 +2,6 @@ package encx
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"log"
 	"time"
@@ -12,32 +11,7 @@ import (
 
 // exemple d'alias : user_data_kek
 
-const keyMetadataDBFile = "key_metadata.db" // Name of your SQLite database file
-
-var keyMetadataDB *sql.DB
-
-func init() {
-	var err error
-	keyMetadataDB, err = sql.Open("sqlite3", keyMetadataDBFile)
-	if err != nil {
-		log.Fatalf("failed to open key metadata database: %v", err)
-	}
-	_, err = keyMetadataDB.Exec(`
-		CREATE TABLE IF NOT EXISTS kek_versions (
-			alias TEXT NOT NULL,
-			version INTEGER NOT NULL,
-			creation_time DATETIME DEFAULT CURRENT_TIMESTAMP,
-			is_deprecated BOOLEAN DEFAULT FALSE,
-			kms_key_id TEXT NOT NULL,
-			PRIMARY KEY (alias, version)
-		);
-	`)
-	if err != nil {
-		log.Fatalf("failed to create kek_versions table: %v", err)
-	}
-
-	log.Println("Key metadata database initialized.")
-}
+const defaultDBFileName = ".key_metadata.db" // Name of your SQLite database file
 
 type KEKVersion struct {
 	Alias        string    `gorm:"primaryKey"`
@@ -49,7 +23,7 @@ type KEKVersion struct {
 
 // getKMSKeyIDForVersion retrieves the KMS Key ID for a specific KEK version and alias.
 func (c *Crypto) getKMSKeyIDForVersion(ctx context.Context, alias string, version int) (string, error) {
-	row := keyMetadataDB.QueryRowContext(ctx, `
+	row := c.keyMetadataDB.QueryRowContext(ctx, `
 		SELECT kms_key_id FROM kek_versions
 		WHERE alias = ? AND version = ?
 	`, alias, version)
@@ -74,7 +48,7 @@ func (c *Crypto) RotateKEK(ctx context.Context) error {
 	}
 
 	// Mark the previous version as deprecated
-	_, err = keyMetadataDB.Exec(`
+	_, err = c.keyMetadataDB.Exec(`
 		UPDATE kek_versions SET is_deprecated = TRUE
 		WHERE alias = ? AND version = ?
 	`, c.kekAlias, currentVersion)
@@ -83,7 +57,7 @@ func (c *Crypto) RotateKEK(ctx context.Context) error {
 	}
 
 	// Record the new KEK version
-	_, err = keyMetadataDB.Exec(`
+	_, err = c.keyMetadataDB.Exec(`
 		INSERT INTO kek_versions (alias, version, kms_key_id) VALUES (?, ?, ?)
 	`, c.kekAlias, newVersion, kmsKeyID)
 	if err != nil {

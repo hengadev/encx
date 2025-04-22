@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 
+	_ "github.com/mattn/go-sqlite3"
 )
 
 type Crypto struct {
@@ -14,6 +15,7 @@ type Crypto struct {
 	pepper       [16]byte
 	serializer   Serializer // Add the Serializer field
 	argon2Params  *Argon2Params
+	keyMetadataDB *sql.DB
 }
 
 // NewCrypto creates a new Crypto instance, initializing the KMS service and retrieving necessary secrets and KEK ID.
@@ -74,7 +76,7 @@ func (c *Crypto) ensureInitialKEK(ctx context.Context) error {
 		if err != nil {
 			return fmt.Errorf("failed to create initial KEK in KMS: %w", err)
 		}
-		_, err = keyMetadataDB.Exec(`
+		_, err = c.keyMetadataDB.Exec(`
 			INSERT INTO kek_versions (alias, version, kms_key_id) VALUES (?, ?, ?)
 		`, c.kekAlias, 1, kmsKeyID)
 		if err != nil {
@@ -87,7 +89,7 @@ func (c *Crypto) ensureInitialKEK(ctx context.Context) error {
 
 // getCurrentKEKVersion retrieves the current active KEK version for a given alias.
 func (c *Crypto) getCurrentKEKVersion(ctx context.Context, alias string) (int, error) {
-	row := keyMetadataDB.QueryRowContext(ctx, `
+	row := c.keyMetadataDB.QueryRowContext(ctx, `
 		SELECT version FROM kek_versions
 		WHERE alias = ? AND is_deprecated = FALSE
 		ORDER BY version DESC
