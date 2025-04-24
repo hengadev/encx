@@ -10,7 +10,7 @@ import (
 	"github.com/hengadev/errsx"
 )
 
-func (c *Crypto) Process(ctx context.Context, object any) error {
+func (c *Crypto) ProcessStruct(ctx context.Context, object any) error {
 	var validErrs errsx.Map
 	if err := validateObjectForProcessing(object); err != nil {
 		validErrs.Set("validate object for struct encryption", err)
