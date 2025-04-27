@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
+	"log"
 	"reflect"
 	"strings"
 
@@ -104,6 +105,12 @@ func (c *Crypto) getDEK(ctx context.Context, object any, keyVersion int) ([]byte
 }
 
 func (c *Crypto) decryptField(field reflect.StructField, v, fieldVal reflect.Value, dek []byte) error {
+	for _, fieldToSkip := range FIELDS_TO_SKIP {
+		if field.Name == fieldToSkip {
+			log.Printf("Warning: Skipping decrypting for field '%s'.", field.Name)
+			return nil
+		}
+	}
 	encryptedFieldName := field.Name + ENCRYPTED_FIELD_SUFFIX
 	encryptedField := v.FieldByName(encryptedFieldName)
 	if encryptedField.IsValid() && encryptedField.Kind() == reflect.String && fieldVal.CanSet() {

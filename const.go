@@ -13,3 +13,7 @@ const (
 	SECURE  = "hash_secure"
 	BASIC   = "hash_basic"
 )
+
+var (
+	FIELDS_TO_SKIP = [3]string{DEK_FIELD, DEK_ENCRYPTED_FIELD, VERSION_FIELD}
+)

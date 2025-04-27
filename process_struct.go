@@ -129,6 +129,17 @@ func (c *Crypto) processField(ctx context.Context, v reflect.Value, field reflec
 	operations := strings.Split(tag, ",")
 	for _, op := range operations {
 		op = strings.TrimSpace(op)
+		shouldSkip := false
+		for _, fieldToSkip := range FIELDS_TO_SKIP {
+			if field.Name == fieldToSkip {
+				log.Printf("Warning: Skipping operation '%s' for field '%s'.", op, field.Name)
+				shouldSkip = true
+				break
+			}
+		}
+		if shouldSkip {
+			continue
+		}
 		switch op {
 		case ENCRYPT:
 			encryptedFieldName := field.Name + ENCRYPTED_FIELD_SUFFIX
