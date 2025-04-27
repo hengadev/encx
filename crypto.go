@@ -107,13 +107,13 @@ func New(
 
 // ensureInitialKEK checks if a KEK exists for the given alias and creates one if not.
 func (c *Crypto) ensureInitialKEK(ctx context.Context) error {
-	currentVersion, err := c.getCurrentKEKVersion(ctx, c.kekAlias)
+	kmsKeyID, err := c.kmsService.GetKeyID(ctx, c.kekAlias)
 	if err != nil {
-		return err
-	}
-	if currentVersion == 0 {
-		// No key exists, create the first one
-		kmsKeyID, err := c.kmsService.CreateKey(ctx, c.kekAlias) // Use the alias as a description
+		// Assume an error here likely means the key doesn't exist in KMS
+		// (depending on the KMS implementation's error handling).
+		// We'll proceed to create a new key.
+		log.Printf("No KEK found in KMS for alias '%s', creating a new one.", c.kekAlias)
+		kmsKeyID, err = c.kmsService.CreateKey(ctx, c.kekAlias) // Use the alias as a description
 		if err != nil {
 			return fmt.Errorf("failed to create initial KEK in KMS: %w", err)
 		}
@@ -124,7 +124,25 @@ func (c *Crypto) ensureInitialKEK(ctx context.Context) error {
 			return fmt.Errorf("failed to record initial KEK in metadata DB: %w", err)
 		}
 		log.Printf("Initial KEK created for alias '%s' with KMS ID '%s'", c.kekAlias, kmsKeyID)
+		return nil
 	}
+	currentVersion, err := c.getCurrentKEKVersion(ctx, c.kekAlias)
+	if err != nil {
+		return err
+	}
+	if currentVersion == 0 {
+		// Key exists in KMS but not in our DB (this could happen if the DB was wiped or is new)
+		// We should record it, assuming it's the first version.
+		_, err = c.keyMetadataDB.Exec(`
+			INSERT INTO kek_versions (alias, version, kms_key_id) VALUES (?, ?, ?)
+		`, c.kekAlias, 1, kmsKeyID)
+		if err != nil {
+			return fmt.Errorf("failed to record initial KEK in metadata DB: %w", err)
+		}
+		log.Printf("Initial KEK created for alias '%s' with KMS ID '%s'", c.kekAlias, kmsKeyID)
+	}
+	// Key exists in KMS and is recorded in our DB. We don't need to do anything.
+	log.Printf("KEK found in KMS for alias '%s' with KMS ID '%s', current version is %d.", c.kekAlias, kmsKeyID, currentVersion)
 	return nil
 }
 
