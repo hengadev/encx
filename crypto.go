@@ -28,15 +28,13 @@ func New(
 	pepperSecretPath string,
 	options ...CryptoOption,
 ) (*Crypto, error) {
-	pepperBytes, err := kmsService.GetSecret(ctx, pepperSecretPath)
+	pepper, err := kmsService.GetSecret(ctx, pepperSecretPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve pepper from KMS: %w", err)
 	}
-	if len(pepperBytes) != 16 {
-		return nil, fmt.Errorf("invalid pepper length retrieved from KMS: expected 16, got %d", len(pepperBytes))
+	if len(pepper) != 32 {
+		return nil, fmt.Errorf("invalid pepper length retrieved from KMS: expected 16, got %d", len(pepper))
 	}
-	var pepper []byte
-	copy(pepper[:], pepperBytes)
 
 	var dbPath string
 	foundDBPathOption := false
