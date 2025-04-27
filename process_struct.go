@@ -16,9 +16,6 @@ func (c *Crypto) ProcessStruct(ctx context.Context, object any) error {
 		validErrs.Set("validate object for struct encryption", err)
 	}
 
-	v := reflect.ValueOf(object).Elem()
-	t := v.Type()
-
 	dek, err := c.validateDEKField(object)
 	if err != nil {
 		validErrs.Set("validate DEK related field for struct encryption", err)
@@ -27,6 +24,9 @@ func (c *Crypto) ProcessStruct(ctx context.Context, object any) error {
 	if validErrs.IsEmpty() {
 		return validErrs.AsError()
 	}
+
+	v := reflect.ValueOf(object).Elem()
+	t := v.Type()
 
 	var processErrs errsx.Map
 	for i := range t.NumField() {

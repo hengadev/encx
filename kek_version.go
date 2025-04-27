@@ -11,7 +11,7 @@ import (
 
 // exemple d'alias : user_data_kek
 
-const defaultDBFileName = ".key_metadata.db" // Name of your SQLite database file
+const defaultDBFileName = ".key_metadatab" // Name of your SQLite database file
 
 func generateDBname() string {
 	timestamp := time.Now().Format("20060102_150405")
