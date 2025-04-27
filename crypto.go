@@ -59,7 +59,7 @@ func New(
 		}
 	}
 
-	if foundDBPathOption {
+	if !foundDBPathOption {
 		cwd, err := os.Getwd()
 		if err != nil {
 			return nil, fmt.Errorf("failed to get current working directory for default DB path: %w", err)
