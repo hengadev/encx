@@ -6,7 +6,7 @@
 - **Argon2id hashing** for secure password storage.
 - **SHA-256 hashing** for fast, non-reversible identifiers.
 
-## Usage
+## 🚀 Usage
 
 Simply tag struct fields with `encx` to specify how they should be processed.
 
@@ -25,4 +25,16 @@ When using the `encx` package, it's **highly recommended** to add the following 
 ```gitignore
 .encx/
 ```
+
+## 🚧 TODOs
+
+- [ ] implement example for different key management services: 
+    - [ ] HashiCorp Vault
+    - [ ] AWS KM	
+    - [ ] Azure Key Vault	
+    - [ ] Google Cloud KMS	
+    - [ ] Thales CipherTrust (formerly Vormetric)
+    - [ ] AWS CloudHSM
+
+## 📚 Documentation
 
