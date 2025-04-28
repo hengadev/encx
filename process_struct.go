@@ -68,9 +68,6 @@ func validateObjectForProcessing(object any) error {
 	if elem.Kind() != reflect.Struct {
 		return fmt.Errorf("%w: must be a pointer to a struct", ErrInvalidFieldType)
 	}
-	if !v.CanSet() { // Check if the pointer's value can be modified
-		return fmt.Errorf("%w: cannot set value on the provided pointer", ErrOperationFailed)
-	}
 	return nil
 }
 
