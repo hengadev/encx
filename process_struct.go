@@ -22,7 +22,7 @@ func (c *Crypto) ProcessStruct(ctx context.Context, object any) error {
 		validErrs.Set("validate DEK related field for struct encryption", err)
 	}
 
-	if validErrs.IsEmpty() {
+	if !validErrs.IsEmpty() {
 		return validErrs.AsError()
 	}
 
