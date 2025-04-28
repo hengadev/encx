@@ -45,7 +45,31 @@ func (j JSONSerializer) Serialize(v reflect.Value) ([]byte, error) {
 }
 
 func (j JSONSerializer) Deserialize(data []byte, v reflect.Value) error {
-	// Implement JSON deserialization logic if needed
+	if v.Kind() == reflect.String {
+		v.SetString(string(data))
+		return nil
+	}
+	if v.Kind() == reflect.Int || v.Kind() == reflect.Int64 || v.Kind() == reflect.Int32 || v.Kind() == reflect.Int16 || v.Kind() == reflect.Int8 {
+		var val int64
+		if err := json.Unmarshal(data, &val); err != nil {
+			return fmt.Errorf("failed to unmarshal int: %w", err)
+		}
+		v.SetInt(val)
+		return nil
+	}
+	if v.Kind() == reflect.Bool {
+		var val bool
+		if err := json.Unmarshal(data, &val); err != nil {
+			return fmt.Errorf("failed to unmarshal bool: %w", err)
+		}
+		v.SetBool(val)
+		return nil
+	}
+	if v.Kind() == reflect.Slice && v.Type().Elem().Kind() == reflect.Uint8 {
+		v.SetBytes(data)
+		return nil
+	}
+	// Handle other basic types as needed
 	return json.Unmarshal(data, v.Addr().Interface())
 }
 

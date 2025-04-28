@@ -2,7 +2,6 @@ package encx
 
 import (
 	"context"
-	"encoding/base64"
 	"fmt"
 	"log"
 	"reflect"
@@ -112,13 +111,8 @@ func (c *Crypto) decryptField(field reflect.StructField, v, fieldVal reflect.Val
 	}
 	encryptedFieldName := field.Name + ENCRYPTED_FIELD_SUFFIX
 	encryptedField := v.FieldByName(encryptedFieldName)
-	if encryptedField.IsValid() && encryptedField.Kind() == reflect.String && fieldVal.CanSet() {
-		encryptedBase64 := encryptedField.String()
-		ciphertext, err := base64.StdEncoding.DecodeString(encryptedBase64)
-		if err != nil {
-			return fmt.Errorf("failed to base64 decode field '%s': %w", encryptedFieldName, err)
-		}
-
+	if encryptedField.IsValid() && encryptedField.Kind() == reflect.Slice && fieldVal.CanSet() {
+		ciphertext := encryptedField.Bytes()
 		plaintextBytes, err := c.DecryptData(ciphertext, dek)
 		if err != nil {
 			return fmt.Errorf("decryption failed for field '%s': %w", field.Name, err)

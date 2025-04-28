@@ -2,7 +2,6 @@ package encx
 
 import (
 	"context"
-	"encoding/base64"
 	"fmt"
 	"log"
 	"reflect"
@@ -162,7 +161,7 @@ func (c *Crypto) processField(ctx context.Context, v reflect.Value, field reflec
 				return fmt.Errorf("encryption failed for field '%s': %w", field.Name, err) // Keep underlying error
 			}
 			// Set the encrypted value
-			encryptedField.SetString(base64.StdEncoding.EncodeToString(ciphertext))
+			encryptedField.SetBytes(ciphertext)
 		case SECURE:
 			hashFieldName := field.Name + HASHED_FIELD_SUFFIX
 			hashField := v.FieldByName(hashFieldName)
