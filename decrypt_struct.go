@@ -12,14 +12,13 @@ import (
 )
 
 func (c *Crypto) DecryptStruct(ctx context.Context, object any) error {
+	var validErrs errsx.Map
 	if err := validateObjectForProcessing(object); err != nil {
-		return fmt.Errorf("validate object for struct decryption: %w", err)
+		validErrs.Set("validate object for struct decryption", err)
 	}
 
 	v := reflect.ValueOf(object).Elem()
 	t := v.Type()
-
-	var validErrs errsx.Map
 
 	// get key version
 	keyVersion, err := getKeyVersion(object)
