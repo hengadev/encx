@@ -4,19 +4,14 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"time"
 
 	_ "github.com/mattn/go-sqlite3"
 )
 
 // exemple d'alias : user_data_kek
 
-const defaultDBFileName = ".key_metadatab" // Name of your SQLite database file
-
-func generateDBname() string {
-	timestamp := time.Now().Format("20060102_150405")
-	return fmt.Sprintf("%s_%s.db", defaultDBFileName, timestamp)
-}
+const defaultDBFileName = ".key_metadata.db" // Name of your SQLite database file
+const defaultDBDirName = ".encx"
 
 // getKMSKeyIDForVersion retrieves the KMS Key ID for a specific KEK version and alias.
 func (c *Crypto) getKMSKeyIDForVersion(ctx context.Context, alias string, version int) (string, error) {

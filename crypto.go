@@ -37,7 +37,6 @@ func New(
 	}
 
 	var dbPath string
-	foundDBPathOption := false
 
 	cryptoInstance := &Crypto{
 		kmsService:    kmsService,
@@ -53,35 +52,29 @@ func New(
 			return nil, fmt.Errorf("setting option: %w", err)
 		}
 		if cryptoInstance.keyMetadataDB != nil {
-			foundDBPathOption = true
+			dbPath, err = cryptoInstance.getDatabasePathFromDB()
+			if err != nil {
+				return nil, err
+			}
 		}
 	}
 
-	if !foundDBPathOption {
+	if cryptoInstance.keyMetadataDB == nil {
 		cwd, err := os.Getwd()
 		if err != nil {
 			return nil, fmt.Errorf("failed to get current working directory for default DB path: %w", err)
 		}
-		defaultDataDir := filepath.Join(cwd, ".encx")
+		defaultDataDir := filepath.Join(cwd, defaultDBDirName)
 		if err := os.MkdirAll(defaultDataDir, 0700); err != nil {
-			return nil, fmt.Errorf("failed to create default '.encx' directory to store key tracking database: %w", err)
+			return nil, fmt.Errorf("failed to create default '%s' directory: %w", defaultDBDirName, err)
 		}
-		dbPath = filepath.Join(defaultDataDir, generateDBname())
-	} else if cryptoInstance.keyMetadataDB != nil {
-		dbPath = ""
-	} else {
-		// This case should ideally not happen if WithKeyMetadataDBPath works correctly
-		return nil, fmt.Errorf("keyMetadataDB path was provided but database connection was not established")
-	}
-
-	if dbPath != "" {
+		dbPath = filepath.Join(defaultDataDir, defaultDBFileName)
 		db, err := sql.Open("sqlite3", dbPath)
 		if err != nil {
-			return nil, fmt.Errorf("failed to open key metadata database: %v", err)
+			return nil, fmt.Errorf("failed to open default key metadata database at '%s': %v", dbPath, err)
 		}
 		cryptoInstance.keyMetadataDB = db
 	}
-
 	_, err = cryptoInstance.keyMetadataDB.Exec(`
 		CREATE TABLE IF NOT EXISTS kek_versions (
 			alias TEXT NOT NULL,
@@ -162,4 +155,13 @@ func (c *Crypto) getCurrentKEKVersion(ctx context.Context, alias string) (int, e
 		return 0, fmt.Errorf("failed to get current KEK version for alias '%s': %w", alias, err)
 	}
 	return version, nil
+}
+
+func (c *Crypto) getDatabasePathFromDB() (string, error) {
+	var path string
+	err := c.keyMetadataDB.QueryRow("PRAGMA database_list;").Scan(nil, &path, nil)
+	if err != nil {
+		return "", fmt.Errorf("failed to get database path from connection: %w", err)
+	}
+	return path, nil
 }
