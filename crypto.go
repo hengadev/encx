@@ -139,24 +139,6 @@ func (c *Crypto) ensureInitialKEK(ctx context.Context) error {
 	return nil
 }
 
-// getCurrentKEKVersion retrieves the current active KEK version for a given alias.
-func (c *Crypto) getCurrentKEKVersion(ctx context.Context, alias string) (int, error) {
-	row := c.keyMetadataDB.QueryRowContext(ctx, `
-		SELECT version FROM kek_versions
-		WHERE alias = ? AND is_deprecated = FALSE
-		ORDER BY version DESC
-		LIMIT 1
-	`, alias)
-	var version int
-	err := row.Scan(&version)
-	if err == sql.ErrNoRows {
-		return 0, nil // No active key found
-	} else if err != nil {
-		return 0, fmt.Errorf("failed to get current KEK version for alias '%s': %w", alias, err)
-	}
-	return version, nil
-}
-
 func (c *Crypto) getDatabasePathFromDB() (string, error) {
 	var path string
 	err := c.keyMetadataDB.QueryRow("PRAGMA database_list;").Scan(nil, &path, nil)

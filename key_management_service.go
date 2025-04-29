@@ -28,8 +28,6 @@ type KeyManagementService interface {
 
 	DecryptDEK(ctx context.Context, keyID string, ciphertextDEK []byte) ([]byte, error)
 
-	// GetCurrentKEKVersion(ctx, alias string) (int, error)
-
 	EncryptDEKWithVersion(ctx context.Context, plaintextDEK []byte, version int) ([]byte, error)
 
 	DecryptDEKWithVersion(ctx context.Context, ciphertextDEK []byte, version int) ([]byte, error)
