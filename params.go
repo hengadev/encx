@@ -9,3 +9,7 @@ func (c *Crypto) GetPepper() []byte {
 func (c *Crypto) GetArgon2Params() *Argon2Params {
 	return c.argon2Params
 }
+
+func (c *Crypto) GetAlias() string {
+	return c.kekAlias
+}
