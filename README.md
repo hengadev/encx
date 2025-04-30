@@ -29,10 +29,10 @@ When using the `encx` package, it's **highly recommended** to add the following 
 ## 🚧 TODOs
 
 - [ ] implement example for different key management services: 
-    - [ ] HashiCorp Vault
-    - [ ] AWS KM	
-    - [ ] Azure Key Vault	
-    - [ ] Google Cloud KMS	
+    - [X] HashiCorp Vault
+    - [ ] AWS KMS
+    - [ ] Azure Key Vault
+    - [ ] Google Cloud KMS
     - [ ] Thales CipherTrust (formerly Vormetric)
     - [ ] AWS CloudHSM
 
