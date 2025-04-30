@@ -47,7 +47,7 @@ func (c *Crypto) DecryptStruct(ctx context.Context, object any) error {
 		for _, op := range operations {
 			op = strings.TrimSpace(op)
 			if op == ENCRYPT {
-				if err := c.decryptField(field, v, fieldVal, dek); err != nil {
+				if err := c.decryptField(ctx, field, v, fieldVal, dek); err != nil {
 					decryptErrs.Set(fmt.Sprintf("decrypt field '%s'", field.Name), err)
 				}
 			}
@@ -102,7 +102,7 @@ func (c *Crypto) getDEK(ctx context.Context, object any, keyVersion int) ([]byte
 	return dek, errs.AsError()
 }
 
-func (c *Crypto) decryptField(field reflect.StructField, v, fieldVal reflect.Value, dek []byte) error {
+func (c *Crypto) decryptField(ctx context.Context, field reflect.StructField, v, fieldVal reflect.Value, dek []byte) error {
 	for _, fieldToSkip := range FIELDS_TO_SKIP {
 		if field.Name == fieldToSkip {
 			log.Printf("Warning: Skipping decrypting for field '%s'.", field.Name)
@@ -113,7 +113,7 @@ func (c *Crypto) decryptField(field reflect.StructField, v, fieldVal reflect.Val
 	encryptedField := v.FieldByName(encryptedFieldName)
 	if encryptedField.IsValid() && encryptedField.Kind() == reflect.Slice && fieldVal.CanSet() {
 		ciphertext := encryptedField.Bytes()
-		plaintextBytes, err := c.DecryptData(ciphertext, dek)
+		plaintextBytes, err := c.DecryptData(ctx, ciphertext, dek)
 		if err != nil {
 			return fmt.Errorf("decryption failed for field '%s': %w", field.Name, err)
 		}

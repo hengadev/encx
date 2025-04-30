@@ -156,7 +156,7 @@ func (c *Crypto) processField(ctx context.Context, v reflect.Value, field reflec
 			if !ok || len(dek) != 32 {
 				return NewInvalidFormatError(DEK_FIELD, "32-byte []byte", Encrypt)
 			}
-			ciphertext, err := c.EncryptData(plaintext, dek)
+			ciphertext, err := c.EncryptData(ctx, plaintext, dek)
 			if err != nil {
 				return fmt.Errorf("encryption failed for field '%s': %w", field.Name, err) // Keep underlying error
 			}
@@ -175,7 +175,7 @@ func (c *Crypto) processField(ctx context.Context, v reflect.Value, field reflec
 			if err != nil {
 				return fmt.Errorf("failed to serialize field '%s' for secure hashing: %w", field.Name, err) // Keep underlying error
 			}
-			hashedValue, err := c.HashSecure(valueToHashBytes)
+			hashedValue, err := c.HashSecure(ctx, valueToHashBytes)
 			if err != nil {
 				return fmt.Errorf("secure hashing failed for field '%s': %w", field.Name, err) // Keep underlying error
 			}
@@ -193,7 +193,7 @@ func (c *Crypto) processField(ctx context.Context, v reflect.Value, field reflec
 			if err != nil {
 				return fmt.Errorf("failed to serialize field '%s' for basic hashing: %w", field.Name, err)
 			}
-			hashedValue := c.HashBasic(valueToHash)
+			hashedValue := c.HashBasic(ctx, valueToHash)
 			hashField.SetString(hashedValue)
 		}
 	}

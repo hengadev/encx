@@ -27,7 +27,7 @@ func (c *Crypto) GenerateDEK() ([]byte, error) {
 }
 
 // EncryptData encrypts the provided data using the provided DEK.
-func (c *Crypto) EncryptData(plaintext []byte, dek []byte) ([]byte, error) {
+func (c *Crypto) EncryptData(ctx context.Context, plaintext []byte, dek []byte) ([]byte, error) {
 	block, err := aes.NewCipher(dek)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create AES cipher: %w", err)
@@ -45,7 +45,7 @@ func (c *Crypto) EncryptData(plaintext []byte, dek []byte) ([]byte, error) {
 }
 
 // DecryptData decrypts the provided ciphertext using the provided DEK.
-func (c *Crypto) DecryptData(ciphertext []byte, dek []byte) ([]byte, error) {
+func (c *Crypto) DecryptData(ctx context.Context, ciphertext []byte, dek []byte) ([]byte, error) {
 	block, err := aes.NewCipher(dek)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create AES cipher: %w", err)
@@ -131,14 +131,14 @@ func (c *Crypto) RotateKEK(ctx context.Context) error {
 }
 
 // HashBasic performs a basic SHA256 hash on the byte representation of the input.
-func (c *Crypto) HashBasic(value []byte) string {
+func (c *Crypto) HashBasic(ctx context.Context, value []byte) string {
 	valueHash := sha256.Sum256(value)
 	return hex.EncodeToString(valueHash[:])
 }
 
 // HashSecure performs a secure Argon2id hash on the byte representation of the input,
 // incorporating the configured Argon2 parameters and pepper.
-func (c *Crypto) HashSecure(value []byte) (string, error) {
+func (c *Crypto) HashSecure(ctx context.Context, value []byte) (string, error) {
 	if isZeroPepper(c.pepper) {
 		return "", NewUninitalizedPepperError()
 	}
@@ -185,7 +185,7 @@ func isZeroPepper(pepper []byte) bool {
 	return true
 }
 
-func (c *Crypto) CompareSecureHashAndValue(value any, hashValue string) (bool, error) {
+func (c *Crypto) CompareSecureHashAndValue(ctx context.Context, value any, hashValue string) (bool, error) {
 	if value == nil {
 		return false, fmt.Errorf("%w: value cannot be nil", ErrNilPointer)
 	}
@@ -193,14 +193,14 @@ func (c *Crypto) CompareSecureHashAndValue(value any, hashValue string) (bool, e
 	if err != nil {
 		return false, fmt.Errorf("failed to serialize field value : %w", err)
 	}
-	valueHashed, err := c.HashSecure(v)
+	valueHashed, err := c.HashSecure(ctx, v)
 	if err != nil {
 		return false, fmt.Errorf("secure hashing failed for value : %w", err)
 	}
 	return valueHashed == hashValue, nil
 }
 
-func (c *Crypto) CompareBasicHashAndValue(value any, hashValue string) (bool, error) {
+func (c *Crypto) CompareBasicHashAndValue(ctx context.Context, value any, hashValue string) (bool, error) {
 	if value == nil {
 		return false, fmt.Errorf("%w: value cannot be nil", ErrNilPointer)
 	}
@@ -208,11 +208,11 @@ func (c *Crypto) CompareBasicHashAndValue(value any, hashValue string) (bool, er
 	if err != nil {
 		return false, fmt.Errorf("failed to serialize field value : %w", err)
 	}
-	return c.HashBasic(v) == hashValue, nil
+	return c.HashBasic(ctx, v) == hashValue, nil
 }
 
 // EncryptStream encrypts data from an io.Reader to an io.Writer using the provided DEK.
-func (c *Crypto) EncryptStream(reader io.Reader, writer io.Writer, dek []byte) error {
+func (c *Crypto) EncryptStream(ctx context.Context, reader io.Reader, writer io.Writer, dek []byte) error {
 	buffer := make([]byte, 4096) // Choose an appropriate buffer size
 	for {
 		n, err := reader.Read(buffer)
@@ -222,7 +222,7 @@ func (c *Crypto) EncryptStream(reader io.Reader, writer io.Writer, dek []byte) e
 			}
 			return fmt.Errorf("failed to read from input stream: %w", err)
 		}
-		ciphertext, err := c.EncryptData(buffer[:n], dek)
+		ciphertext, err := c.EncryptData(ctx, buffer[:n], dek)
 		if err != nil {
 			return fmt.Errorf("failed to encrypt chunk: %w", err)
 		}
@@ -235,7 +235,7 @@ func (c *Crypto) EncryptStream(reader io.Reader, writer io.Writer, dek []byte) e
 }
 
 // DecryptStream decrypts data from an io.Reader to an io.Writer using the provided DEK.
-func (c *Crypto) DecryptStream(reader io.Reader, writer io.Writer, dek []byte) error {
+func (c *Crypto) DecryptStream(ctx context.Context, reader io.Reader, writer io.Writer, dek []byte) error {
 	buffer := make([]byte, 4096) // Choose an appropriate buffer size
 	for {
 		n, err := reader.Read(buffer)
@@ -245,7 +245,7 @@ func (c *Crypto) DecryptStream(reader io.Reader, writer io.Writer, dek []byte) e
 			}
 			return fmt.Errorf("failed to read from input stream: %w", err)
 		}
-		plaintext, err := c.DecryptData(buffer[:n], dek)
+		plaintext, err := c.DecryptData(ctx, buffer[:n], dek)
 		if err != nil {
 			return fmt.Errorf("failed to decrypt chunk: %w", err)
 		}
