@@ -210,3 +210,49 @@ func (c *Crypto) CompareBasicHashAndValue(value any, hashValue string) (bool, er
 	}
 	return c.HashBasic(v) == hashValue, nil
 }
+
+// EncryptStream encrypts data from an io.Reader to an io.Writer using the provided DEK.
+func (c *Crypto) EncryptStream(reader io.Reader, writer io.Writer, dek []byte) error {
+	buffer := make([]byte, 4096) // Choose an appropriate buffer size
+	for {
+		n, err := reader.Read(buffer)
+		if err != nil {
+			if err == io.EOF {
+				break
+			}
+			return fmt.Errorf("failed to read from input stream: %w", err)
+		}
+		ciphertext, err := c.EncryptData(buffer[:n], dek)
+		if err != nil {
+			return fmt.Errorf("failed to encrypt chunk: %w", err)
+		}
+		_, err = writer.Write(ciphertext)
+		if err != nil {
+			return fmt.Errorf("failed to write to output stream: %w", err)
+		}
+	}
+	return nil
+}
+
+// DecryptStream decrypts data from an io.Reader to an io.Writer using the provided DEK.
+func (c *Crypto) DecryptStream(reader io.Reader, writer io.Writer, dek []byte) error {
+	buffer := make([]byte, 4096) // Choose an appropriate buffer size
+	for {
+		n, err := reader.Read(buffer)
+		if err != nil {
+			if err == io.EOF {
+				break
+			}
+			return fmt.Errorf("failed to read from input stream: %w", err)
+		}
+		plaintext, err := c.DecryptData(buffer[:n], dek)
+		if err != nil {
+			return fmt.Errorf("failed to decrypt chunk: %w", err)
+		}
+		_, err = writer.Write(plaintext)
+		if err != nil {
+			return fmt.Errorf("failed to write to output stream: %w", err)
+		}
+	}
+	return nil
+}
