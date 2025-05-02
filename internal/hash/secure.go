@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/hengadev/encx/internal/encxerr"
-	"github.com/hengadev/encx/internal/types"
 
 	"golang.org/x/crypto/argon2"
 )
@@ -19,8 +18,8 @@ func HandleSecure(
 	field reflect.StructField,
 	fieldValue reflect.Value,
 	structValue reflect.Value,
-	argon2Params *types.Argon2Params,
-	pepper [16]byte,
+	argon2Params *Argon2Params,
+	pepper []byte,
 ) error {
 	fieldValue, targetField, originalType, err := validateAndPrepareField(field, fieldValue, structValue, hashedFieldSuffix)
 	if err != nil {

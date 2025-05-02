@@ -75,7 +75,7 @@ func TestHandleSecureHashing(t *testing.T) {
 		fieldValue := reflect.ValueOf(&testObj).Elem().Field(0)
 		structValue := reflect.ValueOf(&testObj).Elem()
 
-		err := HandleSecureHashing(field, fieldValue, structValue, argon2Params, pepper)
+		err := HandleSecure(field, fieldValue, structValue, argon2Params, pepper)
 		require.NoError(t, err)
 		assert.NotEmpty(t, testObj.PasswordHash)
 		assert.Contains(t, testObj.PasswordHash, "$argon2id$")
@@ -84,7 +84,7 @@ func TestHandleSecureHashing(t *testing.T) {
 		field = reflect.TypeOf(testObj).Field(2) // ID field
 		fieldValue = reflect.ValueOf(&testObj).Elem().Field(2)
 
-		err = HandleSecureHashing(field, fieldValue, structValue, argon2Params, pepper)
+		err = HandleSecure(field, fieldValue, structValue, argon2Params, pepper)
 		require.NoError(t, err)
 		assert.NotEmpty(t, testObj.IDHash)
 		assert.Contains(t, testObj.IDHash, "$argon2id$")
@@ -93,7 +93,7 @@ func TestHandleSecureHashing(t *testing.T) {
 		field = reflect.TypeOf(testObj).Field(4) // Count field
 		fieldValue = reflect.ValueOf(&testObj).Elem().Field(4)
 
-		err = HandleSecureHashing(field, fieldValue, structValue, argon2Params, pepper)
+		err = HandleSecure(field, fieldValue, structValue, argon2Params, pepper)
 		require.NoError(t, err)
 		assert.NotEmpty(t, testObj.CountHash)
 		assert.Contains(t, testObj.CountHash, "$argon2id$")
@@ -102,7 +102,7 @@ func TestHandleSecureHashing(t *testing.T) {
 		field = reflect.TypeOf(testObj).Field(6) // Amount field
 		fieldValue = reflect.ValueOf(&testObj).Elem().Field(6)
 
-		err = HandleSecureHashing(field, fieldValue, structValue, argon2Params, pepper)
+		err = HandleSecure(field, fieldValue, structValue, argon2Params, pepper)
 		require.NoError(t, err)
 		assert.NotEmpty(t, testObj.AmountHash)
 		assert.Contains(t, testObj.AmountHash, "$argon2id$")
@@ -111,7 +111,7 @@ func TestHandleSecureHashing(t *testing.T) {
 		field = reflect.TypeOf(testObj).Field(8) // CreatedAt field
 		fieldValue = reflect.ValueOf(&testObj).Elem().Field(8)
 
-		err = HandleSecureHashing(field, fieldValue, structValue, argon2Params, pepper)
+		err = HandleSecure(field, fieldValue, structValue, argon2Params, pepper)
 		require.NoError(t, err)
 		assert.NotEmpty(t, testObj.CreatedAtHash)
 		assert.Contains(t, testObj.CreatedAtHash, "$argon2id$")
@@ -120,7 +120,7 @@ func TestHandleSecureHashing(t *testing.T) {
 		field = reflect.TypeOf(testObj).Field(10) // OptionalData field
 		fieldValue = reflect.ValueOf(&testObj).Elem().Field(10)
 
-		err = HandleSecureHashing(field, fieldValue, structValue, argon2Params, pepper)
+		err = HandleSecure(field, fieldValue, structValue, argon2Params, pepper)
 		require.NoError(t, err)
 		assert.NotEmpty(t, testObj.OptionalDataHash)
 		assert.Contains(t, testObj.OptionalDataHash, "$argon2id$")
@@ -129,7 +129,7 @@ func TestHandleSecureHashing(t *testing.T) {
 		field = reflect.TypeOf(testObj).Field(12) // EmptyField field
 		fieldValue = reflect.ValueOf(&testObj).Elem().Field(12)
 
-		err = HandleSecureHashing(field, fieldValue, structValue, argon2Params, pepper)
+		err = HandleSecure(field, fieldValue, structValue, argon2Params, pepper)
 		require.NoError(t, err)
 		assert.Empty(t, testObj.EmptyFieldHash, "Zero value fields should result in empty hashed fields")
 	})
@@ -152,7 +152,7 @@ func TestHandleSecureHashing(t *testing.T) {
 		fieldValue := reflect.ValueOf(&testObj).Elem().Field(0)
 		structValue := reflect.ValueOf(&testObj).Elem()
 
-		err := HandleSecureHashing(field, fieldValue, structValue, invalidParams, pepper)
+		err := HandleSecure(field, fieldValue, structValue, invalidParams, pepper)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "failed")
 	})
@@ -173,7 +173,7 @@ func TestHandleSecureHashingErrors(t *testing.T) {
 		fieldValue := reflect.ValueOf(&testObj).Elem().Field(0)
 		structValue := reflect.ValueOf(&testObj).Elem()
 
-		err := HandleSecureHashing(field, fieldValue, structValue, argon2Params, pepper)
+		err := HandleSecure(field, fieldValue, structValue, argon2Params, pepper)
 		require.Error(t, err)
 
 		// Check that error wraps the expected base error
@@ -194,7 +194,7 @@ func TestHandleSecureHashingErrors(t *testing.T) {
 		fieldValue := reflect.ValueOf(&testObj).Elem().Field(0)
 		structValue := reflect.ValueOf(&testObj).Elem()
 
-		err := HandleSecureHashing(field, fieldValue, structValue, argon2Params, pepper)
+		err := HandleSecure(field, fieldValue, structValue, argon2Params, pepper)
 		require.Error(t, err)
 
 		// Check that error wraps the expected base error
@@ -221,7 +221,7 @@ func TestHandleSecureHashingErrors(t *testing.T) {
 		// Based on your implementation, nil pointers might be treated as zero values
 		// or might return an error - adjust this test accordingly
 
-		err := HandleSecureHashing(field, fieldValue, structValue, argon2Params, pepper)
+		err := HandleSecure(field, fieldValue, structValue, argon2Params, pepper)
 
 		// Option 1: If nil pointers should be treated as errors
 		if errors.Is(err, encxerr.ErrNilPointer) {
@@ -252,7 +252,7 @@ func TestHandleSecureHashingErrors(t *testing.T) {
 		fieldValue := reflect.ValueOf(&testObj).Elem().Field(0)   // But value is interface{}
 		structValue := reflect.ValueOf(&testObj).Elem()
 
-		err := HandleSecureHashing(field, fieldValue, structValue, argon2Params, pepper)
+		err := HandleSecure(field, fieldValue, structValue, argon2Params, pepper)
 		require.Error(t, err)
 
 		// Check that error wraps the expected base error
@@ -272,7 +272,7 @@ func TestHandleSecureHashingErrors(t *testing.T) {
 		fieldValue := reflect.ValueOf(&testObj).Elem().Field(0)
 		structValue := reflect.ValueOf(&testObj).Elem()
 
-		err := HandleSecureHashing(field, fieldValue, structValue, argon2Params, pepper)
+		err := HandleSecure(field, fieldValue, structValue, argon2Params, pepper)
 		require.Error(t, err)
 
 		// Check that error wraps the expected base error
@@ -302,7 +302,7 @@ func TestHandleSecureHashingErrors(t *testing.T) {
 		fieldValue := reflect.ValueOf(&testObj).Elem().Field(0)
 		structValue := reflect.ValueOf(&testObj).Elem()
 
-		err := HandleSecureHashing(field, fieldValue, structValue, invalidParams, pepper)
+		err := HandleSecure(field, fieldValue, structValue, invalidParams, pepper)
 		require.Error(t, err)
 
 		// Check that error wraps the expected base error
