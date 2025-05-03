@@ -3,3 +3,5 @@
 
 notes/
 cmd/
+.env
+.encx/
