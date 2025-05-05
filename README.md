@@ -35,7 +35,6 @@ When using the `encx` package, it's **highly recommended** to add the following 
     - [ ] Google Cloud KMS
     - [ ] Thales CipherTrust (formerly Vormetric)
     - [ ] AWS CloudHSM
-- [ ] embedded structs ?
 - [ ] tests
 
 ## 📚 Documentation

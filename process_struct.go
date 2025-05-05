@@ -10,6 +10,8 @@ import (
 	"github.com/hengadev/errsx"
 )
 
+type dekContextKey struct{}
+
 func (c *Crypto) ProcessStruct(ctx context.Context, object any) error {
 	var validErrs errsx.Map
 	if err := validateObjectForProcessing(object); err != nil {
@@ -25,6 +27,9 @@ func (c *Crypto) ProcessStruct(ctx context.Context, object any) error {
 		return validErrs.AsError()
 	}
 
+	// Create a new context with the DEK value
+	ctxWithDEK := context.WithValue(ctx, dekContextKey{}, dek)
+
 	v := reflect.ValueOf(object).Elem()
 	t := v.Type()
 
@@ -32,21 +37,53 @@ func (c *Crypto) ProcessStruct(ctx context.Context, object any) error {
 	for i := range t.NumField() {
 		field := t.Field(i)
 		if tag := field.Tag.Get(STRUCT_TAG); tag != "" {
-			if err := c.processField(ctx, v, field); err != nil {
+			if err := c.processField(ctxWithDEK, v, field, tag); err != nil {
 				processErrs.Set(fmt.Sprintf("processing field '%s'", field.Name), err)
+			}
+		} else if field.Type.Kind() == reflect.Struct {
+			embeddedVal := v.Field(i)
+			embeddedType := field.Type
+			// Recursively call ProcessStruct (or a similar function) passing the context
+			if err := c.processEmbeddedStruct(ctxWithDEK, embeddedVal, embeddedType); err != nil {
+				processErrs.Set(fmt.Sprintf("processing embedded field '%s'", field.Name), err)
 			}
 		}
 	}
 
-	if err := c.setEncryptedDEK(ctx, v, dek); err != nil {
+	if err := c.setEncryptedDEK(ctxWithDEK, v); err != nil {
 		processErrs.Set("set encrypted DEK field", err)
 	}
 
-	if err := c.setKeyVersion(ctx, v); err != nil {
+	if err := c.setKeyVersion(ctxWithDEK, v); err != nil {
 		processErrs.Set("set key version field", err)
 	}
 
 	return processErrs.AsError()
+}
+
+// processEmbeddedStruct process embedded structs recursively.
+// This function takes a context, a reflect.Value representing the embedded struct,
+// and a reflect.Type representing the type of the embedded struct.
+// It processes each field of the embedded struct based on the 'encx' tag,
+// and recursively processes any further embedded structs within it.
+// It returns an error if any processing fails.
+func (c *Crypto) processEmbeddedStruct(ctx context.Context, v reflect.Value, t reflect.Type) error {
+	var errs errsx.Map
+	for i := range t.NumField() {
+		field := t.Field(i)
+		if tag := field.Tag.Get(STRUCT_TAG); tag != "" {
+			if err := c.processField(ctx, v, field, tag); err != nil { // Note: Using the context with DEK
+				errs.Set(fmt.Sprintf("processing embedded field '%s'", field.Name), err)
+			}
+		} else if field.Type.Kind() == reflect.Struct {
+			embeddedVal := v.Field(i)
+			embeddedType := field.Type
+			if err := c.processEmbeddedStruct(ctx, embeddedVal, embeddedType); err != nil {
+				errs.Set(fmt.Sprintf("processing deeply embedded field '%s'", field.Name), err)
+			}
+		}
+	}
+	return errs.AsError()
 }
 
 // validateObjectForProcessing checks if the provided object is a non-nil pointer to a struct.
@@ -120,9 +157,8 @@ func (c *Crypto) validateDEKField(object any) ([]byte, error) {
 // processField handles the encryption or hashing of a single field based on the 'encx' tag.
 // It takes the reflect.Value of the struct, the reflect.StructField of the current field,
 // and the Crypto service instance. It returns an error if processing fails.
-func (c *Crypto) processField(ctx context.Context, v reflect.Value, field reflect.StructField) error {
+func (c *Crypto) processField(ctx context.Context, v reflect.Value, field reflect.StructField, tag string) error {
 	fieldVal := v.FieldByName(field.Name)
-	tag := field.Tag.Get("encx")
 	operations := strings.Split(tag, ",")
 	for _, op := range operations {
 		op = strings.TrimSpace(op)
@@ -154,9 +190,11 @@ func (c *Crypto) processField(ctx context.Context, v reflect.Value, field reflec
 			if err != nil {
 				return fmt.Errorf("failed to serialize field '%s' for encryption: %w", field.Name, err) // Keep underlying error
 			}
-			dekField := v.FieldByName(DEK_FIELD)
-			dek, ok := dekField.Interface().([]byte)
-			if !ok || len(dek) != 32 {
+			dek, ok := ctx.Value(dekContextKey{}).([]byte)
+			if !ok {
+				return fmt.Errorf("DEK not found in context for field '%s'", field.Name)
+			}
+			if len(dek) != 32 {
 				return NewInvalidFormatError(DEK_FIELD, "32-byte []byte", Encrypt)
 			}
 			ciphertext, err := c.EncryptData(ctx, plaintext, dek)
@@ -211,7 +249,12 @@ func (c *Crypto) processField(ctx context.Context, v reflect.Value, field reflec
 }
 
 // setEncryptedDEK encrypts the provided DEK using the KMS and sets the resulting ciphertext in the DEKEncrypted field of the given reflect.Value.
-func (c *Crypto) setEncryptedDEK(ctx context.Context, v reflect.Value, dek []byte) error {
+// func (c *Crypto) setEncryptedDEK(ctx context.Context, v reflect.Value, dek []byte) error {
+func (c *Crypto) setEncryptedDEK(ctx context.Context, v reflect.Value) error {
+	dek, ok := ctx.Value(dekContextKey{}).([]byte)
+	if !ok {
+		return fmt.Errorf("DEK not found in context for encrypting DEK")
+	}
 	encryptedDEK, err := c.EncryptDEK(ctx, dek)
 	if err != nil {
 		return fmt.Errorf("failed to encrypt DEK: %w", err)
