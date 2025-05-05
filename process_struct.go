@@ -147,6 +147,9 @@ func (c *Crypto) processField(ctx context.Context, v reflect.Value, field reflec
 			if !encryptedField.CanSet() {
 				return NewOperationFailedError(encryptedFieldName, Encrypt, "field is not settable")
 			}
+			if encryptedField.Kind() != reflect.Slice || encryptedField.Type().Elem().Kind() != reflect.Uint8 {
+				return NewInvalidFieldTypeError(encryptedFieldName, "string", encryptedField.Type().String(), Encrypt)
+			}
 			plaintext, err := c.serializer.Serialize(fieldVal)
 			if err != nil {
 				return fmt.Errorf("failed to serialize field '%s' for encryption: %w", field.Name, err) // Keep underlying error
@@ -171,6 +174,9 @@ func (c *Crypto) processField(ctx context.Context, v reflect.Value, field reflec
 			if !hashField.CanSet() {
 				return NewOperationFailedError(hashFieldName, SecureHash, "field is not settable")
 			}
+			if hashField.Kind() != reflect.String {
+				return NewInvalidFieldTypeError(hashFieldName, "string", hashField.Type().String(), SecureHash)
+			}
 			valueToHashBytes, err := c.serializer.Serialize(fieldVal)
 			if err != nil {
 				return fmt.Errorf("failed to serialize field '%s' for secure hashing: %w", field.Name, err) // Keep underlying error
@@ -188,6 +194,9 @@ func (c *Crypto) processField(ctx context.Context, v reflect.Value, field reflec
 			}
 			if !hashField.CanSet() {
 				return NewOperationFailedError(hashFieldName, BasicHash, "field is not settable")
+			}
+			if hashField.Kind() != reflect.String {
+				return NewInvalidFieldTypeError(hashFieldName, "string", hashField.Type().String(), BasicHash)
 			}
 			valueToHash, err := c.serializer.Serialize(fieldVal)
 			if err != nil {
