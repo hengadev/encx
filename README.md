@@ -35,6 +35,7 @@ When using the `encx` package, it's **highly recommended** to add the following 
     - [ ] Google Cloud KMS
     - [ ] Thales CipherTrust (formerly Vormetric)
     - [ ] AWS CloudHSM
+- [ ] explore concurrency for performance improvements
 - [ ] tests
 
 ## 📚 Documentation
