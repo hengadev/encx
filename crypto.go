@@ -4,12 +4,33 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"path/filepath"
 
 	_ "github.com/mattn/go-sqlite3"
 )
+
+type CryptoService interface {
+	GetPepper() []byte
+	GetArgon2Params() *Argon2Params
+	GetAlias() string
+	GenerateDEK() ([]byte, error)
+	EncryptData(ctx context.Context, plaintext []byte, dek []byte) ([]byte, error)
+	DecryptData(ctx context.Context, ciphertext []byte, dek []byte) ([]byte, error)
+	ProcessStruct(ctx context.Context, object any) error
+	DecryptStruct(ctx context.Context, object any) error
+	EncryptDEK(ctx context.Context, plaintextDEK []byte) ([]byte, error)
+	DecryptDEKWithVersion(ctx context.Context, ciphertextDEK []byte, kekVersion int) ([]byte, error)
+	RotateKEK(ctx context.Context) error
+	HashBasic(ctx context.Context, value []byte) string
+	HashSecure(ctx context.Context, value []byte) (string, error)
+	CompareSecureHashAndValue(ctx context.Context, value any, hashValue string) (bool, error)
+	CompareBasicHashAndValue(ctx context.Context, value any, hashValue string) (bool, error)
+	EncryptStream(ctx context.Context, reader io.Reader, writer io.Writer, dek []byte) error
+	DecryptStream(ctx context.Context, reader io.Reader, writer io.Writer, dek []byte) error
+}
 
 type Crypto struct {
 	kmsService    KeyManagementService
