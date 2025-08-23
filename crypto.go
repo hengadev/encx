@@ -53,8 +53,9 @@ func New(
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve pepper from KMS: %w", err)
 	}
-	if len(pepper) != 32 {
-		return nil, fmt.Errorf("invalid pepper length retrieved from KMS: expected 16, got %d", len(pepper))
+	expectedPepperLength := 32
+	if len(pepper) != expectedPepperLength {
+		return nil, fmt.Errorf("invalid pepper length retrieved from KMS: expected %d, got %d", expectedPepperLength, len(pepper))
 	}
 
 	var dbPath string

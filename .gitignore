@@ -1,5 +1,6 @@
 *.md
 !README.md
+!IMPROVEMENT_ROADMAP.md
 
 notes/
 cmd/
