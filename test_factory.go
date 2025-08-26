@@ -7,7 +7,6 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/stretchr/testify/mock"
 	_ "github.com/mattn/go-sqlite3"
 )
 
@@ -15,14 +14,14 @@ import (
 type TestCryptoOptions struct {
 	UseRealDatabase bool              // If false, uses in-memory database
 	CustomPepper    []byte            // If nil, uses default test pepper
-	CustomKMSMock   KeyManagementService // If nil, creates default mock
+	CustomKMSMock   KeyManagementService // If nil, creates default mock KMS
 	DBPath          string            // Custom database path (only used if UseRealDatabase is true)
 }
 
 // NewTestCrypto creates a Crypto instance configured for testing.
 // This bypasses the complex New() constructor and creates a minimal instance
 // suitable for unit testing without external dependencies.
-func NewTestCrypto(t testing.TB, options ...*TestCryptoOptions) (*Crypto, *KeyManagementServiceMock) {
+func NewTestCrypto(t testing.TB, options ...*TestCryptoOptions) (*Crypto, KeyManagementService) {
 	t.Helper()
 	
 	var opts *TestCryptoOptions
@@ -41,19 +40,13 @@ func NewTestCrypto(t testing.TB, options ...*TestCryptoOptions) (*Crypto, *KeyMa
 		t.Fatalf("Test pepper must be exactly 32 bytes, got %d", len(pepper))
 	}
 
-	// Set up KMS mock
-	var kmsMock *KeyManagementServiceMock
+	// Set up KMS implementation  
+	var kmsService KeyManagementService
 	if opts.CustomKMSMock != nil {
-		// Type assertion to get the mock if it's provided
-		if mock, ok := opts.CustomKMSMock.(*KeyManagementServiceMock); ok {
-			kmsMock = mock
-		} else {
-			t.Fatal("CustomKMSMock must be a *KeyManagementServiceMock")
-		}
+		kmsService = opts.CustomKMSMock
 	} else {
-		kmsMock = NewKeyManagementServiceMock()
-		// Set up default mock expectations for basic functionality only
-		setupDefaultKMSMockExpectations(kmsMock)
+		// Use the simple test KMS for reliable testing
+		kmsService = NewSimpleTestKMS()
 	}
 
 	// Set up database
@@ -72,21 +65,28 @@ func NewTestCrypto(t testing.TB, options ...*TestCryptoOptions) (*Crypto, *KeyMa
 			t.Fatalf("Failed to create test database: %v", err)
 		}
 	} else {
-		// Use in-memory database
-		db, err = sql.Open("sqlite3", ":memory:")
+		// Use in-memory database with shared cache mode to allow multiple connections
+		// This ensures that all goroutines see the same database tables
+		db, err = sql.Open("sqlite3", "file::memory:?cache=shared&mode=memory")
 		if err != nil {
 			t.Fatalf("Failed to create in-memory test database: %v", err)
 		}
+		// Set connection pool settings for better concurrency
+		db.SetMaxOpenConns(10)
+		db.SetMaxIdleConns(2)
+		db.SetConnMaxLifetime(0) // Connections never expire
 	}
 
 	// Create the crypto instance
 	crypto := &Crypto{
-		kmsService:    kmsMock,
-		kekAlias:      "test-key-alias",
-		pepper:        pepper,
-		argon2Params:  DefaultArgon2Params,
-		serializer:    JSONSerializer{},
-		keyMetadataDB: db,
+		kmsService:       kmsService,
+		kekAlias:         "test-key-alias",
+		pepper:           pepper,
+		argon2Params:     DefaultArgon2Params,
+		serializer:       JSONSerializer{},
+		keyMetadataDB:    db,
+		metricsCollector: &NoOpMetricsCollector{},
+		observabilityHook: &NoOpObservabilityHook{},
 	}
 
 	// Initialize the database tables
@@ -101,52 +101,20 @@ func NewTestCrypto(t testing.TB, options ...*TestCryptoOptions) (*Crypto, *KeyMa
 		}
 	})
 
-	return crypto, kmsMock
+	return crypto, kmsService
 }
 
-// NewTestCryptoWithMockKMS creates a test crypto instance with a pre-configured KMS mock
-func NewTestCryptoWithMockKMS(t testing.TB, kmsMock *KeyManagementServiceMock) *Crypto {
+// NewTestCryptoWithKMS creates a test crypto instance with a specific KMS implementation
+func NewTestCryptoWithKMS(t testing.TB, kms KeyManagementService) *Crypto {
 	t.Helper()
 	
 	crypto, _ := NewTestCrypto(t, &TestCryptoOptions{
-		CustomKMSMock: kmsMock,
+		CustomKMSMock: kms,
 	})
 	
 	return crypto
 }
 
-// setupDefaultKMSMockExpectations configures the KMS mock with reasonable defaults for testing
-func setupDefaultKMSMockExpectations(kmsMock *KeyManagementServiceMock) {
-	// Default pepper retrieval
-	kmsMock.On("GetSecret", mock.Anything, "secret/data/pepper").
-		Return([]byte("test-pepper-32-chars-for-testing"), nil).
-		Maybe()
-
-	// Default key operations
-	kmsMock.On("GetKeyID", mock.Anything, "test-key-alias").
-		Return("test-kms-key-id", nil).
-		Maybe()
-
-	kmsMock.On("CreateKey", mock.Anything, "test-key-alias").
-		Return("test-kms-key-id", nil).
-		Maybe()
-
-	// For DEK operations, we need consistent encryption/decryption
-	// Instead of complex mocking, just use passthrough - let the real crypto work
-	// but with simple mock KMS operations
-	
-	// Create a fixed 32-byte DEK for consistency
-	testDEK := make([]byte, 32)
-	copy(testDEK, []byte("test-dek-32-bytes-for-aes256-key"))
-	
-	kmsMock.On("EncryptDEK", mock.Anything, mock.Anything, mock.Anything).
-		Return([]byte("mock-encrypted-dek-data"), nil).
-		Maybe()
-
-	kmsMock.On("DecryptDEK", mock.Anything, mock.Anything, mock.Anything).
-		Return(testDEK, nil). // Always return the same 32-byte DEK
-		Maybe()
-}
 
 // initializeTestDatabase sets up the required database tables for testing
 func initializeTestDatabase(db *sql.DB) error {
@@ -176,10 +144,6 @@ func initializeTestDatabase(db *sql.DB) error {
 	return nil
 }
 
-// NewKeyManagementServiceMock creates a new KMS mock instance
-func NewKeyManagementServiceMock() *KeyManagementServiceMock {
-	return &KeyManagementServiceMock{}
-}
 
 // TestDataFactory provides utilities for creating predictable test data
 type TestDataFactory struct {
