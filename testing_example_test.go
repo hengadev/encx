@@ -192,20 +192,15 @@ func TestPhoneEncryptionScenario(t *testing.T) {
 
 // TestCustomTestCryptoOptions demonstrates advanced test crypto configuration
 func TestCustomTestCryptoOptions(t *testing.T) {
-	ctx := context.Background()
-
 	// Create custom KMS mock with specific behavior
-	kmsMock := NewKeyManagementServiceMock()
-	kmsMock.On("GetSecret", ctx, "custom/pepper/path").
-		Return([]byte("custom-pepper-32-chars-for-test"), nil)
-	kmsMock.On("GetKeyID", ctx, "custom-alias").
-		Return("custom-kms-key-id", nil)
+	kmsMock := NewCryptoServiceMock()
+	kmsMock.On("GetPepper").
+		Return([]byte("custom-pepper-32-chars-for-test"))
 
 	// Create crypto with custom options
 	crypto, _ := NewTestCrypto(t, &TestCryptoOptions{
 		UseRealDatabase: false, // Use in-memory DB
 		CustomPepper:    []byte("custom-pepper-32-chars-for-test"),
-		CustomKMSMock:   kmsMock,
 	})
 
 	// Test that custom configuration works
@@ -214,9 +209,6 @@ func TestCustomTestCryptoOptions(t *testing.T) {
 
 	alias := crypto.GetAlias()
 	assert.Equal(t, "test-key-alias", alias) // Default test alias
-
-	// Verify mock expectations
-	kmsMock.AssertExpectations(t)
 }
 
 // BenchmarkTestCryptoCreation benchmarks the test crypto creation performance

@@ -42,12 +42,12 @@ func (c *Crypto) DecryptStruct(ctx context.Context, object any) error {
 	// iterate through the fields to find encrypted ones
 	for i := range t.NumField() {
 		field := t.Field(i)
-		if tag := field.Tag.Get(STRUCT_TAG); tag != "" {
+		if tag := field.Tag.Get(StructTag); tag != "" {
 			fieldVal := v.FieldByName(field.Name)
 			operations := strings.Split(tag, ",")
 			for _, op := range operations {
 				op = strings.TrimSpace(op)
-				if op == ENCRYPT {
+				if op == TagEncrypt {
 					if err := c.decryptField(ctxWithDEK, field, v, fieldVal, dek); err != nil {
 						decryptErrs.Set(fmt.Sprintf("decrypt field '%s'", field.Name), err)
 					}
@@ -77,18 +77,18 @@ func (c *Crypto) decryptEmbeddedStruct(ctx context.Context, v reflect.Value, t r
 	var decryptErrs errsx.Map
 	for i := range t.NumField() {
 		field := t.Field(i)
-		if tag := field.Tag.Get(STRUCT_TAG); tag != "" {
+		if tag := field.Tag.Get(StructTag); tag != "" {
 			fieldVal := v.FieldByName(field.Name)
 			operations := strings.Split(tag, ",")
 			for _, op := range operations {
 				op = strings.TrimSpace(op)
-				if op == ENCRYPT {
+				if op == TagEncrypt {
 					dek, ok := ctx.Value(dekContextKey{}).([]byte)
 					if !ok {
 						return fmt.Errorf("DEK not found in context for field '%s'", field.Name)
 					}
 					if len(dek) != 32 {
-						return NewInvalidFormatError(DEK_FIELD, "32-byte []byte", Encrypt)
+						return NewInvalidFormatError(FieldDEK, "32-byte []byte", Encrypt)
 					}
 					if err := c.decryptField(ctx, field, v, fieldVal, dek); err != nil { // Note: Using the context with DEK
 						decryptErrs.Set(fmt.Sprintf("decrypt embedded field '%s'", field.Name), err)
@@ -109,12 +109,12 @@ func (c *Crypto) decryptEmbeddedStruct(ctx context.Context, v reflect.Value, t r
 func getKeyVersion(object any) (int, error) {
 	var errs errsx.Map
 	v := reflect.ValueOf(object).Elem()
-	keyVersionValue := v.FieldByName(VERSION_FIELD)
+	keyVersionValue := v.FieldByName(FieldKeyVersion)
 	if !keyVersionValue.IsValid() {
-		errs.Set(fmt.Sprintf("'%s' value not valid", VERSION_FIELD), NewMissingFieldError(DEK_ENCRYPTED_FIELD, Decrypt))
+		errs.Set(fmt.Sprintf("'%s' value not valid", FieldKeyVersion), NewMissingFieldError(FieldDEKEncrypted, Decrypt))
 	}
 	if keyVersionValue.Kind() != reflect.Int {
-		errs.Set(fmt.Sprintf("'%s' kind not valid", VERSION_FIELD), NewInvalidFieldTypeError(DEK_ENCRYPTED_FIELD, "int", keyVersionValue.Type().String(), Decrypt))
+		errs.Set(fmt.Sprintf("'%s' kind not valid", FieldKeyVersion), NewInvalidFieldTypeError(FieldDEKEncrypted, "int", keyVersionValue.Type().String(), Decrypt))
 	}
 	if !errs.IsEmpty() {
 		return 0, errs.AsError()
@@ -127,12 +127,12 @@ func (c *Crypto) getDEK(ctx context.Context, object any, keyVersion int) ([]byte
 	var errs errsx.Map
 	v := reflect.ValueOf(object).Elem()
 
-	encryptedDEKFieldValue := v.FieldByName(DEK_ENCRYPTED_FIELD)
+	encryptedDEKFieldValue := v.FieldByName(FieldDEKEncrypted)
 	if !encryptedDEKFieldValue.IsValid() {
-		errs.Set(fmt.Sprintf("'%s' value not valid", DEK_ENCRYPTED_FIELD), NewMissingFieldError(DEK_ENCRYPTED_FIELD, Decrypt))
+		errs.Set(fmt.Sprintf("'%s' value not valid", FieldDEKEncrypted), NewMissingFieldError(FieldDEKEncrypted, Decrypt))
 	}
 	if encryptedDEKFieldValue.Kind() != reflect.Slice || encryptedDEKFieldValue.Type().Elem().Kind() != reflect.Uint8 {
-		errs.Set(fmt.Sprintf("'%s' kind not valid", DEK_ENCRYPTED_FIELD), NewInvalidFieldTypeError(DEK_ENCRYPTED_FIELD, "[]byte", encryptedDEKFieldValue.Type().String(), Decrypt))
+		errs.Set(fmt.Sprintf("'%s' kind not valid", FieldDEKEncrypted), NewInvalidFieldTypeError(FieldDEKEncrypted, "[]byte", encryptedDEKFieldValue.Type().String(), Decrypt))
 	}
 	encryptedDEKBytes := encryptedDEKFieldValue.Bytes()
 
@@ -148,13 +148,13 @@ func (c *Crypto) getDEK(ctx context.Context, object any, keyVersion int) ([]byte
 }
 
 func (c *Crypto) decryptField(ctx context.Context, field reflect.StructField, v, fieldVal reflect.Value, dek []byte) error {
-	for _, fieldToSkip := range FIELDS_TO_SKIP {
+	for _, fieldToSkip := range fieldsToSkip {
 		if field.Name == fieldToSkip {
 			log.Printf("Warning: Skipping decrypting for field '%s'.", field.Name)
 			return nil
 		}
 	}
-	encryptedFieldName := field.Name + ENCRYPTED_FIELD_SUFFIX
+	encryptedFieldName := field.Name + SuffixEncrypted
 	encryptedField := v.FieldByName(encryptedFieldName)
 	if encryptedField.IsValid() && encryptedField.Kind() == reflect.Slice && fieldVal.CanSet() {
 		ciphertext := encryptedField.Bytes()
