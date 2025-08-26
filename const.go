@@ -1,19 +1,27 @@
 package encx
 
+// Field name constants - exported for public use
 const (
-	VERSION_FIELD          = "KeyVersion"
-	DEK_FIELD              = "DEK"
-	ENCRYPTED_FIELD_SUFFIX = "Encrypted"
-	DEK_ENCRYPTED_FIELD    = DEK_FIELD + ENCRYPTED_FIELD_SUFFIX
-	HASHED_FIELD_SUFFIX    = "Hash"
-	STRUCT_TAG             = "encx"
-
-	// tags
-	ENCRYPT = "encrypt"
-	SECURE  = "hash_secure"
-	BASIC   = "hash_basic"
+	FieldKeyVersion = "KeyVersion"
+	FieldDEK        = "DEK"
+	FieldDEKEncrypted = FieldDEK + SuffixEncrypted
 )
 
+// Suffix constants for generated fields
+const (
+	SuffixEncrypted = "Encrypted"
+	SuffixHashed    = "Hash"
+)
+
+// Tag constants for struct field annotations
+const (
+	StructTag     = "encx"
+	TagEncrypt    = "encrypt"
+	TagHashSecure = "hash_secure"
+	TagHashBasic  = "hash_basic"
+)
+
+// Internal fields that should be skipped during processing
 var (
-	FIELDS_TO_SKIP = [3]string{DEK_FIELD, DEK_ENCRYPTED_FIELD, VERSION_FIELD}
+	fieldsToSkip = [3]string{FieldDEK, FieldDEKEncrypted, FieldKeyVersion}
 )
