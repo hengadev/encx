@@ -2,8 +2,8 @@ package encx
 
 // Field name constants - exported for public use
 const (
-	FieldKeyVersion = "KeyVersion"
-	FieldDEK        = "DEK"
+	FieldKeyVersion   = "KeyVersion"
+	FieldDEK          = "DEK"
 	FieldDEKEncrypted = FieldDEK + SuffixEncrypted
 )
 

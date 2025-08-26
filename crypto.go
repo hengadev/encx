@@ -30,13 +30,13 @@ type CryptoService interface {
 }
 
 type Crypto struct {
-	kmsService       KeyManagementService
-	kekAlias         string
-	pepper           []byte
-	argon2Params     *Argon2Params
-	serializer       Serializer
-	keyMetadataDB    *sql.DB
-	metricsCollector MetricsCollector
+	kmsService        KeyManagementService
+	kekAlias          string
+	pepper            []byte
+	argon2Params      *Argon2Params
+	serializer        Serializer
+	keyMetadataDB     *sql.DB
+	metricsCollector  MetricsCollector
 	observabilityHook ObservabilityHook
 }
 
@@ -44,15 +44,16 @@ type Crypto struct {
 // Deprecated: Use NewCrypto with options instead for better validation and flexibility.
 //
 // Example migration:
-//   // Old way:
-//   crypto, err := encx.New(ctx, kmsService, "my-kek", "secret/pepper")
-//   
-//   // New way:
-//   crypto, err := encx.NewCrypto(ctx,
-//       encx.WithKMSService(kmsService),
-//       encx.WithKEKAlias("my-kek"),
-//       encx.WithPepperSecretPath("secret/pepper"),
-//   )
+//
+//	// Old way:
+//	crypto, err := encx.New(ctx, kmsService, "my-kek", "secret/pepper")
+//
+//	// New way:
+//	crypto, err := encx.NewCrypto(ctx,
+//	    encx.WithKMSService(kmsService),
+//	    encx.WithKEKAlias("my-kek"),
+//	    encx.WithPepperSecretPath("secret/pepper"),
+//	)
 func New(
 	ctx context.Context,
 	kmsService KeyManagementService,
@@ -62,7 +63,6 @@ func New(
 ) (*Crypto, error) {
 	return NewCryptoLegacy(ctx, kmsService, kekAlias, pepperSecretPath, options...)
 }
-
 
 func (c *Crypto) getDatabasePathFromDB() (string, error) {
 	var path string
