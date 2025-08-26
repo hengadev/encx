@@ -146,7 +146,7 @@ func (v *VaultService) EncryptDEK(ctx context.Context, keyID string, plaintextDE
 }
 
 func (v *VaultService) DecryptDEK(ctx context.Context, keyID string, ciphertextDEK []byte) ([]byte, error) {
-	resp, err := v.client.Logical().Write(fmt.Sprintf("transit/decrypt/%s", keyID), map[string]interface{}{
+	resp, err := v.client.Logical().Write(fmt.Sprintf("transit/decrypt/%s", keyID), map[string]any{
 		"ciphertext": string(ciphertextDEK),
 	})
 	if err != nil {
