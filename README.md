@@ -1,42 +1,450 @@
-# encx
+# ENCX - Enterprise Cryptography for Go
 
-`encx` is a Go package for handling field-level encryption and hashing in structs. It supports:
+A production-ready Go library for field-level encryption, hashing, and key management. ENCX provides struct-based cryptographic operations with support for key rotation, multiple KMS backends, and comprehensive testing utilities.
 
-- **AES-GCM encryption** for securing sensitive data.
-- **Argon2id hashing** for secure password storage.
-- **SHA-256 hashing** for fast, non-reversible identifiers.
+## Features
 
-## 🚀 Usage
+- **Field-level encryption** with AES-GCM
+- **Secure hashing** with Argon2id and basic SHA-256
+- **Combined operations** - encrypt AND hash the same field
+- **Automatic key management** with DEK/KEK architecture
+- **Key rotation** support with version tracking
+- **Multiple KMS backends** (AWS KMS, HashiCorp Vault, etc.)
+- **Comprehensive testing** utilities and mocks
+- **Compile-time validation** for struct tags
 
-Simply tag struct fields with `encx` to specify how they should be processed.
+## Quick Start
+
+### Installation
+
+```bash
+go get github.com/hengadev/encx
+```
+
+### Basic Usage
+
+```go
+package main
+
+import (
+    "context"
+    "fmt"
+    "log"
+    
+    "github.com/hengadev/encx"
+)
+
+// Define your struct with encx tags
+type User struct {
+    Name             string `encx:"encrypt"`
+    NameEncrypted    []byte
+    Email            string `encx:"hash_basic"`
+    EmailHash        string
+    Password         string `encx:"hash_secure"`
+    PasswordHash     string
+    
+    // Required fields
+    DEK              []byte
+    DEKEncrypted     []byte
+    KeyVersion       int
+}
+
+func main() {
+    // Create crypto instance (see Configuration section for production setup)
+    crypto, _ := encx.NewTestCrypto(nil)
+    
+    // Create user with sensitive data
+    user := &User{
+        Name:     "John Doe",
+        Email:    "john@example.com",
+        Password: "secret123",
+    }
+    
+    // Process the struct (encrypt/hash operations)
+    ctx := context.Background()
+    if err := crypto.ProcessStruct(ctx, user); err != nil {
+        log.Fatal(err)
+    }
+    
+    // Original sensitive fields are now cleared/processed
+    fmt.Printf("Name: '%s' (cleared)\n", user.Name)
+    fmt.Printf("NameEncrypted: %d bytes\n", len(user.NameEncrypted))
+    fmt.Printf("EmailHash: %s\n", user.EmailHash)
+    fmt.Printf("PasswordHash: %s\n", user.PasswordHash[:20]+"...")
+    
+    // Decrypt when needed
+    if err := crypto.DecryptStruct(ctx, user); err != nil {
+        log.Fatal(err)
+    }
+    
+    fmt.Printf("Decrypted Name: %s\n", user.Name)
+}
+```
+
+## Struct Tags Reference
+
+### Single Operation Tags
+
+- `encx:"encrypt"` - Encrypts field, stores in companion `*Encrypted []byte` field
+- `encx:"hash_basic"` - SHA-256 hash, stores in companion `*Hash string` field  
+- `encx:"hash_secure"` - Argon2id hash with pepper, stores in companion `*Hash string` field
+
+### Combined Operation Tags
+
+- `encx:"encrypt,hash_basic"` - Both encrypts AND hashes the field
+- `encx:"hash_secure,encrypt"` - Secure hash for auth + encryption for recovery
+
+### Required Struct Fields
+
+Every struct must include these fields:
+
+```go
+type YourStruct struct {
+    // Your tagged fields...
+    
+    DEK          []byte  // Data Encryption Key (auto-generated)
+    DEKEncrypted []byte  // Encrypted DEK (set automatically)  
+    KeyVersion   int     // Key version for rotation (set automatically)
+}
+```
+
+## Advanced Examples
+
+### Combined Tags for Email
+
+Perfect for user lookup + privacy:
 
 ```go
 type User struct {
-    Email    string `encx:"hash_basic"`
-    Password string `encx:"hash_secure"`
-    Address  string `encx:"encrypt"`
+    Email             string `encx:"encrypt,hash_basic"`
+    EmailEncrypted    []byte // For secure storage
+    EmailHash         string // For fast user lookups
+    
+    DEK               []byte
+    DEKEncrypted      []byte
+    KeyVersion        int
 }
-``````
+
+// Usage
+user := &User{Email: "user@example.com"}
+crypto.ProcessStruct(ctx, user)
+
+// Now you can:
+// 1. Store user.EmailEncrypted securely in database
+// 2. Use user.EmailHash for fast user lookups
+// 3. Decrypt user.Email when needed for display
+```
+
+### Password with Recovery
+
+Secure authentication + recovery capability:
+
+```go
+type User struct {
+    Password          string `encx:"hash_secure,encrypt"`
+    PasswordHash      string // For authentication (Argon2id)
+    PasswordEncrypted []byte // For recovery scenarios
+    
+    DEK               []byte
+    DEKEncrypted      []byte
+    KeyVersion        int
+}
+
+// Usage for login
+func (u *User) CheckPassword(plaintext string) bool {
+    return crypto.CompareSecureHashAndValue(ctx, plaintext, u.PasswordHash)
+}
+
+// Usage for password recovery
+func (u *User) RecoverPassword() string {
+    crypto.DecryptStruct(ctx, u)
+    return u.Password // Temporarily available for recovery
+}
+```
+
+### Embedded Structs
+
+ENCX automatically processes embedded structs:
+
+```go
+type Address struct {
+    Street           string `encx:"encrypt"`
+    StreetEncrypted  []byte
+    City             string `encx:"hash_basic"`
+    CityHash         string
+}
+
+type User struct {
+    Name             string `encx:"encrypt"`
+    NameEncrypted    []byte
+    
+    Address          Address // Automatically processed
+    
+    DEK              []byte
+    DEKEncrypted     []byte
+    KeyVersion       int
+}
+```
+
+## Configuration
+
+### Production Setup
+
+```go
+// With AWS KMS
+crypto, err := encx.New(ctx,
+    encx.WithKMSService(awsKMS),
+    encx.WithDatabase(db),
+    encx.WithPepper(pepper),
+    encx.WithKEKAlias("myapp-kek"),
+)
+
+// With HashiCorp Vault
+crypto, err := encx.New(ctx,
+    encx.WithKMSService(vaultKMS),
+    encx.WithDatabase(db),
+    encx.WithPepper(pepper),
+    encx.WithKEKAlias("myapp-kek"),
+)
+```
+
+### Testing Setup
+
+```go
+// For unit tests with mocking
+func TestUserEncryption(t *testing.T) {
+    crypto, _ := encx.NewTestCrypto(t)
+    
+    user := &User{Name: "Test User"}
+    err := crypto.ProcessStruct(ctx, user)
+    assert.NoError(t, err)
+    assert.NotEmpty(t, user.NameEncrypted)
+}
+
+// For integration tests
+func TestUserEncryptionIntegration(t *testing.T) {
+    crypto, _ := encx.NewTestCrypto(t, &encx.TestCryptoOptions{
+        Pepper: []byte("test-pepper-exactly-32-bytes!!"),
+    })
+    
+    // Test with real crypto operations
+}
+```
+
+## Validation
+
+### Compile-time Validation
+
+Use the validation utility to check your structs:
+
+```bash
+# Validate all Go files in current directory
+go run github.com/hengadev/encx/cmd/validate-tags -v
+
+# Validate specific files
+go run github.com/hengadev/encx/cmd/validate-tags -pattern="user*.go"
+```
+
+### Runtime Validation
+
+```go
+// Validate struct definition before processing
+if err := encx.ValidateStruct(&user); err != nil {
+    log.Fatalf("Invalid struct: %v", err)
+}
+```
+
+## Key Management
+
+### Key Rotation
+
+```go
+// Rotate the Key Encryption Key (KEK)
+if err := crypto.RotateKEK(ctx); err != nil {
+    log.Fatalf("Key rotation failed: %v", err)
+}
+
+// Data encrypted with old keys can still be decrypted
+// New encryptions will use the new key version
+```
+
+### Multiple Key Versions
+
+ENCX automatically handles multiple key versions:
+
+```go
+// User encrypted with key version 1
+oldUser := &User{Name: "Alice"}
+crypto.ProcessStruct(ctx, oldUser) // Uses current key (v1)
+
+// Rotate key
+crypto.RotateKEK(ctx)
+
+// New user encrypted with key version 2  
+newUser := &User{Name: "Bob"}
+crypto.ProcessStruct(ctx, newUser) // Uses current key (v2)
+
+// Both can be decrypted
+crypto.DecryptStruct(ctx, oldUser) // Uses key v1
+crypto.DecryptStruct(ctx, newUser) // Uses key v2
+```
+
+## KMS Providers
+
+### HashiCorp Vault
+
+```go
+import "github.com/hengadev/encx/providers/vault"
+
+kms, err := vault.NewKMSService(client)
+crypto, err := encx.New(ctx, encx.WithKMSService(kms))
+```
+
+### S3 (for testing/development)
+
+```go
+import "github.com/hengadev/encx/providers/s3"
+
+kms, err := s3.NewKMSService(bucket, region)
+crypto, err := encx.New(ctx, encx.WithKMSService(kms))
+```
+
+## Best Practices
+
+### 1. Use Combined Tags Strategically
+
+```go
+// Good: Email needs both lookup and privacy
+Email string `encx:"encrypt,hash_basic"`
+
+// Good: Password needs auth and recovery
+Password string `encx:"hash_secure,encrypt"`
+
+// Avoid: Unnecessary combinations
+InternalID string `encx:"encrypt,hash_basic,hash_secure"` // Too much
+```
+
+### 2. Proper Error Handling
+
+```go
+if err := crypto.ProcessStruct(ctx, user); err != nil {
+    // Log the error for debugging
+    log.Printf("Encryption failed: %v", err)
+    
+    // Return user-friendly error
+    return fmt.Errorf("failed to process user data")
+}
+```
+
+### 3. Validate Structs Early
+
+```go
+// Validate during development/testing
+func init() {
+    if err := encx.ValidateStruct(&User{}); err != nil {
+        panic(fmt.Sprintf("Invalid User struct: %v", err))
+    }
+}
+```
+
+### 4. Handle Key Rotation Gracefully
+
+```go
+// Schedule regular key rotation
+go func() {
+    ticker := time.NewTicker(30 * 24 * time.Hour) // 30 days
+    defer ticker.Stop()
+    
+    for range ticker.C {
+        if err := crypto.RotateKEK(ctx); err != nil {
+            log.Printf("Key rotation failed: %v", err)
+        }
+    }
+}()
+```
+
+## Performance Considerations
+
+- **Batch Operations**: Process multiple structs in batches when possible
+- **Connection Pooling**: Use connection pooling for KMS and database
+- **Caching**: Consider caching decrypted DEKs for frequently accessed data
+- **Monitoring**: Monitor KMS API calls and database performance
+
+## Security Considerations
+
+- **Pepper Management**: Store pepper securely, separate from database
+- **KMS Permissions**: Use least-privilege access for KMS operations  
+- **Database Security**: Encrypt database at rest and in transit
+- **Memory Management**: Clear sensitive data from memory when possible
+- **Audit Logging**: Log all cryptographic operations for compliance
+
+## Testing
+
+The library includes comprehensive testing utilities:
+
+```go
+// Unit testing with mocks
+func TestUserService(t *testing.T) {
+    mockCrypto := encx.NewCryptoServiceMock()
+    mockCrypto.On("ProcessStruct", mock.Anything, mock.Anything).Return(nil)
+    
+    service := NewUserService(mockCrypto)
+    err := service.CreateUser("test@example.com")
+    assert.NoError(t, err)
+    
+    mockCrypto.AssertExpectations(t)
+}
+
+// Integration testing
+func TestUserServiceIntegration(t *testing.T) {
+    crypto, _ := encx.NewTestCrypto(t)
+    service := NewUserService(crypto)
+    
+    err := service.CreateUser("test@example.com")
+    assert.NoError(t, err)
+}
+```
 
 ## Important: Version Control (.gitignore)
 
-When using the `encx` package, it's **highly recommended** to add the following line to your project's `.gitignore` file:
+When using the `encx` package, add the following to your `.gitignore`:
 
 ```gitignore
 .encx/
 ```
 
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Add tests for new functionality
+4. Run the validation utility: `go run ./cmd/validate-tags -v`
+5. Ensure all tests pass: `go test ./...`
+6. Submit a pull request
+
 ## 🚧 TODOs
 
 - [ ] implement example for different key management services: 
-    - [X] HashiCorp Vault
+    - [x] HashiCorp Vault
     - [ ] AWS KMS
     - [ ] Azure Key Vault
     - [ ] Google Cloud KMS
     - [ ] Thales CipherTrust (formerly Vormetric)
     - [ ] AWS CloudHSM
-- [ ] explore concurrency for performance improvements
-- [ ] tests
+- [x] explore concurrency for performance improvements
+- [x] comprehensive tests
+- [x] combined tags support
+- [x] compile-time validation
+- [x] enhanced error handling
+- [x] improved documentation
+
+## License
+
+[Add your license here]
+
+## Support
+
+[Add support information here]
 
 ## 📚 Documentation
 
