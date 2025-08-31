@@ -73,7 +73,7 @@ func (c *Crypto) ProcessStruct(ctx context.Context, object any) error {
 		"struct_type":    reflect.TypeOf(object).String(),
 	}
 	c.observabilityHook.OnProcessStart(ctx, "ProcessStruct", metadata)
-	
+
 	var validErrs errsx.Map
 	if err := validateObjectForProcessing(object); err != nil {
 		validErrs.Set("validate object for struct encryption", err)
@@ -143,7 +143,6 @@ func (c *Crypto) ProcessStruct(ctx context.Context, object any) error {
 		c.observabilityHook.OnError(ctx, "ProcessStruct", finalErr, metadata)
 	}
 	c.observabilityHook.OnProcessComplete(ctx, "ProcessStruct", time.Since(start), finalErr, metadata)
-	
+
 	return finalErr
 }
-

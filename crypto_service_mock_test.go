@@ -101,4 +101,3 @@ func (m *CryptoServiceMock) DecryptStream(ctx context.Context, reader io.Reader,
 	args := m.Called(ctx, reader, writer, dek)
 	return args.Error(0)
 }
-

@@ -16,9 +16,14 @@ import (
 // Hashing operations - basic and secure
 
 // HashBasic performs a basic SHA256 hash on the byte representation of the input.
-func (c *Crypto) HashBasic(ctx context.Context, value []byte) string {
+func HashBasic(ctx context.Context, value []byte) string {
 	valueHash := sha256.Sum256(value)
 	return hex.EncodeToString(valueHash[:])
+}
+
+// HashBasic performs a basic SHA256 hash on the byte representation of the input.
+func (c *Crypto) HashBasic(ctx context.Context, value []byte) string {
+	return HashBasic(ctx, value)
 }
 
 // HashSecure performs a secure Argon2id hash on the byte representation of the input,
