@@ -18,10 +18,10 @@ import (
 
 // UserRecord represents a user record with encrypted phone number
 type UserRecord struct {
-	ID                  int    `json:"id"`
-	Name                string `json:"name"`
-	Email               string `json:"email"`
-	PhoneNumber         string `encx:"encrypt" json:"phone_number"`
+	ID                   int    `json:"id"`
+	Name                 string `json:"name"`
+	Email                string `json:"email"`
+	PhoneNumber          string `encx:"encrypt" json:"phone_number"`
 	PhoneNumberEncrypted []byte `json:"phone_number_encrypted"`
 
 	// Required encx fields
@@ -157,7 +157,7 @@ func (h *UserHandler) GetUser(w http.ResponseWriter, r *http.Request) {
 // TestPhoneEncryption_UnitTest shows unit testing with mocks
 func TestPhoneEncryption_UnitTest(t *testing.T) {
 	// This addresses: "Mock interface from encx package for testing"
-	
+
 	// Create mock crypto service
 	mockCrypto := NewCryptoServiceMock()
 	repo := NewUserRepository()
@@ -168,7 +168,7 @@ func TestPhoneEncryption_UnitTest(t *testing.T) {
 	mockCrypto.On("ProcessStruct", ctx, &UserRecord{
 		ID:          1,
 		Name:        "John Doe",
-		Email:       "john@example.com", 
+		Email:       "john@example.com",
 		PhoneNumber: "+1-555-0123",
 	}).Return(nil).Run(func(args mock.Arguments) {
 		// Simulate encryption by clearing the phone number
@@ -181,7 +181,7 @@ func TestPhoneEncryption_UnitTest(t *testing.T) {
 	// Test user creation
 	user, err := service.CreateUser("John Doe", "john@example.com", "+1-555-0123")
 	require.NoError(t, err)
-	
+
 	assert.Equal(t, "John Doe", user.Name)
 	assert.Equal(t, "john@example.com", user.Email)
 	assert.Empty(t, user.PhoneNumber) // Should be encrypted (empty)
@@ -193,7 +193,7 @@ func TestPhoneEncryption_UnitTest(t *testing.T) {
 // TestPhoneEncryption_IntegrationTest shows integration testing with real encryption
 func TestPhoneEncryption_IntegrationTest(t *testing.T) {
 	// This addresses: "Test utilities from encx package to create predictable encrypted data"
-	
+
 	// Create test crypto instance - no external dependencies!
 	crypto, _ := NewTestCrypto(t)
 	repo := NewUserRepository()
@@ -213,7 +213,7 @@ func TestPhoneEncryption_IntegrationTest(t *testing.T) {
 	// Test user retrieval with decryption
 	retrievedUser, err := service.GetUser(1)
 	require.NoError(t, err)
-	
+
 	// Verify decryption happened
 	assert.Equal(t, "John Doe", retrievedUser.Name)
 	assert.Equal(t, "john@example.com", retrievedUser.Email)
@@ -224,9 +224,9 @@ func TestPhoneEncryption_IntegrationTest(t *testing.T) {
 func TestPhoneAPI_GetEndpoint(t *testing.T) {
 	// This directly addresses the original comment:
 	// "Phone GET endpoint tests are commented out due to crypto service testing limitations"
-	
+
 	ctx := context.Background()
-	
+
 	// Set up test dependencies with no external services required
 	crypto, _ := NewTestCrypto(t)
 	repo := NewUserRepository()
@@ -240,14 +240,14 @@ func TestPhoneAPI_GetEndpoint(t *testing.T) {
 		Email:       "jane@example.com",
 		PhoneNumber: "+1-555-9876",
 	}
-	
+
 	// Encrypt before storage
 	err := crypto.ProcessStruct(ctx, testUser)
 	require.NoError(t, err)
-	
+
 	err = repo.Save(testUser)
 	require.NoError(t, err)
-	
+
 	// Verify phone is encrypted in storage
 	storedUser, exists := repo.GetByID(1)
 	require.True(t, exists)
@@ -280,7 +280,7 @@ func TestPhoneAPI_GetEndpoint(t *testing.T) {
 // TestPhoneAPI_CreateEndpoint shows POST endpoint testing
 func TestPhoneAPI_CreateEndpoint(t *testing.T) {
 	ctx := context.Background()
-	
+
 	// Set up test dependencies
 	crypto, _ := NewTestCrypto(t)
 	repo := NewUserRepository()
@@ -293,7 +293,7 @@ func TestPhoneAPI_CreateEndpoint(t *testing.T) {
 		"email": "bob@example.com", 
 		"phone_number": "+1-555-1234"
 	}`
-	
+
 	req := httptest.NewRequest("POST", "/users", strings.NewReader(requestBody))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
@@ -327,7 +327,7 @@ func TestPhoneAPI_CreateEndpoint(t *testing.T) {
 // TestPhoneEncryption_PredictableData shows predictable test data usage
 func TestPhoneEncryption_PredictableData(t *testing.T) {
 	ctx := context.Background()
-	
+
 	crypto, _ := NewTestCrypto(t)
 	factory := NewTestDataFactory(crypto)
 
@@ -347,7 +347,7 @@ func TestPhoneEncryption_PredictableData(t *testing.T) {
 	// Create another with same input - DEK is predictable
 	_, dek2, err := factory.CreatePredictableEncryptedData(ctx, "+1-555-TEST")
 	require.NoError(t, err)
-	
+
 	assert.Equal(t, dek, dek2) // Same DEK for same input
 	// Note: encrypted data will be different due to random nonces (this is correct)
 }
@@ -378,7 +378,7 @@ func TestPhoneEncryption_MultipleUsers(t *testing.T) {
 	for i, userData := range users {
 		user, err := service.GetUser(i + 1)
 		require.NoError(t, err)
-		
+
 		assert.Equal(t, userData.name, user.Name)
 		assert.Equal(t, userData.email, user.Email)
 		assert.Equal(t, userData.phone, user.PhoneNumber) // All decrypted correctly
@@ -402,7 +402,7 @@ func BenchmarkPhoneEncryption(b *testing.B) {
 		testUser.PhoneNumber = "+1-555-BENCH"
 		testUser.DEKEncrypted = nil
 		testUser.KeyVersion = 0
-		
+
 		_ = crypto.ProcessStruct(ctx, testUser)
 		_ = crypto.DecryptStruct(ctx, testUser)
 	}
@@ -413,7 +413,7 @@ func BenchmarkPhoneEncryption(b *testing.B) {
 // ExampleUserService_encryption shows basic usage
 func ExampleUserService_CreateUser() {
 	// This example demonstrates how easy it is to test phone number encryption
-	
+
 	// In your test:
 	// crypto, _ := encx.NewTestCrypto(t)
 	// repo := NewUserRepository()
@@ -428,34 +428,34 @@ func ExampleUserService_CreateUser() {
 func TestPhoneEncryption_Documentation(t *testing.T) {
 	/*
 	   ORIGINAL PROBLEM (from the comment):
-	   
+
 	   // TODO: Phone GET endpoint tests are commented out due to crypto service testing limitations.
 	   // The encx package does not provide mocking capabilities, making it impossible to write
 	   // proper integration tests that involve encryption/decryption of phone numbers.
 	   //
 	   // We need either:
 	   // 1. Mock interface from encx package for testing
-	   // 2. Test utilities from encx package to create predictable encrypted data  
+	   // 2. Test utilities from encx package to create predictable encrypted data
 	   // 3. Dependency injection pattern to allow test doubles
-	   
+
 	   SOLUTION PROVIDED:
-	   
+
 	   ✅ 1. Mock interface: CryptoServiceMock available
-	   ✅ 2. Test utilities: NewTestCrypto, TestDataFactory available  
+	   ✅ 2. Test utilities: NewTestCrypto, TestDataFactory available
 	   ✅ 3. Dependency injection: CryptoService interface supports this
-	   
+
 	   This test file demonstrates ALL THREE solutions working together.
 	   Phone GET endpoint tests can now be written reliably!
 	*/
 
 	// Demonstrate all three solutions:
-	
+
 	// Solution 1: Mock interface
 	mockCrypto := NewCryptoServiceMock()
 	mockCrypto.On("ProcessStruct", context.Background(), &UserRecord{}).Return(nil)
 	assert.NotNil(t, mockCrypto)
 
-	// Solution 2: Test utilities  
+	// Solution 2: Test utilities
 	crypto, _ := NewTestCrypto(t)
 	factory := NewTestDataFactory(crypto)
 	assert.NotNil(t, factory)

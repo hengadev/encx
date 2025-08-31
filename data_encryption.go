@@ -96,3 +96,4 @@ func (c *Crypto) DecryptStream(ctx context.Context, reader io.Reader, writer io.
 	}
 	return nil
 }
+

@@ -46,11 +46,11 @@ func (c *Crypto) processField(ctx context.Context, v reflect.Value, field reflec
 				return fmt.Errorf("basic hashing failed for field '%s': %w", field.Name, err)
 			}
 		default:
-			return fmt.Errorf("unsupported encx tag '%s' for field '%s'. Supported tags: %s, %s, %s", 
+			return fmt.Errorf("unsupported encx tag '%s' for field '%s'. Supported tags: %s, %s, %s",
 				singleTag, field.Name, TagEncrypt, TagHashSecure, TagHashBasic)
 		}
 	}
-	
+
 	return nil
 }
 
@@ -84,9 +84,9 @@ func (c *Crypto) validateFieldForProcessing(field reflect.StructField, fieldValu
 func isSerializableType(t reflect.Type) bool {
 	switch t.Kind() {
 	case reflect.String, reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
-		 reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64,
-		 reflect.Float32, reflect.Float64, reflect.Bool,
-		 reflect.Slice, reflect.Array, reflect.Map, reflect.Struct, reflect.Ptr:
+		reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64,
+		reflect.Float32, reflect.Float64, reflect.Bool,
+		reflect.Slice, reflect.Array, reflect.Map, reflect.Struct, reflect.Ptr:
 		return true
 	case reflect.Interface:
 		// Interfaces are serializable if they contain serializable values
@@ -197,22 +197,22 @@ func (c *Crypto) processEmbeddedStruct(ctx context.Context, v reflect.Value, t r
 	for i := range t.NumField() {
 		field := t.Field(i)
 		fieldValue := v.Field(i)
-		
+
 		// Skip unexported fields that cannot be processed
 		if !fieldValue.CanSet() {
 			continue
 		}
-		
+
 		if tag := field.Tag.Get(StructTag); tag != "" {
 			if err := c.processField(ctx, v, field, tag); err != nil {
-				errs.Set(fmt.Sprintf("processing embedded field '%s.%s' with tag '%s' in struct type %s", 
+				errs.Set(fmt.Sprintf("processing embedded field '%s.%s' with tag '%s' in struct type %s",
 					t.Name(), field.Name, tag, t.String()), err)
 			}
 		} else if field.Type.Kind() == reflect.Struct {
 			embeddedVal := v.Field(i)
 			embeddedType := field.Type
 			if err := c.processEmbeddedStruct(ctx, embeddedVal, embeddedType); err != nil {
-				errs.Set(fmt.Sprintf("processing deeply embedded struct '%s.%s' of type %s", 
+				errs.Set(fmt.Sprintf("processing deeply embedded struct '%s.%s' of type %s",
 					t.Name(), field.Name, embeddedType.String()), err)
 			}
 		}

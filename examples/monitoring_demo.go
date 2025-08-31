@@ -11,16 +11,16 @@ import (
 
 // Demo user struct with different field types
 type User struct {
-	Name             string `encx:"encrypt"`
-	NameEncrypted    []byte
-	Email            string `encx:"hash_basic"`
-	EmailHash        string
-	Phone            string `encx:"encrypt,hash_basic"`
-	PhoneEncrypted   []byte
-	PhoneHash        string
-	DEK              []byte
-	DEKEncrypted     []byte
-	KeyVersion       int
+	Name           string `encx:"encrypt"`
+	NameEncrypted  []byte
+	Email          string `encx:"hash_basic"`
+	EmailHash      string
+	Phone          string `encx:"encrypt,hash_basic"`
+	PhoneEncrypted []byte
+	PhoneHash      string
+	DEK            []byte
+	DEKEncrypted   []byte
+	KeyVersion     int
 }
 
 func main() {
@@ -56,7 +56,7 @@ func main() {
 		start := time.Now()
 		err := crypto.ProcessStruct(ctx, user)
 		duration := time.Since(start)
-		
+
 		if err != nil {
 			fmt.Printf("   ❌ User %d failed: %v\n", i+1, err)
 		} else {
@@ -70,7 +70,7 @@ func main() {
 	start := time.Now()
 	err = crypto.RotateKEK(ctx)
 	duration := time.Since(start)
-	
+
 	if err != nil {
 		fmt.Printf("   ❌ Key rotation failed: %v\n", err)
 	} else {
@@ -93,7 +93,7 @@ func main() {
 			tags: map[string]string{"operation": "ProcessStruct"},
 		},
 		{
-			name: "encx.process.completed", 
+			name: "encx.process.completed",
 			tags: map[string]string{"operation": "ProcessStruct", "status": "success"},
 		},
 		{
@@ -118,17 +118,17 @@ func main() {
 	}
 	fmt.Println()
 
-	// Show timing metrics  
+	// Show timing metrics
 	fmt.Println("   ⏱️  Timing Metrics:")
 	timings := metricsCollector.GetTimings()
 	operationTimes := make(map[string][]time.Duration)
-	
+
 	for _, timing := range timings {
 		if operation, ok := timing.Tags["operation"]; ok {
 			operationTimes[operation] = append(operationTimes[operation], timing.Duration)
 		}
 	}
-	
+
 	for operation, durations := range operationTimes {
 		if len(durations) > 0 {
 			var total time.Duration
@@ -176,12 +176,12 @@ func main() {
 			}
 		},
 	})
-	
+
 	duration = time.Since(start)
 	if err != nil {
 		fmt.Printf("   ❌ Batch processing failed: %v\n", err)
 	} else {
-		fmt.Printf("   ✅ Batch processed: %d succeeded, %d failed in %v\n", 
+		fmt.Printf("   ✅ Batch processed: %d succeeded, %d failed in %v\n",
 			result.Processed, result.Failed, duration)
 	}
 	fmt.Println()
@@ -189,7 +189,7 @@ func main() {
 	// Demo 5: Show final metrics summary
 	fmt.Println("5. Final Metrics Summary:")
 	fmt.Printf("   📊 Total operations tracked: %d\n", len(timings))
-	
+
 	totalStructsProcessed := int64(0)
 	for fullKey := range metricsCollector.GetAllCounterKeys() {
 		if containsTag(fullKey, "operation:ProcessStruct") && containsTag(fullKey, "status:success") {
@@ -197,7 +197,7 @@ func main() {
 		}
 	}
 	fmt.Printf("   ✅ Total structs successfully processed: %d\n", totalStructsProcessed)
-	
+
 	keyRotations := metricsCollector.GetCounterValue("encx.key_operations", map[string]string{
 		"operation": "rotate",
 	})
@@ -241,10 +241,11 @@ func containsMetricName(fullKey, metricName string) bool {
 }
 
 func containsTag(fullKey, tag string) bool {
-	return len(fullKey) > len(tag) && 
-		   (fullKey[len(fullKey)-len(tag):] == tag || 
-		    fmt.Sprintf(",%s,", tag) != "" && 
-		    (fullKey == tag || fullKey[:len(tag)+1] == tag+"," || 
-		     fullKey[len(fullKey)-len(tag)-1:] == ","+tag ||
-		     len(fullKey) > len(tag)+1 && fullKey[len(fullKey)-len(tag)-1:] == ","+tag))
+	return len(fullKey) > len(tag) &&
+		(fullKey[len(fullKey)-len(tag):] == tag ||
+			fmt.Sprintf(",%s,", tag) != "" &&
+				(fullKey == tag || fullKey[:len(tag)+1] == tag+"," ||
+					fullKey[len(fullKey)-len(tag)-1:] == ","+tag ||
+					len(fullKey) > len(tag)+1 && fullKey[len(fullKey)-len(tag)-1:] == ","+tag))
 }
+
