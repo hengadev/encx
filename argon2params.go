@@ -67,3 +67,10 @@ var DefaultArgon2Params = &Argon2Params{
 	SaltLength:  16,
 	KeyLength:   32,
 }
+
+// Interface methods for internal crypto package compatibility
+func (a *Argon2Params) GetMemory() uint32      { return a.Memory }
+func (a *Argon2Params) GetIterations() uint32  { return a.Iterations }
+func (a *Argon2Params) GetParallelism() uint8  { return a.Parallelism }
+func (a *Argon2Params) GetSaltLength() uint32  { return a.SaltLength }
+func (a *Argon2Params) GetKeyLength() uint32   { return a.KeyLength }

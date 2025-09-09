@@ -3,6 +3,8 @@ package encx
 import (
 	"errors"
 	"fmt"
+	
+	"github.com/hengadev/encx/internal/types"
 )
 
 var (
@@ -37,34 +39,34 @@ func NewUninitalizedPepperError() error {
 	return ErrUninitializedPepper
 }
 
-func NewMissingFieldError(fieldName string, action Action) error {
+func NewMissingFieldError(fieldName string, action types.Action) error {
 	return fmt.Errorf("%w: '%s' is required to %s", ErrMissingTargetField, fieldName, action)
 }
 
-func NewMissingTargetFieldError(fieldName string, targetFieldName string, action Action) error {
+func NewMissingTargetFieldError(fieldName string, targetFieldName string, action types.Action) error {
 	return fmt.Errorf("%w: '%s' is required to %s %s", ErrMissingTargetField, targetFieldName, action, fieldName)
 }
 
-func NewInvalidFieldTypeError(fieldName string, expectedType, actualType string, action Action) error {
+func NewInvalidFieldTypeError(fieldName string, expectedType, actualType string, action types.Action) error {
 	return fmt.Errorf("%w: '%s' must be of type %s to %s, got %s",
 		ErrInvalidFieldType, fieldName, expectedType, action, actualType)
 }
 
-func NewUnsupportedTypeError(fieldName string, typeName string, action Action) error {
+func NewUnsupportedTypeError(fieldName string, typeName string, action types.Action) error {
 	return fmt.Errorf("%w: field '%s' has unsupported type %s for %s operation",
 		ErrUnsupportedType, fieldName, typeName, action)
 }
 
-func NewTypeConversionError(fieldName string, typeName string, action Action) error {
+func NewTypeConversionError(fieldName string, typeName string, action types.Action) error {
 	return fmt.Errorf("%w: failed to convert field '%s' to %s for %s operation",
 		ErrTypeConversion, fieldName, typeName, action)
 }
 
-func NewNilPointerError(fieldName string, action Action) error {
+func NewNilPointerError(fieldName string, action types.Action) error {
 	return fmt.Errorf("%w: field %s is a nil pointer and cannot be processed for %s operation", ErrNilPointer, fieldName, action)
 }
 
-func NewOperationFailedError(fieldName string, action Action, details string) error {
+func NewOperationFailedError(fieldName string, action types.Action, details string) error {
 	if details != "" {
 		return fmt.Errorf("%w: %s operation failed for field '%s': %s",
 			ErrOperationFailed, action, fieldName, details)
@@ -73,7 +75,7 @@ func NewOperationFailedError(fieldName string, action Action, details string) er
 		ErrOperationFailed, action, fieldName)
 }
 
-func NewInvalidFormatError(fieldName string, formatName string, action Action) error {
+func NewInvalidFormatError(fieldName string, formatName string, action types.Action) error {
 	return fmt.Errorf("%w: field '%s' has invalid format for %s operation, expected %s format",
 		ErrInvalidFormat, fieldName, action, formatName)
 }
