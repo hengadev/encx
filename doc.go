@@ -118,6 +118,57 @@
 //	    log.Fatalf("Invalid struct: %v", err)
 //	}
 //
+// # Error Handling
+//
+// ENCX provides structured error handling with sentinel errors for precise error classification:
+//
+//	user := &User{Name: "John", Email: "john@example.com"}
+//	err := crypto.ProcessStruct(ctx, user)
+//	if err != nil {
+//	    switch {
+//	    case encx.IsRetryableError(err):
+//	        // KMS or database temporarily unavailable - retry with backoff
+//	        log.Warn("Retryable error: %v", err)
+//	        return handleRetry(err)
+//	    
+//	    case encx.IsConfigurationError(err):
+//	        // Invalid configuration - fix setup
+//	        log.Error("Configuration error: %v", err)
+//	        return handleConfigError(err)
+//	    
+//	    case encx.IsAuthError(err):
+//	        // Authentication failed - check credentials
+//	        log.Error("Authentication failed: %v", err)
+//	        return handleAuthError(err)
+//	    
+//	    case encx.IsOperationError(err):
+//	        // Encryption/decryption failed - check data/keys
+//	        log.Error("Operation failed: %v", err)
+//	        return handleOperationError(err)
+//	    
+//	    case encx.IsValidationError(err):
+//	        // Data validation failed - check input
+//	        log.Error("Validation error: %v", err)
+//	        return handleValidationError(err)
+//	    
+//	    default:
+//	        log.Error("Unknown error: %v", err)
+//	        return err
+//	    }
+//	}
+//
+// Checking specific errors:
+//
+//	if errors.Is(err, encx.ErrKMSUnavailable) {
+//	    // Implement retry logic
+//	    return retryWithBackoff(operation)
+//	}
+//	
+//	if errors.Is(err, encx.ErrAuthenticationFailed) {
+//	    // Refresh credentials and retry
+//	    return refreshAuthAndRetry(operation)
+//	}
+//
 // # Testing
 //
 // Unit testing with mocks:

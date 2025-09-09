@@ -8,6 +8,7 @@ import (
 	"os"
 
 	"github.com/hashicorp/vault/api"
+	"github.com/hengadev/encx"
 )
 
 // VaultService is an implementation of KeyManagementService for HashiCorp Vault.
@@ -31,7 +32,7 @@ func New() (*VaultService, error) {
 
 	client, err := api.NewClient(config)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create Vault client: %w", err)
+		return nil, fmt.Errorf("%w: failed to create Vault client: %w", encx.ErrKMSUnavailable, err)
 	}
 
 	// Set namespace if using HCP Vault
@@ -51,11 +52,11 @@ func New() (*VaultService, error) {
 
 		resp, err := client.Logical().Write("auth/approle/login", data)
 		if err != nil {
-			return nil, fmt.Errorf("failed to login with AppRole: %w", err)
+			return nil, fmt.Errorf("%w: failed to login with AppRole: %w", encx.ErrAuthenticationFailed, err)
 		}
 
 		if resp.Auth == nil {
-			return nil, fmt.Errorf("no auth info returned from AppRole login")
+			return nil, fmt.Errorf("%w: no auth info returned from AppRole login", encx.ErrAuthenticationFailed)
 		}
 
 		// Set the token from AppRole authentication response
@@ -86,7 +87,7 @@ func (v *VaultService) CreateKey(ctx context.Context, description string) (strin
 		"type": "aes256-gcm96", // Or your desired key type
 	})
 	if err != nil {
-		return "", fmt.Errorf("failed to create transit key '%s': %w", description, err)
+		return "", fmt.Errorf("%w: failed to create transit key '%s': %w", encx.ErrKMSUnavailable, description, err)
 	}
 	return description, nil // The description acts as the KeyID/alias
 }
@@ -94,7 +95,7 @@ func (v *VaultService) CreateKey(ctx context.Context, description string) (strin
 func (v *VaultService) RotateKey(ctx context.Context, keyID string) error {
 	_, err := v.client.Logical().Write(fmt.Sprintf("transit/keys/%s/rotate", keyID), nil)
 	if err != nil {
-		return fmt.Errorf("failed to rotate key '%s': %w", keyID, err)
+		return fmt.Errorf("%w: failed to rotate key '%s': %w", encx.ErrKMSUnavailable, keyID, err)
 	}
 	return nil
 }
@@ -102,10 +103,10 @@ func (v *VaultService) RotateKey(ctx context.Context, keyID string) error {
 func (v *VaultService) GetSecret(ctx context.Context, path string) ([]byte, error) {
 	secret, err := v.client.Logical().Read(path)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read secret from Vault at %s: %w", path, err)
+		return nil, fmt.Errorf("%w: failed to read secret from Vault at %s: %w", encx.ErrKMSUnavailable, path, err)
 	}
 	if secret == nil || secret.Data == nil {
-		return nil, fmt.Errorf("secret not found at %s", path)
+		return nil, fmt.Errorf("%w: secret not found at %s", encx.ErrInvalidConfiguration, path)
 	}
 	data, ok := secret.Data["data"].(map[string]interface{})
 	if !ok {
@@ -126,7 +127,7 @@ func (v *VaultService) SetSecret(ctx context.Context, path string, value []byte)
 	}
 	_, err := v.client.Logical().Write(path, data)
 	if err != nil {
-		return fmt.Errorf("failed to write secret to Vault at %s: %w", path, err)
+		return fmt.Errorf("%w: failed to write secret to Vault at %s: %w", encx.ErrKMSUnavailable, path, err)
 	}
 	return nil
 }
@@ -136,7 +137,7 @@ func (v *VaultService) EncryptDEK(ctx context.Context, keyID string, plaintextDE
 		"plaintext": base64.StdEncoding.EncodeToString(plaintextDEK),
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to encrypt with key '%s': %w", keyID, err)
+		return nil, fmt.Errorf("%w: failed to encrypt with key '%s': %w", encx.ErrEncryptionFailed, keyID, err)
 	}
 	ciphertext, ok := resp.Data["ciphertext"].(string)
 	if !ok {
@@ -150,7 +151,7 @@ func (v *VaultService) DecryptDEK(ctx context.Context, keyID string, ciphertextD
 		"ciphertext": string(ciphertextDEK),
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to decrypt with key '%s': %w", keyID, err)
+		return nil, fmt.Errorf("%w: failed to decrypt with key '%s': %w", encx.ErrDecryptionFailed, keyID, err)
 	}
 	plaintextBase64, ok := resp.Data["plaintext"].(string)
 	if !ok {
@@ -158,7 +159,7 @@ func (v *VaultService) DecryptDEK(ctx context.Context, keyID string, ciphertextD
 	}
 	plaintext, err := base64.StdEncoding.DecodeString(plaintextBase64)
 	if err != nil {
-		return nil, fmt.Errorf("failed to decode plaintext: %w", err)
+		return nil, fmt.Errorf("%w: failed to decode plaintext: %w", encx.ErrDecryptionFailed, err)
 	}
 	return plaintext, nil
 }

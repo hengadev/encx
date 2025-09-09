@@ -231,7 +231,7 @@ func (c *Crypto) setEncryptedDEK(ctx context.Context, v reflect.Value) error {
 	// Encrypt the DEK
 	encryptedDEK, err := c.EncryptDEK(ctx, dek)
 	if err != nil {
-		return fmt.Errorf("DEK encryption failed using KEK: %w. This could indicate KMS connectivity issues or invalid key configuration", err)
+		return fmt.Errorf("%w: DEK encryption failed using KEK: %w. This could indicate KMS connectivity issues or invalid key configuration", ErrEncryptionFailed, err)
 	}
 
 	// Set the encrypted DEK in the struct

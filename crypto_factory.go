@@ -39,14 +39,14 @@ func NewCrypto(ctx context.Context, options ...Option) (*Crypto, error) {
 
 	// Comprehensive validation
 	if err := validateConfig(ctx, config); err != nil {
-		return nil, fmt.Errorf("configuration validation failed: %w", err)
+		return nil, fmt.Errorf("%w: configuration validation failed: %w", ErrInvalidConfiguration, err)
 	}
 
 	// Set up database if not provided
 	if config.KeyMetadataDB == nil {
 		db, dbPath, err := setupDatabase(config)
 		if err != nil {
-			return nil, fmt.Errorf("failed to setup database: %w", err)
+			return nil, fmt.Errorf("%w: failed to setup database: %w", ErrDatabaseUnavailable, err)
 		}
 		config.KeyMetadataDB = db
 		config.DBPath = dbPath

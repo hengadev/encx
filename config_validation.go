@@ -32,7 +32,7 @@ type Option func(*Config) error
 func WithKMSService(kms KeyManagementService) Option {
 	return func(c *Config) error {
 		if kms == nil {
-			return fmt.Errorf("KMS service cannot be nil")
+			return fmt.Errorf("%w: KMS service cannot be nil", ErrInvalidConfiguration)
 		}
 		c.KMSService = kms
 		return nil
@@ -43,15 +43,15 @@ func WithKMSService(kms KeyManagementService) Option {
 func WithKEKAlias(alias string) Option {
 	return func(c *Config) error {
 		if strings.TrimSpace(alias) == "" {
-			return fmt.Errorf("KEK alias cannot be empty or whitespace only")
+			return fmt.Errorf("%w: KEK alias cannot be empty or whitespace only", ErrInvalidConfiguration)
 		}
 		if len(alias) > 256 {
-			return fmt.Errorf("KEK alias too long: maximum 256 characters, got %d", len(alias))
+			return fmt.Errorf("%w: KEK alias too long: maximum 256 characters, got %d", ErrInvalidConfiguration, len(alias))
 		}
 		// Basic validation for safe alias characters
 		for _, char := range alias {
 			if !isValidAliasChar(char) {
-				return fmt.Errorf("KEK alias contains invalid character '%c': only alphanumeric, hyphens, underscores allowed", char)
+				return fmt.Errorf("%w: KEK alias contains invalid character '%c': only alphanumeric, hyphens, underscores allowed", ErrInvalidConfiguration, char)
 			}
 		}
 		c.KEKAlias = strings.TrimSpace(alias)
@@ -96,7 +96,7 @@ func WithDatabase(db *sql.DB) Option {
 		}
 		// Test the database connection
 		if err := db.Ping(); err != nil {
-			return fmt.Errorf("database connection test failed: %w", err)
+			return fmt.Errorf("%w: database connection test failed: %w", ErrDatabaseUnavailable, err)
 		}
 		c.KeyMetadataDB = db
 		return nil
