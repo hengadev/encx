@@ -10,7 +10,6 @@ var (
 	WithPepper                  = config.WithPepper
 	WithPepperSecretPath        = config.WithPepperSecretPath
 	WithArgon2Params            = config.WithArgon2Params
-	WithSerializer              = config.WithSerializer
 	WithKeyMetadataDB           = config.WithKeyMetadataDB
 	WithDBPath                  = config.WithDBPath
 	WithDBFilename              = config.WithDBFilename

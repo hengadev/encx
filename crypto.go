@@ -70,7 +70,6 @@ type Crypto struct {
 	kekAlias          string
 	pepper            []byte
 	argon2Params      *Argon2Params
-	serializer        Serializer
 	keyMetadataDB     *sql.DB
 	metricsCollector  MetricsCollector
 	observabilityHook ObservabilityHook
@@ -157,7 +156,6 @@ func NewCrypto(ctx context.Context, options ...Option) (*Crypto, error) {
 		kekAlias:          cfg.KEKAlias,
 		pepper:            cfg.Pepper,
 		argon2Params:      convertArgon2Params(cfg.Argon2Params),
-		serializer:        cfg.Serializer,
 		keyMetadataDB:     cfg.KeyMetadataDB,
 		metricsCollector:  cfg.MetricsCollector,
 		observabilityHook: cfg.ObservabilityHook,
@@ -166,11 +164,11 @@ func NewCrypto(ctx context.Context, options ...Option) (*Crypto, error) {
 	// Initialize internal components
 	cryptoInstance.dekOps = crypto.NewDEKOperations(cfg.KMSService, cfg.KEKAlias)
 	cryptoInstance.dataEncryption = crypto.NewDataEncryption()
-	cryptoInstance.hashingOps = crypto.NewHashingOperations(cfg.Pepper, cryptoInstance.argon2Params, cfg.Serializer)
+	cryptoInstance.hashingOps = crypto.NewHashingOperations(cfg.Pepper, cryptoInstance.argon2Params, nil)
 	cryptoInstance.keyRotationOps = crypto.NewKeyRotationOperations(cfg.KMSService, cfg.KEKAlias, cfg.KeyMetadataDB, cfg.ObservabilityHook)
 
 	// Initialize struct processor components
-	fieldProcessor := processor.NewFieldProcessor(cryptoInstance.dataEncryption, cryptoInstance.hashingOps, cfg.Serializer)
+	fieldProcessor := processor.NewFieldProcessor(cryptoInstance.dataEncryption, cryptoInstance.hashingOps, nil)
 	processorValidator := processor.NewValidator(cryptoInstance.dekOps)
 	cryptoInstance.structProcessor = processor.NewStructProcessor(fieldProcessor, processorValidator, cfg.ObservabilityHook, cryptoInstance)
 

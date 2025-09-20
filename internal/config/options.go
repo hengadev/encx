@@ -6,8 +6,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-
-	"github.com/hengadev/encx/internal/serialization"
 )
 
 // Option represents a configuration option for creating a Crypto instance
@@ -78,16 +76,6 @@ func WithArgon2Params(params *Argon2Params) Option {
 	}
 }
 
-// WithSerializer sets the serializer for value serialization
-func WithSerializer(serializer serialization.Serializer) Option {
-	return func(c *Config) error {
-		if serializer == nil {
-			return fmt.Errorf("serializer cannot be nil")
-		}
-		c.Serializer = serializer
-		return nil
-	}
-}
 
 // WithKeyMetadataDB sets the database connection directly
 func WithKeyMetadataDB(db *sql.DB) Option {
@@ -215,4 +203,3 @@ func ApplyOptions(config *Config, options []Option) error {
 	}
 	return nil
 }
-

@@ -10,7 +10,6 @@ import (
 	"strings"
 
 	"github.com/hengadev/encx/internal/monitoring"
-	"github.com/hengadev/encx/internal/serialization"
 )
 
 // Config holds the complete configuration for a Crypto instance
@@ -20,7 +19,6 @@ type Config struct {
 	Pepper            []byte
 	PepperSecretPath  string
 	Argon2Params      *Argon2Params
-	Serializer        serialization.Serializer
 	KeyMetadataDB     *sql.DB
 	DBPath            string
 	DBFilename        string
@@ -85,10 +83,7 @@ func (v *Validator) ValidateConfig(config *Config) error {
 		return fmt.Errorf("database configuration validation failed: %w", err)
 	}
 
-	// Validate serializer
-	if err := v.validateSerializer(config.Serializer); err != nil {
-		return fmt.Errorf("serializer validation failed: %w", err)
-	}
+	// TODO: Serializer validation removed - handled in generated code
 
 	// Validate pepper configuration
 	if err := v.validatePepperConfig(config.Pepper, config.PepperSecretPath); err != nil {
