@@ -11,9 +11,8 @@ import (
 
 // FieldProcessor handles individual field processing operations
 type FieldProcessor struct {
-	encryptor  DataEncryptor
-	hasher     DataHasher
-	serializer serialization.Serializer
+	encryptor DataEncryptor
+	hasher    DataHasher
 }
 
 // DataEncryptor defines interface for data encryption operations
@@ -29,11 +28,10 @@ type DataHasher interface {
 }
 
 // NewFieldProcessor creates a new FieldProcessor instance
-func NewFieldProcessor(encryptor DataEncryptor, hasher DataHasher, serializer serialization.Serializer) *FieldProcessor {
+func NewFieldProcessor(encryptor DataEncryptor, hasher DataHasher, _ serialization.Serializer) *FieldProcessor {
 	return &FieldProcessor{
-		encryptor:  encryptor,
-		hasher:     hasher,
-		serializer: serializer,
+		encryptor: encryptor,
+		hasher:    hasher,
 	}
 }
 
@@ -124,82 +122,14 @@ func isSerializableType(t reflect.Type) bool {
 
 // processEncryptField handles encryption of a field
 func (fp *FieldProcessor) processEncryptField(ctx context.Context, structValue reflect.Value, field reflect.StructField, fieldValue reflect.Value) error {
-	// Extract DEK from context
-	dek, ok := ctx.Value(dekContextKey).([]byte)
-	if !ok {
-		return fmt.Errorf("DEK not found in context")
-	}
-
-	// Serialize the field value
-	serializedValue, err := fp.serializer.Serialize(fieldValue)
-	if err != nil {
-		return fmt.Errorf("failed to serialize field value for encryption: %w", err)
-	}
-
-	// Encrypt the serialized value
-	encryptedValue, err := fp.encryptor.EncryptData(ctx, serializedValue, dek)
-	if err != nil {
-		return fmt.Errorf("failed to encrypt field value: %w", err)
-	}
-
-	// Find the corresponding encrypted field and set its value
-	encryptedFieldName := field.Name + "Encrypted"
-	encryptedField := structValue.FieldByName(encryptedFieldName)
-	if !encryptedField.IsValid() {
-		return fmt.Errorf("encrypted field '%s' not found for field '%s'", encryptedFieldName, field.Name)
-	}
-
-	if !encryptedField.CanSet() {
-		return fmt.Errorf("encrypted field '%s' cannot be set", encryptedFieldName)
-	}
-
-	// Set the encrypted value
-	if encryptedField.Type().Kind() == reflect.Slice && encryptedField.Type().Elem().Kind() == reflect.Uint8 {
-		encryptedField.SetBytes(encryptedValue)
-	} else {
-		return fmt.Errorf("encrypted field '%s' must be of type []byte", encryptedFieldName)
-	}
-
-	return nil
+	// TODO: Serialization will be handled in generated code, not in FieldProcessor
+	return fmt.Errorf("FieldProcessor.processEncryptField is deprecated - use generated code instead")
 }
 
 // processHashField handles hashing of a field
 func (fp *FieldProcessor) processHashField(ctx context.Context, structValue reflect.Value, field reflect.StructField, fieldValue reflect.Value, secure bool) error {
-	// Serialize the field value
-	serializedValue, err := fp.serializer.Serialize(fieldValue)
-	if err != nil {
-		return fmt.Errorf("failed to serialize field value for hashing: %w", err)
-	}
-
-	var hashValue string
-	if secure {
-		hashValue, err = fp.hasher.HashSecure(ctx, serializedValue)
-		if err != nil {
-			return fmt.Errorf("failed to perform secure hash: %w", err)
-		}
-	} else {
-		hashValue = fp.hasher.HashBasic(ctx, serializedValue)
-	}
-
-	// Find the corresponding hash field and set its value
-	hashFieldName := field.Name + "Hash"
-	hashField := structValue.FieldByName(hashFieldName)
-	if !hashField.IsValid() {
-		return fmt.Errorf("hash field '%s' not found for field '%s'", hashFieldName, field.Name)
-	}
-
-	if !hashField.CanSet() {
-		return fmt.Errorf("hash field '%s' cannot be set", hashFieldName)
-	}
-
-	// Set the hash value
-	if hashField.Type().Kind() == reflect.String {
-		hashField.SetString(hashValue)
-	} else {
-		return fmt.Errorf("hash field '%s' must be of type string", hashFieldName)
-	}
-
-	return nil
+	// TODO: Serialization will be handled in generated code, not in FieldProcessor
+	return fmt.Errorf("FieldProcessor.processHashField is deprecated - use generated code instead")
 }
 
 // dekContextKey is defined in struct.go and shared here

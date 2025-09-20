@@ -312,10 +312,8 @@ func (sp *StructProcessor) decryptField(ctx context.Context, field reflect.Struc
 			return fmt.Errorf("decryption failed for field '%s': %w", field.Name, err)
 		}
 
-		// Deserialize back to the original type
-		if err := sp.fieldProcessor.serializer.Deserialize(plaintextBytes, fieldVal); err != nil {
-			return fmt.Errorf("failed to deserialize field '%s': %w", field.Name, err)
-		}
+		// TODO: Deserialization will be handled in generated code
+		return fmt.Errorf("struct processor deserialization is deprecated - use generated code instead")
 	}
 	return nil
 }

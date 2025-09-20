@@ -29,15 +29,13 @@ type Argon2ParamsInterface interface {
 type HashingOperations struct {
 	pepper       []byte
 	argon2Params Argon2ParamsInterface
-	serializer   serialization.Serializer
 }
 
 // NewHashingOperations creates a new HashingOperations instance
-func NewHashingOperations(pepper []byte, argon2Params Argon2ParamsInterface, serializer serialization.Serializer) *HashingOperations {
+func NewHashingOperations(pepper []byte, argon2Params Argon2ParamsInterface, _ serialization.Serializer) *HashingOperations {
 	return &HashingOperations{
 		pepper:       pepper,
 		argon2Params: argon2Params,
-		serializer:   serializer,
 	}
 }
 
@@ -97,10 +95,8 @@ func (h *HashingOperations) CompareSecureHashAndValue(ctx context.Context, value
 	if value == nil {
 		return false, fmt.Errorf("value cannot be nil")
 	}
-	v, err := h.serializer.Serialize(reflect.ValueOf(value))
-	if err != nil {
-		return false, fmt.Errorf("failed to serialize field value : %w", err)
-	}
+	// TODO: Serialization will be handled in generated code
+	return false, fmt.Errorf("CompareSecureHashAndValue is deprecated - use generated code instead")
 
 	// Parse the stored hash to extract parameters, salt, and hash
 	parts := strings.Split(hashValue, "$")
@@ -192,10 +188,8 @@ func (h *HashingOperations) CompareBasicHashAndValue(ctx context.Context, value 
 	if value == nil {
 		return false, fmt.Errorf("value cannot be nil")
 	}
-	v, err := h.serializer.Serialize(reflect.ValueOf(value))
-	if err != nil {
-		return false, fmt.Errorf("failed to serialize field value : %w", err)
-	}
+	// TODO: Serialization will be handled in generated code
+	return false, fmt.Errorf("CompareSecureHashAndValue is deprecated - use generated code instead")
 	return h.HashBasic(ctx, v) == hashValue, nil
 }
 
