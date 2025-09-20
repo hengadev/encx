@@ -26,9 +26,33 @@ const (
 	FieldDEKEncrypted = FieldDEK + SuffixEncrypted
 )
 
-// validateObjectForProcessing is a stub for the validation function
+// validateObjectForProcessing checks if the provided object is a non-nil pointer to a struct.
+// It returns an error if the object is nil, not a pointer, or not pointing to a struct,
+// or if the pointer is not settable.
 func validateObjectForProcessing(object any) error {
-	// This is a placeholder - in real implementation this would validate the object
+	if object == nil {
+		return fmt.Errorf("ProcessStruct requires a non-nil object. "+
+			"Usage: crypto.ProcessStruct(ctx, &myStruct)")
+	}
+	v := reflect.ValueOf(object)
+	if v.Kind() != reflect.Ptr {
+		return fmt.Errorf("ProcessStruct requires a pointer to a struct, got %T. "+
+			"Usage: crypto.ProcessStruct(ctx, &myStruct) not crypto.ProcessStruct(ctx, myStruct)",
+			object)
+	}
+	if v.IsNil() { // Check for nil pointer after getting Value
+		return fmt.Errorf("ProcessStruct requires a non-nil pointer to a struct. "+
+			"Your pointer is nil")
+	}
+	elem := v.Elem()
+	if elem.Kind() != reflect.Struct {
+		return fmt.Errorf("ProcessStruct requires a pointer to a struct, got pointer to %s. "+
+			"Usage: crypto.ProcessStruct(ctx, &myStruct)", elem.Type())
+	}
+	if !elem.CanSet() {
+		return fmt.Errorf("struct fields must be settable. "+
+			"Make sure your struct fields are exported (start with uppercase)")
+	}
 	return nil
 }
 
