@@ -16,101 +16,102 @@ import (
 // data structures and need optimal performance for basic types.
 type BasicTypeSerializer struct{}
 
-func (d *BasicTypeSerializer) Serialize(v reflect.Value) ([]byte, error) {
-	switch v.Kind() {
+func (d *BasicTypeSerializer) Serialize(v any) ([]byte, error) {
+	rv := reflect.ValueOf(v)
+	switch rv.Kind() {
 	case reflect.String:
-		return []byte(v.String()), nil
+		return []byte(rv.String()), nil
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-		return []byte(strconv.FormatInt(v.Int(), 10)), nil
+		return []byte(strconv.FormatInt(rv.Int(), 10)), nil
 	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-		return []byte(strconv.FormatUint(v.Uint(), 10)), nil
+		return []byte(strconv.FormatUint(rv.Uint(), 10)), nil
 	case reflect.Float32:
-		return []byte(strconv.FormatFloat(v.Float(), 'f', -1, 32)), nil
+		return []byte(strconv.FormatFloat(rv.Float(), 'f', -1, 32)), nil
 	case reflect.Float64:
-		return []byte(strconv.FormatFloat(v.Float(), 'f', -1, 64)), nil
+		return []byte(strconv.FormatFloat(rv.Float(), 'f', -1, 64)), nil
 	case reflect.Bool:
-		return []byte(strconv.FormatBool(v.Bool())), nil
+		return []byte(strconv.FormatBool(rv.Bool())), nil
 	case reflect.Struct:
-		if v.Type() == reflect.TypeOf(time.Time{}) {
-			return v.Interface().(time.Time).MarshalBinary() // Or use a string format like ISO 8601
+		if rv.Type() == reflect.TypeOf(time.Time{}) {
+			return v.(time.Time).MarshalBinary()
 		} else {
 			// Fallback to JSON for other structs
-			return json.Marshal(v.Interface())
+			return json.Marshal(v)
 		}
 	case reflect.Slice, reflect.Map:
 		// Handle byte slices directly, otherwise use JSON
-		if v.Type().Elem().Kind() == reflect.Uint8 {
-			if v.CanAddr() {
-				return v.Slice(0, v.Len()).Bytes(), nil
-			}
-			// Create a copy if not addressable
-			b := make([]byte, v.Len())
-			reflect.Copy(reflect.ValueOf(b), v)
-			return b, nil
+		if rv.Type().Elem().Kind() == reflect.Uint8 {
+			return v.([]byte), nil
 		} else {
-			return json.Marshal(v.Interface())
+			return json.Marshal(v)
 		}
 	default:
-		return nil, fmt.Errorf("unsupported type for serialization: %v", v.Type())
+		return nil, fmt.Errorf("unsupported type for serialization: %v", rv.Type())
 	}
 }
 
-func (d *BasicTypeSerializer) Deserialize(data []byte, v reflect.Value) error {
-	switch v.Kind() {
+func (d *BasicTypeSerializer) Deserialize(data []byte, v any) error {
+	rv := reflect.ValueOf(v)
+	if rv.Kind() != reflect.Ptr {
+		return fmt.Errorf("v must be a pointer, got %v", rv.Kind())
+	}
+	elem := rv.Elem()
+
+	switch elem.Kind() {
 	case reflect.String:
-		v.SetString(string(data))
+		elem.SetString(string(data))
 		return nil
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
 		val, err := strconv.ParseInt(string(data), 10, 64)
 		if err != nil {
 			return fmt.Errorf("failed to parse int: %w", err)
 		}
-		v.SetInt(val)
+		elem.SetInt(val)
 		return nil
 	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
 		val, err := strconv.ParseUint(string(data), 10, 64)
 		if err != nil {
 			return fmt.Errorf("failed to parse uint: %w", err)
 		}
-		v.SetUint(val)
+		elem.SetUint(val)
 		return nil
 	case reflect.Float32, reflect.Float64:
 		val, err := strconv.ParseFloat(string(data), 64)
 		if err != nil {
 			return fmt.Errorf("failed to parse float: %w", err)
 		}
-		v.SetFloat(val)
+		elem.SetFloat(val)
 		return nil
 	case reflect.Bool:
 		val, err := strconv.ParseBool(string(data))
 		if err != nil {
 			return fmt.Errorf("failed to parse bool: %w", err)
 		}
-		v.SetBool(val)
+		elem.SetBool(val)
 		return nil
 	case reflect.Struct:
-		if v.Type() == reflect.TypeOf(time.Time{}) {
+		if elem.Type() == reflect.TypeOf(time.Time{}) {
 			var t time.Time
 			if err := t.UnmarshalBinary(data); err != nil {
 				return fmt.Errorf("failed to unmarshal time: %w", err)
 			}
-			v.Set(reflect.ValueOf(t))
+			elem.Set(reflect.ValueOf(t))
 			return nil
 		} else {
 			// Fallback to JSON for other structs
-			return json.Unmarshal(data, v.Addr().Interface())
+			return json.Unmarshal(data, v)
 		}
 	case reflect.Slice:
-		if v.Type().Elem().Kind() == reflect.Uint8 {
-			v.SetBytes(data)
+		if elem.Type().Elem().Kind() == reflect.Uint8 {
+			elem.SetBytes(data)
 			return nil
 		} else {
-			return json.Unmarshal(data, v.Addr().Interface())
+			return json.Unmarshal(data, v)
 		}
 	case reflect.Map:
-		return json.Unmarshal(data, v.Addr().Interface())
+		return json.Unmarshal(data, v)
 	default:
-		return fmt.Errorf("unsupported type for deserialization: %v", v.Type())
+		return fmt.Errorf("unsupported type for deserialization: %v", elem.Type())
 	}
 }
 

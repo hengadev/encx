@@ -3,7 +3,6 @@ package serialization
 import (
 	"bytes"
 	"encoding/gob"
-	"reflect"
 )
 
 // GOBSerializer implements the Serializer interface using the encoding/gob package.
@@ -13,17 +12,16 @@ import (
 // handling are primary concerns and cross-language compatibility is not required.
 type GOBSerializer struct{}
 
-func (g GOBSerializer) Serialize(v reflect.Value) ([]byte, error) {
+func (g GOBSerializer) Serialize(v any) ([]byte, error) {
 	var buf bytes.Buffer
 	enc := gob.NewEncoder(&buf)
-	if err := enc.Encode(v.Interface()); err != nil {
+	if err := enc.Encode(v); err != nil {
 		return nil, err
 	}
 	return buf.Bytes(), nil
 }
 
-func (g GOBSerializer) Deserialize(data []byte, v reflect.Value) error {
+func (g GOBSerializer) Deserialize(data []byte, v any) error {
 	dec := gob.NewDecoder(bytes.NewReader(data))
-	return dec.Decode(v.Addr().Interface())
+	return dec.Decode(v)
 }
-
