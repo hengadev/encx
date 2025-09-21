@@ -23,11 +23,9 @@ type FieldInfo struct {
 	Name             string
 	Type             string
 	EncxTags         []string
-	CompanionFields  map[string]CompanionField
 	IsValid          bool
 	ValidationErrors []string
 }
-
 
 // DiscoveryConfig holds configuration for struct discovery
 type DiscoveryConfig struct {
@@ -112,7 +110,6 @@ func analyzeField(fieldName string, field *ast.Field) FieldInfo {
 		Name:             fieldName,
 		Type:             getTypeString(field.Type),
 		EncxTags:         []string{},
-		CompanionFields:  make(map[string]CompanionField),
 		IsValid:          true,
 		ValidationErrors: []string{},
 	}
@@ -165,3 +162,4 @@ func extractEncxTags(tagString string) []string {
 	}
 	return []string{}
 }
+
