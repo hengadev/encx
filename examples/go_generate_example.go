@@ -1,8 +1,8 @@
-// Package examples demonstrates encx-gen integration with go generate
+// Package main demonstrates encx-gen integration with go generate
 //
 //go:generate encx-gen validate -v .
 //go:generate encx-gen generate -v .
-package examples
+package main
 
 // ExampleUser demonstrates a user struct with encrypted fields
 // The go:generate directives above will validate and generate code for this struct

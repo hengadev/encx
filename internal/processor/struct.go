@@ -1,3 +1,14 @@
+// Package processor provides reflection-based struct processing for encx.
+//
+// Deprecated: This package provides reflection-based struct processing which is slower
+// and less type-safe than the generated functions. Use `encx-gen generate` to create
+// type-safe functions instead:
+//   - For User struct: ProcessUserEncx() and DecryptUserEncx()
+//   - For Order struct: ProcessOrderEncx() and DecryptOrderEncx()
+//   - Pattern: Process{YourStructName}Encx and Decrypt{YourStructName}Encx
+//
+// This package is maintained for backward compatibility with existing code that uses
+// crypto.ProcessStruct() and crypto.DecryptStruct() methods.
 package processor
 
 import (
@@ -10,7 +21,10 @@ import (
 	"github.com/hengadev/errsx"
 )
 
-// StructProcessor handles struct processing operations
+// StructProcessor handles struct processing operations.
+//
+// Deprecated: Use generated functions instead for better performance and type safety.
+// Pattern: Process{StructName}Encx (e.g., ProcessUserEncx, ProcessOrderEncx).
 type StructProcessor struct {
 	fieldProcessor *FieldProcessor
 	validator      *Validator
@@ -307,7 +321,7 @@ func (sp *StructProcessor) decryptField(ctx context.Context, field reflect.Struc
 	encryptedField := v.FieldByName(encryptedFieldName)
 	if encryptedField.IsValid() && encryptedField.Kind() == reflect.Slice && fieldVal.CanSet() {
 		ciphertext := encryptedField.Bytes()
-		plaintextBytes, err := sp.fieldProcessor.encryptor.DecryptData(ctx, ciphertext, dek)
+		_, err := sp.fieldProcessor.encryptor.DecryptData(ctx, ciphertext, dek)
 		if err != nil {
 			return fmt.Errorf("decryption failed for field '%s': %w", field.Name, err)
 		}
