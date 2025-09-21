@@ -4,6 +4,8 @@ import (
 	"flag"
 	"fmt"
 	"os"
+
+	"github.com/hengadev/encx/internal/codegen"
 )
 
 func main() {
@@ -64,12 +66,88 @@ func generateCommand(args []string) {
 func validateCommand(args []string) {
 	fs := flag.NewFlagSet("validate", flag.ExitOnError)
 	configPath := fs.String("config", "encx.yaml", "Path to configuration file")
+	verbose := fs.Bool("v", false, "Verbose output")
 
 	fs.Parse(args)
 
+	packages := fs.Args()
+	if len(packages) == 0 {
+		packages = []string{"."} // Current directory
+	}
+
 	fmt.Printf("Validating configuration at %s...\n", *configPath)
-	// TODO: Implement validation
-	fmt.Println("Validation complete!")
+
+	// Load and validate configuration
+	config, err := LoadConfig(*configPath)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to load config: %v\n", err)
+		os.Exit(1)
+	}
+
+	if err := config.Validate(); err != nil {
+		fmt.Fprintf(os.Stderr, "Configuration validation failed: %v\n", err)
+		os.Exit(1)
+	}
+
+	if *verbose {
+		fmt.Println("✓ Configuration file is valid")
+	}
+
+	// Validate struct tags in packages
+	hasErrors := false
+	for _, pkg := range packages {
+		if *verbose {
+			fmt.Printf("Validating package: %s\n", pkg)
+		}
+
+		discoveryConfig := &codegen.DiscoveryConfig{}
+		structs, err := codegen.DiscoverStructs(pkg, discoveryConfig)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to discover structs in %s: %v\n", pkg, err)
+			hasErrors = true
+			continue
+		}
+
+		if len(structs) == 0 {
+			if *verbose {
+				fmt.Printf("  No structs with encx tags found in %s\n", pkg)
+			}
+			continue
+		}
+
+		fmt.Printf("Found %d structs with encx tags in %s:\n", len(structs), pkg)
+
+		for _, structInfo := range structs {
+			fmt.Printf("  %s (%s)\n", structInfo.StructName, structInfo.SourceFile)
+
+			// Check for validation errors
+			structHasErrors := false
+			for _, field := range structInfo.Fields {
+				if !field.IsValid {
+					structHasErrors = true
+					hasErrors = true
+					for _, errMsg := range field.ValidationErrors {
+						fmt.Printf("    ✗ %s.%s: %s\n", structInfo.StructName, field.Name, errMsg)
+					}
+				} else if len(field.EncxTags) > 0 {
+					if *verbose {
+						fmt.Printf("    ✓ %s.%s: %v\n", structInfo.StructName, field.Name, field.EncxTags)
+					}
+				}
+			}
+
+			if !structHasErrors {
+				fmt.Printf("    ✓ All fields valid\n")
+			}
+		}
+	}
+
+	if hasErrors {
+		fmt.Fprintf(os.Stderr, "\nValidation failed with errors.\n")
+		os.Exit(1)
+	}
+
+	fmt.Println("\n✓ All validations passed!")
 }
 
 func initCommand(args []string) {
@@ -100,4 +178,15 @@ func initCommand(args []string) {
 func versionCommand() {
 	fmt.Println("encx-gen version 1.0.0")
 	fmt.Println("Code generator for encx encryption library")
+	fmt.Println("")
+	fmt.Println("Features:")
+	fmt.Println("  - AST-based struct discovery")
+	fmt.Println("  - Incremental generation with caching")
+	fmt.Println("  - Comprehensive tag validation")
+	fmt.Println("  - Cross-database JSON metadata support")
+	fmt.Println("  - Template-based code generation")
+	fmt.Println("")
+	fmt.Println("Supported tags: encrypt, hash_basic, hash_secure")
+	fmt.Println("Supported databases: PostgreSQL, SQLite, MySQL")
+	fmt.Println("Supported serializers: json")
 }
