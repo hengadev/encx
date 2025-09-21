@@ -154,12 +154,12 @@ type InvalidUser struct {
 	// Invalid combination: hash_basic and hash_secure
 	Email string ` + "`json:\"email\" encx:\"hash_basic,hash_secure\"`" + `
 
-	// Missing companion field (should have PhoneEncrypted []byte)
+	// Valid fields (no companion fields needed with code generation)
 	Phone string ` + "`json:\"phone\" encx:\"encrypt\"`" + `
+	Name  string ` + "`json:\"name\" encx:\"encrypt\"`" + `
 
-	// Wrong type companion field (should be []byte, not string)
-	Name          string ` + "`json:\"name\" encx:\"encrypt\"`" + `
-	NameEncrypted string ` + "`json:\"name_encrypted\"`" + ` // Wrong type!
+	// Unknown tag
+	BadField string ` + "`json:\"bad_field\" encx:\"unknown_tag\"`" + `
 }
 `), 0644)
 	require.NoError(t, err)
@@ -173,21 +173,30 @@ type InvalidUser struct {
 	invalidStruct := structs[0]
 	assert.Equal(t, "InvalidUser", invalidStruct.StructName)
 
-	// Check that fields have validation errors
+	// Check that only invalid tag combinations and unknown tags have validation errors
 	emailField := findField(invalidStruct.Fields, "Email")
 	require.NotNil(t, emailField)
 	assert.False(t, emailField.IsValid)
 	assert.NotEmpty(t, emailField.ValidationErrors)
+	assert.Contains(t, emailField.ValidationErrors[0], "hash_basic,hash_secure")
 
+	// Phone and Name should be valid (no companion fields required)
 	phoneField := findField(invalidStruct.Fields, "Phone")
 	require.NotNil(t, phoneField)
-	assert.False(t, phoneField.IsValid)
-	assert.NotEmpty(t, phoneField.ValidationErrors)
+	assert.True(t, phoneField.IsValid)
+	assert.Empty(t, phoneField.ValidationErrors)
 
 	nameField := findField(invalidStruct.Fields, "Name")
 	require.NotNil(t, nameField)
-	assert.False(t, nameField.IsValid)
-	assert.NotEmpty(t, nameField.ValidationErrors)
+	assert.True(t, nameField.IsValid)
+	assert.Empty(t, nameField.ValidationErrors)
+
+	// BadField should have unknown tag error
+	badField := findField(invalidStruct.Fields, "BadField")
+	require.NotNil(t, badField)
+	assert.False(t, badField.IsValid)
+	assert.NotEmpty(t, badField.ValidationErrors)
+	assert.Contains(t, badField.ValidationErrors[0], "unknown tag 'unknown_tag'")
 }
 
 func TestDiscoverStructsEmptyDirectory(t *testing.T) {
