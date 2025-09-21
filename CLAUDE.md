@@ -1,0 +1,1 @@
+- Git commit messages should NOT include Claude Code mentions or co-authoring. Keep commit messages clean and professional without AI tool references.
