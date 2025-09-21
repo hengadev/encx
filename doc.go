@@ -20,17 +20,11 @@
 // Define your struct with encx tags:
 //
 //	type User struct {
-//	    Name             string `encx:"encrypt"`
-//	    NameEncrypted    []byte
-//	    Email            string `encx:"hash_basic"`
-//	    EmailHash        string
-//	    Password         string `encx:"hash_secure"`
-//	    PasswordHash     string
+//	    Name     string `encx:"encrypt"`
+//	    Email    string `encx:"hash_basic"`
+//	    Password string `encx:"hash_secure"`
 //
-//	    // Required fields
-//	    DEK              []byte
-//	    DEKEncrypted     []byte
-//	    KeyVersion       int
+//	    // No companion fields needed! Code generation creates separate output struct
 //	}
 //
 // Generate type-safe functions (recommended approach):
@@ -79,13 +73,11 @@
 // Perfect for user lookup with privacy protection:
 //
 //	type User struct {
-//	    Email             string `encx:"encrypt,hash_basic"`
-//	    EmailEncrypted    []byte // For secure storage
-//	    EmailHash         string // For fast user lookups
+//	    Email string `encx:"encrypt,hash_basic"`
 //
-//	    DEK               []byte
-//	    DEKEncrypted      []byte
-//	    KeyVersion        int
+//	    // No companion fields needed! Code generation creates:
+//	    // - UserEncx.EmailEncrypted []byte (for secure storage)
+//	    // - UserEncx.EmailHash string (for fast lookups)
 //	}
 //
 //	// Usage (with generated functions - recommended)

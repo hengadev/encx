@@ -58,16 +58,7 @@ type User struct {
     Phone string `json:"phone" encx:"encrypt"`
     SSN   string `json:"ssn" encx:"hash_secure"`
 
-    // Companion fields for encryption/hashing
-    EmailEncrypted []byte `json:"email_encrypted" db:"email_encrypted"`
-    EmailHash      string `json:"email_hash" db:"email_hash"`
-    PhoneEncrypted []byte `json:"phone_encrypted" db:"phone_encrypted"`
-    SSNHashSecure  string `json:"ssn_hash_secure" db:"ssn_hash_secure"`
-
-    // Essential encryption fields
-    DEKEncrypted []byte `json:"dek_encrypted" db:"dek_encrypted"`
-    KeyVersion   int    `json:"key_version" db:"key_version"`
-    Metadata     string `json:"metadata" db:"metadata"`
+    // No companion fields needed! Code generation creates separate output struct
 }
 ```
 

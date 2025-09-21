@@ -12,79 +12,41 @@ func reset(user *User) {
 }
 
 type User struct {
-	Email             string    `encx:"encrypt,hash_secure" json:"email"`
-	EmailHash         string    `json:"email_hash"`
-	EmailEncrypted    []byte    `json:"email_encrypted"`
-	Password          string    `encx:"encrypt,hash_secure"`
-	PasswordHash      string    `json:"password_hash"`
-	PasswordEncrypted []byte    `json:"password_encrypted"`
-	Age               int       `encx:"encrypt"`
-	AgeEncrypted      []byte    `json:"age"`
-	OneField          int       `encx:"hash_basic"`
-	OneFieldHash      string    `json:"one_field_hash"`
-	SomeTime          time.Time `encx:"encrypt"`
-	SomeTimeEncrypted []byte    `json:"some_time"`
-	DEK               []byte    `json:"dek" encx:"encrypt"`
-	DEKEncrypted      []byte    `json:"dek_encrypted" encx:"encrypt"`
-	KeyVersion        int       `json:"version"`
+	Email    string    `encx:"encrypt,hash_secure" json:"email"`
+	Password string    `encx:"encrypt,hash_secure"`
+	Age      int       `encx:"encrypt"`
+	OneField int       `encx:"hash_basic"`
+	SomeTime time.Time `encx:"encrypt"`
+
+	// No companion fields needed! Code generation creates separate UserEncx struct
 }
 
 func NewUser() *User {
 	return &User{
-		Email:             "john.doe@example.com",
-		EmailHash:         "",
-		EmailEncrypted:    nil,
-		Password:          "thisisaweakpassword",
-		PasswordHash:      "",
-		PasswordEncrypted: nil,
-		Age:               27,
-		AgeEncrypted:      nil,
-		OneField:          12399343,
-		OneFieldHash:      "",
-		SomeTime:          time.Now(),
-		SomeTimeEncrypted: nil,
-		DEK:               nil,
-		// DEK:          []byte("c278cdbd59cb1bf79c52491295b94bb2"),
-		DEKEncrypted: nil,
-		KeyVersion:   1,
+		Email:    "john.doe@example.com",
+		Password: "thisisaweakpassword",
+		Age:      27,
+		OneField: 12399343,
+		SomeTime: time.Now(),
 	}
 }
 
-// something to make that thing work brother
+// copyUser creates a copy of the user
 func (u *User) copyUser() *User {
 	return &User{
-		Email:             u.Email,
-		EmailHash:         u.EmailHash,
-		EmailEncrypted:    u.EmailEncrypted,
-		Password:          u.Password,
-		PasswordHash:      u.PasswordHash,
-		PasswordEncrypted: u.PasswordEncrypted,
-		Age:               u.Age,
-		AgeEncrypted:      u.AgeEncrypted,
-		OneField:          u.OneField,
-		OneFieldHash:      u.OneFieldHash,
-		SomeTime:          u.SomeTime,
-		SomeTimeEncrypted: u.SomeTimeEncrypted,
-		DEK:               u.DEK,
-		DEKEncrypted:      u.DEKEncrypted,
-		KeyVersion:        u.KeyVersion,
+		Email:    u.Email,
+		Password: u.Password,
+		Age:      u.Age,
+		OneField: u.OneField,
+		SomeTime: u.SomeTime,
 	}
 }
 
 type OTP struct {
-	Email        string  `json:"email" encx:"hash_basic"`
-	EmailHash    string  `json:"-"`
-	Data         OTPData `json:"-"`
-	DEK          []byte  `json:"-"`
-	DEKEncrypted []byte  `json:"-"`
-	KeyVersion   int     `json:"-"`
-	// Data         struct {
-	// 	Code          string    `json:"code" validate:"len=6" encx:"encrypt"`
-	// 	CodeEncrypted []byte    `json:"-" validate:"len=6"`
-	// 	Attempts      int       `json:"attempts"`
-	// 	ExpiresAt     time.Time `json:"expires_at"`
-	// 	CreatedAt     time.Time `json:"created_at"`
-	// }
+	Email string  `json:"email" encx:"hash_basic"`
+	Data  OTPData `json:"-"`
+
+	// No companion fields needed! Code generation creates separate OTPEncx struct
 }
 
 // func (o *OTP) somefunc() any { return o.Value
