@@ -108,6 +108,23 @@ func analyzeStruct(fset *token.FileSet, fileName, pkgName, structName string, st
 		}
 	}
 
+	// Validate companion fields if we have encx tags
+	if structInfo.HasEncxTags {
+		companionValidator := NewCompanionFieldValidator()
+		companionErrors := companionValidator.ValidateCompanionFields(&structInfo)
+
+		// Add companion validation errors to fields
+		for _, err := range companionErrors {
+			for i, field := range structInfo.Fields {
+				if field.Name == err.Field {
+					structInfo.Fields[i].ValidationErrors = append(structInfo.Fields[i].ValidationErrors, err.Error())
+					structInfo.Fields[i].IsValid = false
+					break
+				}
+			}
+		}
+	}
+
 	return structInfo
 }
 
@@ -128,7 +145,15 @@ func analyzeField(fieldName string, field *ast.Field) FieldInfo {
 		fieldInfo.EncxTags = extractEncxTags(tagValue)
 	}
 
-	// TODO: Validate tags and find companion fields
+	// Validate tags if any exist
+	if len(fieldInfo.EncxTags) > 0 {
+		validator := NewTagValidator()
+		errors := validator.ValidateFieldTags(fieldName, fieldInfo.EncxTags)
+		if len(errors) > 0 {
+			fieldInfo.IsValid = false
+			fieldInfo.ValidationErrors = errors
+		}
+	}
 
 	return fieldInfo
 }
