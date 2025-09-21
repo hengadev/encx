@@ -28,13 +28,6 @@ type FieldInfo struct {
 	ValidationErrors []string
 }
 
-// CompanionField represents a companion field (e.g., EmailEncrypted for Email)
-type CompanionField struct {
-	Name     string
-	Type     string
-	Required bool
-	Found    bool
-}
 
 // DiscoveryConfig holds configuration for struct discovery
 type DiscoveryConfig struct {
@@ -108,22 +101,7 @@ func analyzeStruct(fset *token.FileSet, fileName, pkgName, structName string, st
 		}
 	}
 
-	// Validate companion fields if we have encx tags
-	if structInfo.HasEncxTags {
-		companionValidator := NewCompanionFieldValidator()
-		companionErrors := companionValidator.ValidateCompanionFields(&structInfo)
-
-		// Add companion validation errors to fields
-		for _, err := range companionErrors {
-			for i, field := range structInfo.Fields {
-				if field.Name == err.Field {
-					structInfo.Fields[i].ValidationErrors = append(structInfo.Fields[i].ValidationErrors, err.Error())
-					structInfo.Fields[i].IsValid = false
-					break
-				}
-			}
-		}
-	}
+	// Note: Companion field validation removed - code generation creates separate structs
 
 	return structInfo
 }
