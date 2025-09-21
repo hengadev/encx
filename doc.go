@@ -33,7 +33,11 @@
 //	    KeyVersion       int
 //	}
 //
-// Create crypto instance and process:
+// Generate type-safe functions (recommended approach):
+//
+//	//go:generate encx-gen generate .
+//
+// Create crypto instance and process with generated functions:
 //
 //	crypto, _ := encx.NewTestCrypto(nil)
 //	user := &User{
@@ -42,9 +46,14 @@
 //	    Password: "secret123",
 //	}
 //
-//	err := crypto.ProcessStruct(ctx, user)
-//	// Original fields are now cleared/hashed
-//	// Encrypted data stored in companion fields
+//	// Use generated type-safe functions (recommended)
+//	userEncx, err := ProcessUserEncx(ctx, crypto, user)        // For User struct
+//	orderEncx, err := ProcessOrderEncx(ctx, crypto, order)     // For Order struct
+//	// Pattern: Process{YourStructName}Encx
+//
+// Legacy reflection-based approach (deprecated):
+//
+//	err := crypto.ProcessStruct(ctx, user) // Deprecated: use generated functions
 //
 // # Struct Tags
 //
@@ -79,9 +88,13 @@
 //	    KeyVersion        int
 //	}
 //
-//	// Usage
+//	// Usage (with generated functions - recommended)
 //	user := &User{Email: "user@example.com"}
-//	crypto.ProcessStruct(ctx, user)
+//	userEncx, err := ProcessUserEncx(ctx, crypto, user)    // For User struct
+//	// Pattern: Process{YourStructName}Encx
+//
+// Usage (legacy reflection approach - deprecated)
+//	crypto.ProcessStruct(ctx, user) // Deprecated
 //
 //	// Now you can:
 //	// 1. Store user.EmailEncrypted securely in database
@@ -123,7 +136,9 @@
 // ENCX provides structured error handling with sentinel errors for precise error classification:
 //
 //	user := &User{Name: "John", Email: "john@example.com"}
-//	err := crypto.ProcessStruct(ctx, user)
+//	userEncx, err := ProcessUserEncx(ctx, crypto, user) // For User struct (recommended)
+//	// Pattern: Process{YourStructName}Encx
+//	// err := crypto.ProcessStruct(ctx, user) // Legacy approach (deprecated)
 //	if err != nil {
 //	    switch {
 //	    case encx.IsRetryableError(err):
@@ -174,8 +189,11 @@
 // Unit testing with mocks:
 //
 //	func TestUserService(t *testing.T) {
+//	    // For generated functions, test directly with ProcessUserEncx, ProcessOrderEncx, etc.
+//	    // Pattern: Process{YourStructName}Encx
+//	    // or mock the crypto parameter passed to generated functions
 //	    mockCrypto := encx.NewCryptoServiceMock()
-//	    mockCrypto.On("ProcessStruct", mock.Anything, mock.Anything).Return(nil)
+//	    // mockCrypto.On("ProcessStruct", mock.Anything, mock.Anything).Return(nil) // Legacy
 //
 //	    service := NewUserService(mockCrypto)
 //	    err := service.CreateUser("test@example.com")

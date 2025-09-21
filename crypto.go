@@ -52,7 +52,9 @@ type CryptoService interface {
 	GenerateDEK() ([]byte, error)
 	EncryptData(ctx context.Context, plaintext []byte, dek []byte) ([]byte, error)
 	DecryptData(ctx context.Context, ciphertext []byte, dek []byte) ([]byte, error)
+	// Deprecated: Use generated functions instead (pattern: Process{StructName}Encx)
 	ProcessStruct(ctx context.Context, object any) error
+	// Deprecated: Use generated functions instead (pattern: Decrypt{StructName}Encx)
 	DecryptStruct(ctx context.Context, object any) error
 	EncryptDEK(ctx context.Context, plaintextDEK []byte) ([]byte, error)
 	DecryptDEKWithVersion(ctx context.Context, ciphertextDEK []byte, kekVersion int) ([]byte, error)
@@ -256,22 +258,46 @@ func (a *errorCollectorAdapter) IsEmpty() bool {
 	return a.errMap.IsEmpty()
 }
 
+// ProcessStruct is deprecated. Use generated type-safe functions for better performance and type safety.
+//
+// This reflection-based approach is slower and less type-safe than the generated alternatives.
+// To migrate:
+//   1. Run `encx-gen generate .` to generate type-safe functions
+//   2. For a User struct, use ProcessUserEncx(ctx, crypto, &user)
+//   3. For an Order struct, use ProcessOrderEncx(ctx, crypto, &order)
+//   Pattern: Process{YourStructName}Encx
+//
+// Deprecated: Use generated type-safe functions instead (pattern: Process{StructName}Encx).
 func (c *Crypto) ProcessStruct(ctx context.Context, object any) error {
 	errorCollector := &errorCollectorAdapter{}
 	return c.structProcessor.ProcessStruct(ctx, object, errorCollector)
 }
 
+// DecryptStruct is deprecated. Use generated type-safe functions for better performance and type safety.
+//
+// This reflection-based approach is slower and less type-safe than the generated alternatives.
+// To migrate:
+//   1. Run `encx-gen generate .` to generate type-safe functions
+//   2. For a User struct, use DecryptUserEncx(ctx, crypto, &userEncx)
+//   3. For an Order struct, use DecryptOrderEncx(ctx, crypto, &orderEncx)
+//   Pattern: Decrypt{YourStructName}Encx
+//
+// Deprecated: Use generated type-safe functions instead (pattern: Decrypt{StructName}Encx).
 func (c *Crypto) DecryptStruct(ctx context.Context, object any) error {
 	errorCollector := &errorCollectorAdapter{}
 	return c.structProcessor.DecryptStruct(ctx, object, errorCollector)
 }
 
-// ProcessStructsBatch processes multiple structs concurrently with optimized batching
+// ProcessStructsBatch processes multiple structs concurrently with optimized batching.
+//
+// Deprecated: Use generated ProcessStructNameEncx functions in batch operations for better performance.
 func (c *Crypto) ProcessStructsBatch(ctx context.Context, structs []any, options ...*BatchProcessOptions) (*BatchProcessResult, error) {
 	return performance.ProcessStructsBatch(ctx, c, structs, options...)
 }
 
-// DecryptStructsBatch decrypts multiple structs concurrently with optimized batching
+// DecryptStructsBatch decrypts multiple structs concurrently with optimized batching.
+//
+// Deprecated: Use generated DecryptStructNameEncx functions in batch operations for better performance.
 func (c *Crypto) DecryptStructsBatch(ctx context.Context, structs []any, options ...*BatchProcessOptions) (*BatchProcessResult, error) {
 	return performance.DecryptStructsBatch(ctx, c, structs, options...)
 }

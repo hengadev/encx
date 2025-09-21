@@ -190,3 +190,4 @@ func versionCommand() {
 	fmt.Println("Supported databases: PostgreSQL, SQLite, MySQL")
 	fmt.Println("Supported serializers: json")
 }
+

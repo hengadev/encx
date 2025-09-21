@@ -9,9 +9,9 @@ import (
 
 // Config represents the configuration for the code generator
 type Config struct {
-	Version    string                       `yaml:"version"`
-	Generation GenerationConfig             `yaml:"generation"`
-	Packages   map[string]PackageConfig     `yaml:"packages"`
+	Version     string                      `yaml:"version"`
+	Generation  GenerationConfig            `yaml:"generation"`
+	Packages    map[string]PackageConfig    `yaml:"packages"`
 	Serializers map[string]SerializerConfig `yaml:"serializers"`
 }
 
@@ -125,3 +125,4 @@ func (c *Config) Validate() error {
 
 	return nil
 }
+
