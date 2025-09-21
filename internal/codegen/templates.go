@@ -166,6 +166,21 @@ const hashSecureStepTemplate = `
 		}
 	}`
 
+// Decryption step templates
+const decryptStepTemplate = `
+	// Decrypt {{.FieldName}}
+	if len(source.{{.FieldName}}Encrypted) > 0 {
+		{{.FieldName}}Bytes, err := crypto.DecryptData(ctx, source.{{.FieldName}}Encrypted, dek)
+		if err != nil {
+			errs.Set("{{.FieldName}} decryption", err)
+		} else {
+			err = serializer.Deserialize({{.FieldName}}Bytes, &result.{{.FieldName}})
+			if err != nil {
+				errs.Set("{{.FieldName}} deserialization", err)
+			}
+		}
+	}`
+
 // TemplateEngine manages code generation templates
 type TemplateEngine struct {
 	processTemplate *template.Template
@@ -244,9 +259,12 @@ func BuildTemplateData(structInfo StructInfo, config GenerationConfig) TemplateD
 
 // processFieldForTemplate processes a field and adds template data
 func processFieldForTemplate(data *TemplateData, field FieldInfo) {
+	hasEncryption := false
+
 	for _, tag := range field.EncxTags {
 		switch tag {
 		case "encrypt":
+			hasEncryption = true
 			// Add encrypted field to struct
 			encryptedField := TemplateField{
 				Name:      field.Name + "Encrypted",
@@ -288,6 +306,12 @@ func processFieldForTemplate(data *TemplateData, field FieldInfo) {
 			step := generateProcessingStep(hashSecureStepTemplate, field.Name, field.Type)
 			data.ProcessingSteps = append(data.ProcessingSteps, step)
 		}
+	}
+
+	// Add decryption step if field has encryption
+	if hasEncryption {
+		decryptStep := generateProcessingStep(decryptStepTemplate, field.Name, field.Type)
+		data.DecryptionSteps = append(data.DecryptionSteps, decryptStep)
 	}
 }
 
