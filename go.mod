@@ -15,6 +15,7 @@ require (
 	github.com/mattn/go-sqlite3 v1.14.28
 	github.com/stretchr/testify v1.10.0
 	golang.org/x/crypto v0.36.0
+	gopkg.in/yaml.v3 v3.0.1
 )
 
 require (
@@ -54,5 +55,4 @@ require (
 	golang.org/x/sys v0.31.0 // indirect
 	golang.org/x/text v0.23.0 // indirect
 	golang.org/x/time v0.0.0-20200416051211-89c76fbcd5d1 // indirect
-	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
