@@ -1,8 +1,16 @@
 *.md
 !README.md
 !IMPROVEMENT_ROADMAP.md
+!CLAUDE.md
 
 notes/
 cmd/
 .env
 .encx/
+
+# Generated files and caches
+.encx-gen-cache.json
+*_encx.go
+bin/
+learning_exercises/
+test_invalid.go
