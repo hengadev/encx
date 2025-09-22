@@ -127,11 +127,9 @@ func (g *Generator) Generate(packages []string, dryRun bool) error {
 			}
 
 			// Build template data
-			codegenConfig := codegen.GenerationConfig{
-				OutputSuffix:      g.config.Generation.OutputSuffix,
-				FunctionPrefix:    g.config.Generation.FunctionPrefix,
-				PackageName:       g.config.Generation.PackageName,
-				DefaultSerializer: g.config.Generation.DefaultSerializer,
+			codegenConfig, err := g.config.Generation.ToCodegenConfig()
+			if err != nil {
+				return fmt.Errorf("failed to convert config for struct %s: %w", structInfo.StructName, err)
 			}
 			templateData := codegen.BuildTemplateData(structInfo, codegenConfig)
 

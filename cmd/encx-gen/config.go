@@ -5,6 +5,9 @@ import (
 	"os"
 
 	"gopkg.in/yaml.v3"
+
+	"github.com/hengadev/encx/internal/codegen"
+	"github.com/hengadev/encx/internal/serialization"
 )
 
 // Config represents the configuration for the code generator
@@ -124,5 +127,20 @@ func (c *Config) Validate() error {
 	}
 
 	return nil
+}
+
+// ToCodegenConfig converts the YAML config to the codegen GenerationConfig
+func (gc GenerationConfig) ToCodegenConfig() (codegen.GenerationConfig, error) {
+	serializerType, err := serialization.ParseSerializerType(gc.DefaultSerializer)
+	if err != nil {
+		return codegen.GenerationConfig{}, fmt.Errorf("invalid default serializer: %w", err)
+	}
+
+	return codegen.GenerationConfig{
+		OutputSuffix:      gc.OutputSuffix,
+		FunctionPrefix:    gc.FunctionPrefix,
+		PackageName:       gc.PackageName,
+		DefaultSerializer: serializerType,
+	}, nil
 }
 
