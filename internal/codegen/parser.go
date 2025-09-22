@@ -1,11 +1,14 @@
 package codegen
 
 import (
+	"fmt"
 	"go/ast"
 	"go/parser"
 	"go/token"
 	"path/filepath"
 	"strings"
+
+	"github.com/hengadev/encx/internal/serialization"
 )
 
 // StructInfo contains information about a struct with encx tags
@@ -63,11 +66,26 @@ func discoverStructsInFile(fset *token.FileSet, fileName string, file *ast.File,
 
 	ast.Inspect(file, func(n ast.Node) bool {
 		switch node := n.(type) {
-		case *ast.TypeSpec:
-			if structType, ok := node.Type.(*ast.StructType); ok {
-				structInfo := analyzeStruct(fset, fileName, pkgName, node.Name.Name, structType)
-				if structInfo.HasEncxTags {
-					structs = append(structs, structInfo)
+		case *ast.GenDecl:
+			// Handle type declarations that may have comments
+			for _, spec := range node.Specs {
+				if typeSpec, ok := spec.(*ast.TypeSpec); ok {
+					if structType, ok := typeSpec.Type.(*ast.StructType); ok {
+						// Comments are typically on the GenDecl, not the TypeSpec
+						originalDoc := typeSpec.Doc
+						if originalDoc == nil && node.Doc != nil {
+							typeSpec.Doc = node.Doc
+						}
+
+						structInfo := analyzeStruct(fset, fileName, pkgName, typeSpec, structType)
+
+						// Restore original doc to avoid side effects
+						typeSpec.Doc = originalDoc
+
+						if structInfo.HasEncxTags {
+							structs = append(structs, structInfo)
+						}
+					}
 				}
 			}
 		}
@@ -78,14 +96,25 @@ func discoverStructsInFile(fset *token.FileSet, fileName string, file *ast.File,
 }
 
 // analyzeStruct analyzes a struct type for encx tags
-func analyzeStruct(fset *token.FileSet, fileName, pkgName, structName string, structType *ast.StructType) StructInfo {
+func analyzeStruct(fset *token.FileSet, fileName, pkgName string, typeSpec *ast.TypeSpec, structType *ast.StructType) StructInfo {
 	structInfo := StructInfo{
 		PackageName:       pkgName,
-		StructName:        structName,
+		StructName:        typeSpec.Name.Name,
 		SourceFile:        filepath.Base(fileName),
 		Fields:            []FieldInfo{},
 		HasEncxTags:       false,
 		GenerationOptions: make(map[string]string),
+	}
+
+	// Parse encx:options from struct-level comments
+	if typeSpec.Doc != nil {
+		parseEncxOptions(typeSpec.Doc, structInfo.GenerationOptions)
+		// Validate generation options
+		if err := validateGenerationOptions(structInfo.GenerationOptions); err != nil {
+			// For now, we'll silently ignore invalid options to maintain compatibility
+			// In the future, this could be made configurable
+			_ = err
+		}
 	}
 
 	// Analyze each field
@@ -154,7 +183,8 @@ func extractEncxTags(tagString string) []string {
 	// Simple implementation - in real code, use reflect.StructTag
 	parts := strings.Split(tagString, " ")
 	for _, part := range parts {
-		if strings.HasPrefix(part, "encx:") {
+		// if strings.HasPrefix(part, "encx:") {
+		if _, found := strings.CutPrefix(part, "encx:"); found {
 			// Extract value between quotes
 			value := strings.Trim(strings.TrimPrefix(part, "encx:"), "\"")
 			return strings.Split(value, ",")
@@ -163,3 +193,66 @@ func extractEncxTags(tagString string) []string {
 	return []string{}
 }
 
+// parseEncxOptions parses //encx:options comments and extracts key=value pairs
+func parseEncxOptions(commentGroup *ast.CommentGroup, options map[string]string) {
+	if commentGroup == nil {
+		return
+	}
+
+	for _, comment := range commentGroup.List {
+		text := strings.TrimSpace(comment.Text)
+
+		// Remove comment prefixes
+		if strings.HasPrefix(text, "//") {
+			text = strings.TrimSpace(text[2:])
+		} else if strings.HasPrefix(text, "/*") && strings.HasSuffix(text, "*/") {
+			text = strings.TrimSpace(text[2 : len(text)-2])
+		}
+
+		// Check for encx:options prefix
+		if strings.HasPrefix(text, "encx:options") {
+			optionsText := strings.TrimSpace(text[12:]) // Remove "encx:options"
+			parseOptionsPairs(optionsText, options)
+		}
+	}
+}
+
+// parseOptionsPairs parses key=value,key2=value2 format
+func parseOptionsPairs(optionsText string, options map[string]string) {
+	if optionsText == "" {
+		return
+	}
+
+	pairs := strings.Split(optionsText, ",")
+	for _, pair := range pairs {
+		pair = strings.TrimSpace(pair)
+		if pair == "" {
+			continue
+		}
+
+		parts := strings.SplitN(pair, "=", 2)
+		if len(parts) == 2 {
+			key := strings.TrimSpace(parts[0])
+			value := strings.TrimSpace(parts[1])
+			if key != "" && value != "" {
+				options[key] = value
+			}
+		}
+	}
+}
+
+// validateGenerationOptions validates the generation options parsed from comments
+func validateGenerationOptions(options map[string]string) error {
+	for key, value := range options {
+		switch key {
+		case "serializer":
+			if _, err := serialization.ParseSerializerType(value); err != nil {
+				return fmt.Errorf("invalid serializer option '%s': %w", value, err)
+			}
+		default:
+			// For now, ignore unknown options to allow for future extensions
+			// Could be made stricter based on configuration
+		}
+	}
+	return nil
+}
