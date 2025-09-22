@@ -1,6 +1,40 @@
 # ENCX - Enterprise Cryptography for Go
 
+> **Context7 Users**: See [Quick Integration Guide](./docs/CONTEXT7_GUIDE.md) for structured examples and patterns
+
 A production-ready Go library for field-level encryption, hashing, and key management. ENCX provides struct-based cryptographic operations with support for key rotation, multiple KMS backends, and comprehensive testing utilities.
+
+## 🚀 Context7 Quick Start
+
+```go
+// Install: go get github.com/hengadev/encx
+
+// Define struct with encryption tags
+type User struct {
+    Email             string `encx:"encrypt,hash_basic"` // Encrypt + searchable
+    EmailEncrypted    []byte // Auto-populated
+    EmailHash         string // For fast lookups
+
+    Password          string `encx:"hash_secure"`       // Secure password hash
+    PasswordHash      string // For authentication
+
+    // Required encryption fields
+    DEK               []byte
+    DEKEncrypted      []byte
+    KeyVersion        int
+}
+
+// Process (encrypt/hash) user data
+crypto, _ := encx.NewTestCrypto(nil)
+user := &User{Email: "user@example.com", Password: "secret123"}
+err := crypto.ProcessStruct(ctx, user)
+
+// Now: user.EmailEncrypted contains encrypted email
+//      user.EmailHash contains searchable hash
+//      user.PasswordHash contains secure hash
+```
+
+**→ [See all patterns and use cases](./docs/CONTEXT7_GUIDE.md)**
 
 ## Features
 
@@ -231,6 +265,49 @@ func TestUserEncryptionIntegration(t *testing.T) {
 }
 ```
 
+### Serializer Configuration
+
+ENCX supports multiple serialization methods with both global and per-struct configuration:
+
+#### Global Configuration (encx.yaml)
+
+```yaml
+codegen:
+  output_dir: "generated"
+  default_serializer: json  # Options: json, gob, basic
+```
+
+#### Per-Struct Override
+
+Use comment-based configuration to override the global serializer for specific structs:
+
+```go
+//encx:options serializer=gob
+type HighPerformanceData struct {
+    Data     []byte `encx:"encrypt"`
+    Metadata string `encx:"hash_basic"`
+}
+
+//encx:options serializer=basic
+type SimpleConfig struct {
+    APIKey  string `encx:"hash_secure"`
+    Timeout int    `encx:"encrypt"`
+}
+
+// Uses default serializer from encx.yaml
+type RegularUser struct {
+    Email string `encx:"encrypt,hash_basic"`
+}
+```
+
+#### Serializer Types
+
+- **JSON** (`json`) - Standard JSON serialization, good compatibility and human-readable
+- **GOB** (`gob`) - Go-specific binary format, faster and more compact for Go-to-Go communication
+- **Basic** (`basic`) - Direct conversion for primitives with JSON fallback, minimal overhead
+
+Choose based on your performance needs and interoperability requirements.
+
 ## Validation
 
 ### Compile-time Validation
@@ -447,4 +524,47 @@ When using the `encx` package, add the following to your `.gitignore`:
 [Add support information here]
 
 ## 📚 Documentation
+
+### Complete Guides
+- **[Context7 Integration Guide](./docs/CONTEXT7_GUIDE.md)** - Quick reference for Context7 users
+- **[Code Generation Guide](./docs/CODE_GENERATION_GUIDE.md)** - High-performance code generation
+- **[Examples Documentation](./docs/EXAMPLES.md)** - Real-world use cases
+- **[API Reference](./docs/API_REFERENCE.md)** - Complete API documentation
+- **[Migration Guide](./docs/MIGRATION_GUIDE.md)** - Upgrade instructions
+
+### Quick References
+- **Use Cases**: Data encryption, PII protection, searchable encryption, password management
+- **Performance**: Code generation provides 10x speed improvement over reflection
+- **Security**: AES-GCM encryption, Argon2id hashing, automatic key management
+- **Integration**: Works with PostgreSQL, SQLite, MySQL, AWS KMS, HashiCorp Vault
+
+## Context7 Quick Queries
+
+For Context7 users, here are optimized query patterns:
+
+### Common Use Cases
+| Query Pattern | Documentation Section |
+|---------------|----------------------|
+| "encrypt user email golang" | [Quick Start](#quick-start) + [Context7 Guide](./docs/CONTEXT7_GUIDE.md#pattern-2-searchable-fields) |
+| "password hashing with encryption" | [Advanced Examples](#password-with-recovery) + [Context7 Guide](./docs/CONTEXT7_GUIDE.md#pattern-3-password-management) |
+| "database schema for encrypted fields" | [Context7 Guide](./docs/CONTEXT7_GUIDE.md#database-integration) |
+| "performance optimization encryption" | [Code Generation Guide](./docs/CODE_GENERATION_GUIDE.md) |
+| "struct tag validation" | [Validation](#validation) + [API Reference](./docs/API_REFERENCE.md#validation-api) |
+
+### Implementation Patterns
+| Pattern | Use Case | Documentation |
+|---------|----------|---------------|
+| `encx:"encrypt"` | Simple data protection | [Struct Tags Reference](#struct-tags-reference) |
+| `encx:"hash_basic"` | Fast search/lookup | [Quick Start](#quick-start) |
+| `encx:"hash_secure"` | Password security | [Advanced Examples](#password-with-recovery) |
+| `encx:"encrypt,hash_basic"` | Searchable encryption | [Combined Tags](#combined-operation-tags) |
+
+### Technology Integration
+| Technology | Integration Guide |
+|------------|------------------|
+| PostgreSQL | [Context7 Guide - Database](./docs/CONTEXT7_GUIDE.md#database-integration) |
+| AWS KMS | [Configuration](#production-setup) |
+| HashiCorp Vault | [KMS Providers](#hashicorp-vault) |
+| Docker | [Complete Web App Example](./examples/complete-webapp/README.md#docker-configuration) |
+| Per-Struct Serializers | [Serializer Example](./examples/per_struct_serializers.go) |
 
