@@ -5,6 +5,8 @@ import (
 	"strings"
 	"text/template"
 	"time"
+
+	"github.com/hengadev/encx/internal/serialization"
 )
 
 // TemplateData contains all data needed for code generation
@@ -213,17 +215,26 @@ type GenerationConfig struct {
 	OutputSuffix      string
 	FunctionPrefix    string
 	PackageName       string
-	DefaultSerializer string
+	DefaultSerializer serialization.SerializerType
 }
 
 // BuildTemplateData builds template data from struct info
 func BuildTemplateData(structInfo StructInfo, config GenerationConfig) TemplateData {
+	// Determine which serializer to use (struct-specific option overrides global config)
+	selectedSerializer := config.DefaultSerializer
+	if serializerOption, exists := structInfo.GenerationOptions["serializer"]; exists {
+		if parsedSerializer, err := serialization.ParseSerializerType(serializerOption); err == nil {
+			selectedSerializer = parsedSerializer
+		}
+		// Note: Validation errors should be handled earlier in the validation phase
+	}
+
 	data := TemplateData{
 		PackageName:      structInfo.PackageName,
 		StructName:       structInfo.StructName,
 		SourceFile:       structInfo.SourceFile,
 		GeneratedTime:    time.Now().Format(time.RFC3339),
-		SerializerType:   config.DefaultSerializer,
+		SerializerType:   selectedSerializer.String(),
 		GeneratorVersion: "1.0.0",
 		Imports:          []string{},
 		EncryptedFields:  []TemplateField{},
@@ -231,20 +242,13 @@ func BuildTemplateData(structInfo StructInfo, config GenerationConfig) TemplateD
 		DecryptionSteps:  []string{},
 	}
 
-	// Generate serializer factory based on type
-	switch config.DefaultSerializer {
-	case "json":
-		data.SerializerFactory = "&serialization.JSONSerializer{}"
-		data.SerializerFromMetadata = "&serialization.JSONSerializer{}"
-		data.Imports = append(data.Imports, "github.com/hengadev/encx/internal/serialization")
-	case "gob":
-		data.SerializerFactory = "&serialization.GOBSerializer{}"
-		data.SerializerFromMetadata = "&serialization.GOBSerializer{}"
-		data.Imports = append(data.Imports, "github.com/hengadev/encx/internal/serialization")
-	case "basic":
-		data.SerializerFactory = "&serialization.BasicTypeSerializer{}"
-		data.SerializerFromMetadata = "&serialization.BasicTypeSerializer{}"
-		data.Imports = append(data.Imports, "github.com/hengadev/encx/internal/serialization")
+	// Generate serializer factory using enum methods
+	data.SerializerFactory = selectedSerializer.SerializerFactory()
+	data.SerializerFromMetadata = selectedSerializer.SerializerFactory()
+
+	// Add required import
+	if importPath := selectedSerializer.RequiredImport(); importPath != "" {
+		data.Imports = append(data.Imports, importPath)
 	}
 
 	// Process each field with encx tags
