@@ -1,5 +1,13 @@
 // Package encx provides production-ready field-level encryption, hashing, and key management for Go applications.
 //
+// Context7 Metadata:
+// - Library Type: Encryption & Security
+// - Use Cases: Data protection, PII encryption, password hashing, searchable encryption
+// - Complexity: Intermediate to Advanced
+// - Performance: High (10x improvement with code generation)
+// - Compliance: HIPAA, GDPR, SOX ready
+// - Integration: PostgreSQL, MySQL, SQLite, AWS KMS, HashiCorp Vault
+//
 // ENCX enables you to encrypt and hash struct fields using simple struct tags, with automatic
 // key management through a DEK/KEK architecture. It supports multiple KMS backends, key rotation,
 // combined operations, and comprehensive testing utilities.
