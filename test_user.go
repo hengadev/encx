@@ -7,7 +7,7 @@ type User struct {
 	Phone string `json:"phone" encx:"encrypt"`
 	SSN   string `json:"ssn" encx:"hash_secure"`
 	// Added a comment to change the file hash
-	Name  string `json:"name"`
+	Name string `json:"name"`
 
 	// Companion fields for encryption/hashing
 	EmailEncrypted []byte `json:"email_encrypted" db:"email_encrypted"`
@@ -15,3 +15,4 @@ type User struct {
 	PhoneEncrypted []byte `json:"phone_encrypted" db:"phone_encrypted"`
 	SSNHashSecure  string `json:"ssn_hash_secure" db:"ssn_hash_secure"`
 }
+

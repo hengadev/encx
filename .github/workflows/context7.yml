@@ -1,0 +1,283 @@
+name: Update Context7 Documentation
+
+on:
+  # Trigger on new releases
+  release:
+    types: [published]
+
+  # Manual trigger for testing and one-off updates
+  workflow_dispatch:
+    inputs:
+      operation:
+        description: 'Operation to perform'
+        required: true
+        default: 'refresh'
+        type: choice
+        options:
+          - add
+          - refresh
+      force:
+        description: 'Force update even if no changes detected'
+        required: false
+        default: false
+        type: boolean
+
+  # Trigger on documentation changes
+  push:
+    branches: [main]
+    paths:
+      - 'docs/**'
+      - 'README.md'
+      - 'examples/**'
+      - 'CONTEXT7_METADATA.md'
+      - 'doc.go'
+      - '*.md'
+
+  # Trigger on pull requests that affect documentation
+  pull_request:
+    branches: [main]
+    paths:
+      - 'docs/**'
+      - 'README.md'
+      - 'examples/**'
+      - 'CONTEXT7_METADATA.md'
+      - 'doc.go'
+      - '*.md'
+
+jobs:
+  update-context7:
+    runs-on: ubuntu-latest
+
+    # Only run on main branch pushes and releases, not on PRs
+    if: github.event_name != 'pull_request' || github.event_name == 'workflow_dispatch'
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Fetch full history for better analysis
+
+      - name: Validate Context7 documentation
+        run: |
+          echo "🔍 Validating Context7 documentation structure..."
+
+          # Check required files exist
+          required_files=(
+            "README.md"
+            "docs/CONTEXT7_GUIDE.md"
+            "CONTEXT7_METADATA.md"
+            "examples/context7/README.md"
+          )
+
+          missing_files=()
+          for file in "${required_files[@]}"; do
+            if [[ ! -f "$file" ]]; then
+              missing_files+=("$file")
+            fi
+          done
+
+          if [[ ${#missing_files[@]} -gt 0 ]]; then
+            echo "❌ Missing required files:"
+            printf '%s\n' "${missing_files[@]}"
+            exit 1
+          fi
+
+          # Check Context7 examples directory
+          if [[ ! -d "examples/context7" ]]; then
+            echo "❌ Missing examples/context7 directory"
+            exit 1
+          fi
+
+          # Count example files
+          example_count=$(find examples/context7 -name "*.go" | wc -l)
+          echo "📁 Found $example_count Context7 example files"
+
+          if [[ $example_count -lt 3 ]]; then
+            echo "⚠️  Warning: Only $example_count example files found. Consider adding more."
+          fi
+
+          # Verify README has Context7 section
+          if ! grep -q "Context7" README.md; then
+            echo "❌ README.md missing Context7 section"
+            exit 1
+          fi
+
+          echo "✅ All Context7 documentation validated successfully"
+
+      - name: Determine operation
+        id: operation
+        run: |
+          # Determine what operation to perform
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            operation="${{ github.event.inputs.operation }}"
+          elif [[ "${{ github.event_name }}" == "release" ]]; then
+            operation="add"
+          else
+            # For pushes to main, refresh existing documentation
+            operation="refresh"
+          fi
+
+          echo "operation=$operation" >> $GITHUB_OUTPUT
+          echo "🔄 Operation determined: $operation"
+
+      - name: Update Context7 Documentation
+        id: context7
+        uses: rennf93/upsert-context7@v1
+        with:
+          operation: ${{ steps.operation.outputs.operation }}
+          repo-url: ${{ github.server_url }}/${{ github.repository }}
+          timeout: 1800  # 30 minutes for large repositories
+        continue-on-error: true
+
+      - name: Display results
+        run: |
+          echo "📊 Context7 Update Results:"
+          echo "Success: ${{ steps.context7.outputs.success }}"
+          echo "Status Code: ${{ steps.context7.outputs.status-code }}"
+          echo "Message: ${{ steps.context7.outputs.message }}"
+
+          if [[ "${{ steps.context7.outputs.success }}" == "true" ]]; then
+            echo "✅ Successfully updated Context7 documentation"
+            echo "🔗 Library should be available at: https://context7.com/docs/${{ github.repository_owner }}/${{ github.event.repository.name }}"
+          else
+            echo "❌ Failed to update Context7 documentation"
+            echo "Error details: ${{ steps.context7.outputs.message }}"
+          fi
+
+      - name: Handle success
+        if: steps.context7.outputs.success == 'true'
+        run: |
+          echo "🎉 Context7 integration successful!"
+          echo ""
+          echo "📚 Your library documentation is now available on Context7:"
+          echo "   - Search for 'encx' or 'golang encryption' on Context7"
+          echo "   - Use Context7 MCP to get up-to-date examples"
+          echo "   - Documentation includes ${{ github.event.repository.name }} patterns and use cases"
+          echo ""
+          echo "🔗 Direct links:"
+          echo "   - Context7 library page: https://context7.com/docs/${{ github.repository_owner }}/${{ github.event.repository.name }}"
+          echo "   - GitHub repository: ${{ github.server_url }}/${{ github.repository }}"
+
+      - name: Handle failure
+        if: steps.context7.outputs.success == 'false'
+        run: |
+          echo "🚨 Context7 integration failed"
+          echo ""
+          echo "📝 Failure details:"
+          echo "   Status: ${{ steps.context7.outputs.status-code }}"
+          echo "   Message: ${{ steps.context7.outputs.message }}"
+          echo ""
+          echo "🔧 Troubleshooting steps:"
+          echo "   1. Check if repository is public and accessible"
+          echo "   2. Verify documentation files are present and valid"
+          echo "   3. Try manual trigger with 'add' operation if this is first submission"
+          echo "   4. Check Context7 service status"
+          echo ""
+          echo "💡 You can manually trigger this workflow with different parameters:"
+          echo "   - Go to Actions tab in GitHub"
+          echo "   - Select 'Update Context7 Documentation'"
+          echo "   - Click 'Run workflow' and choose operation type"
+
+          # Don't fail the workflow on Context7 errors to avoid blocking other processes
+          echo "⚠️  Continuing workflow despite Context7 error"
+
+      - name: Create issue on failure (for releases)
+        if: steps.context7.outputs.success == 'false' && github.event_name == 'release'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const title = '🚨 Context7 Documentation Update Failed';
+            const body = `
+            ## Context7 Integration Failure
+
+            The automatic Context7 documentation update failed for release \`${{ github.event.release.tag_name }}\`.
+
+            **Details:**
+            - Operation: ${{ steps.operation.outputs.operation }}
+            - Status Code: ${{ steps.context7.outputs.status-code }}
+            - Error Message: ${{ steps.context7.outputs.message }}
+            - Workflow Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+            **Next Steps:**
+            1. Check if the repository documentation is complete and valid
+            2. Manually trigger the workflow with 'add' operation if this is a new library
+            3. Verify Context7 service availability
+            4. Contact Context7 support if the issue persists
+
+            **Manual Trigger:**
+            You can manually retry the Context7 update by going to the [Actions tab](${{ github.server_url }}/${{ github.repository }}/actions/workflows/context7.yml) and running the workflow with custom parameters.
+            `;
+
+            github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: title,
+              body: body,
+              labels: ['documentation', 'context7', 'automation']
+            });
+
+  # Job to validate examples compile correctly
+  validate-examples:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request' || github.event_name == 'push'
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.21'
+
+      - name: Download dependencies
+        run: go mod download
+
+      - name: Validate Context7 examples
+        run: |
+          echo "🧪 Validating Context7 examples compile correctly..."
+
+          # Find all Go files in context7 examples
+          example_files=$(find examples/context7 -name "*.go" -type f)
+
+          if [[ -z "$example_files" ]]; then
+            echo "⚠️  No Go example files found in examples/context7/"
+            exit 0
+          fi
+
+          failed_files=()
+
+          for file in $example_files; do
+            echo "🔍 Checking $file..."
+
+            # Check if file compiles (syntax check)
+            if ! go vet "$file" 2>/dev/null; then
+              echo "❌ $file has vet issues"
+              failed_files+=("$file")
+              continue
+            fi
+
+            # Check if file has proper package declaration
+            if ! grep -q "^package " "$file"; then
+              echo "❌ $file missing package declaration"
+              failed_files+=("$file")
+              continue
+            fi
+
+            # Check if file has Context7 tags in comments
+            if ! grep -q "Context7 Tags:" "$file"; then
+              echo "⚠️  $file missing Context7 tags (recommended)"
+            fi
+
+            echo "✅ $file validated successfully"
+          done
+
+          if [[ ${#failed_files[@]} -gt 0 ]]; then
+            echo ""
+            echo "❌ Failed validation for files:"
+            printf '%s\n' "${failed_files[@]}"
+            exit 1
+          fi
+
+          echo ""
+          echo "🎉 All Context7 examples validated successfully!"
