@@ -174,11 +174,9 @@ func (v *Validator) validateDatabaseConfig(dbPath, dbFilename string) error {
 	return nil
 }
 
-// validateSerializer validates the serializer
-func (v *Validator) validateSerializer(serializer serialization.Serializer) error {
-	if serializer == nil {
-		return fmt.Errorf("serializer cannot be nil")
-	}
+// validateSerializer validates the serializer (deprecated - now using compact serializer)
+func (v *Validator) validateSerializer() error {
+	// No validation needed for compact serializer - it's built-in
 	return nil
 }
 
