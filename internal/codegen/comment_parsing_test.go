@@ -171,33 +171,36 @@ func TestValidateGenerationOptions(t *testing.T) {
 		errorMsg    string
 	}{
 		{
-			name: "Valid serializer option",
+			name: "Serializer option no longer supported (json)",
 			options: map[string]string{
 				"serializer": "json",
 			},
-			expectError: false,
+			expectError: true,
+			errorMsg:    "serializer option is no longer supported",
 		},
 		{
-			name: "Valid GOB serializer",
+			name: "Serializer option no longer supported (gob)",
 			options: map[string]string{
 				"serializer": "gob",
 			},
-			expectError: false,
+			expectError: true,
+			errorMsg:    "serializer option is no longer supported",
 		},
 		{
-			name: "Valid basic serializer",
+			name: "Serializer option no longer supported (basic)",
 			options: map[string]string{
 				"serializer": "basic",
 			},
-			expectError: false,
+			expectError: true,
+			errorMsg:    "serializer option is no longer supported",
 		},
 		{
-			name: "Invalid serializer",
+			name: "Serializer option no longer supported (invalid)",
 			options: map[string]string{
 				"serializer": "invalid",
 			},
 			expectError: true,
-			errorMsg:    "invalid serializer option 'invalid'",
+			errorMsg:    "serializer option is no longer supported",
 		},
 		{
 			name: "Unknown option ignored",
@@ -207,12 +210,13 @@ func TestValidateGenerationOptions(t *testing.T) {
 			expectError: false,
 		},
 		{
-			name: "Mixed valid and unknown options",
+			name: "Mixed serializer (unsupported) and unknown options",
 			options: map[string]string{
 				"serializer":     "json",
 				"unknown_option": "value",
 			},
-			expectError: false,
+			expectError: true,
+			errorMsg:    "serializer option is no longer supported",
 		},
 		{
 			name:        "Empty options",

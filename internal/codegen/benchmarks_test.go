@@ -48,8 +48,6 @@ func BenchmarkTemplateGeneration(b *testing.B) {
 		StructName:             "ComplexUser",
 		SourceFile:             "complex_user.go",
 		GeneratedTime:          time.Now().Format(time.RFC3339),
-		SerializerType:         "json",
-		SerializerFromMetadata: "&serialization.JSONSerializer{}",
 		GeneratorVersion:       "1.0.0",
 		EncryptedFields: []TemplateField{
 			{Name: "EmailEncrypted", Type: "[]byte", DBColumn: "email_encrypted", JSONField: "email_encrypted"},
@@ -190,8 +188,6 @@ func BenchmarkMemoryUsage(b *testing.B) {
 		StructName:             "LargeStruct",
 		SourceFile:             "large_struct.go",
 		GeneratedTime:          time.Now().Format(time.RFC3339),
-		SerializerType:         "json",
-		SerializerFromMetadata: "&serialization.JSONSerializer{}",
 		GeneratorVersion:       "1.0.0",
 		EncryptedFields:        generateLargeFieldList(50), // 50 fields
 		ProcessingSteps:        generateLargeProcessingSteps(50),

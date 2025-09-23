@@ -24,8 +24,6 @@ func TestGenerateCodeSimpleStruct(t *testing.T) {
 		StructName:             "User",
 		SourceFile:             "user.go",
 		GeneratedTime:          time.Now().Format(time.RFC3339),
-		SerializerType:         "json",
-		SerializerFromMetadata: "&serialization.JSONSerializer{}",
 		GeneratorVersion:       "1.0.0",
 		EncryptedFields: []TemplateField{
 			{
@@ -102,8 +100,6 @@ func TestGenerateCodeWithMultipleFields(t *testing.T) {
 		StructName:             "User",
 		SourceFile:             "user.go",
 		GeneratedTime:          time.Now().Format(time.RFC3339),
-		SerializerType:         "json",
-		SerializerFromMetadata: "&serialization.JSONSerializer{}",
 		GeneratorVersion:       "1.0.0",
 		EncryptedFields: []TemplateField{
 			{
@@ -149,8 +145,6 @@ func TestGenerateCodeEmpty(t *testing.T) {
 		StructName:             "Empty",
 		SourceFile:             "empty.go",
 		GeneratedTime:          time.Now().Format(time.RFC3339),
-		SerializerType:         "json",
-		SerializerFromMetadata: "&serialization.JSONSerializer{}",
 		GeneratorVersion:       "1.0.0",
 		EncryptedFields:        []TemplateField{},
 		ProcessingSteps:        []string{},
