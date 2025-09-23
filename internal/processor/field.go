@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"reflect"
 	"strings"
-
-	"github.com/hengadev/encx/internal/serialization"
 )
 
 // FieldProcessor handles individual field processing operations
@@ -28,7 +26,7 @@ type DataHasher interface {
 }
 
 // NewFieldProcessor creates a new FieldProcessor instance
-func NewFieldProcessor(encryptor DataEncryptor, hasher DataHasher, _ serialization.Serializer) *FieldProcessor {
+func NewFieldProcessor(encryptor DataEncryptor, hasher DataHasher) *FieldProcessor {
 	return &FieldProcessor{
 		encryptor: encryptor,
 		hasher:    hasher,

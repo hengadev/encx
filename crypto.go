@@ -11,7 +11,6 @@ import (
 	"github.com/hengadev/encx/internal/monitoring"
 	"github.com/hengadev/encx/internal/performance"
 	"github.com/hengadev/encx/internal/processor"
-	"github.com/hengadev/encx/internal/serialization"
 	"github.com/hengadev/encx/internal/types"
 	"github.com/hengadev/errsx"
 
@@ -42,7 +41,6 @@ const (
 // Interface aliases for backward compatibility
 type (
 	KeyManagementService = config.KeyManagementService
-	Serializer           = serialization.Serializer
 )
 
 type CryptoService interface {
@@ -166,11 +164,11 @@ func NewCrypto(ctx context.Context, options ...Option) (*Crypto, error) {
 	// Initialize internal components
 	cryptoInstance.dekOps = crypto.NewDEKOperations(cfg.KMSService, cfg.KEKAlias)
 	cryptoInstance.dataEncryption = crypto.NewDataEncryption()
-	cryptoInstance.hashingOps = crypto.NewHashingOperations(cfg.Pepper, cryptoInstance.argon2Params, nil)
+	cryptoInstance.hashingOps = crypto.NewHashingOperations(cfg.Pepper, cryptoInstance.argon2Params)
 	cryptoInstance.keyRotationOps = crypto.NewKeyRotationOperations(cfg.KMSService, cfg.KEKAlias, cfg.KeyMetadataDB, cfg.ObservabilityHook)
 
 	// Initialize struct processor components
-	fieldProcessor := processor.NewFieldProcessor(cryptoInstance.dataEncryption, cryptoInstance.hashingOps, nil)
+	fieldProcessor := processor.NewFieldProcessor(cryptoInstance.dataEncryption, cryptoInstance.hashingOps)
 	processorValidator := processor.NewValidator(cryptoInstance.dekOps)
 	cryptoInstance.structProcessor = processor.NewStructProcessor(fieldProcessor, processorValidator, cfg.ObservabilityHook, cryptoInstance)
 
@@ -368,4 +366,9 @@ func (c *Crypto) getCurrentKEKVersion(ctx context.Context, alias string) (int, e
 		return 0, fmt.Errorf("failed to get current KEK version for alias '%s': %w", alias, err)
 	}
 	return version, nil
+}
+
+// NewStructTagValidator creates a new struct tag validator for validating encx tags
+func NewStructTagValidator() *processor.StructTagValidator {
+	return processor.NewStructTagValidator()
 }
