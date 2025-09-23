@@ -3,6 +3,7 @@ package codegen
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -178,7 +179,10 @@ type InvalidUser struct {
 	require.NotNil(t, emailField)
 	assert.False(t, emailField.IsValid)
 	assert.NotEmpty(t, emailField.ValidationErrors)
-	assert.Contains(t, emailField.ValidationErrors[0], "hash_basic,hash_secure")
+	// Check that the error contains the conflicting hash tags (order may vary)
+	errorMsg := emailField.ValidationErrors[0]
+	assert.True(t, strings.Contains(errorMsg, "hash_basic") && strings.Contains(errorMsg, "hash_secure"),
+		"Expected error to contain both hash_basic and hash_secure, got: %s", errorMsg)
 
 	// Phone and Name should be valid (no companion fields required)
 	phoneField := findField(invalidStruct.Fields, "Phone")
