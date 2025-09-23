@@ -9,8 +9,6 @@ import (
 	"github.com/hengadev/encx/internal/config"
 	"github.com/hengadev/encx/internal/crypto"
 	"github.com/hengadev/encx/internal/monitoring"
-	"github.com/hengadev/encx/internal/performance"
-	"github.com/hengadev/encx/internal/processor"
 	"github.com/hengadev/encx/internal/types"
 	"github.com/hengadev/errsx"
 
@@ -19,14 +17,11 @@ import (
 
 // Type aliases for backward compatibility
 type (
-	MetricsCollector    = monitoring.MetricsCollector
-	ObservabilityHook   = monitoring.ObservabilityHook
-	Config              = config.Config
-	Option              = config.Option
-	Action              = types.Action
-	BatchProcessOptions = performance.BatchProcessOptions
-	BatchProcessResult  = performance.BatchProcessResult
-	BatchError          = performance.BatchError
+	MetricsCollector  = monitoring.MetricsCollector
+	ObservabilityHook = monitoring.ObservabilityHook
+	Config            = config.Config
+	Option            = config.Option
+	Action            = types.Action
 )
 
 // Action constants for backward compatibility
@@ -50,10 +45,6 @@ type CryptoService interface {
 	GenerateDEK() ([]byte, error)
 	EncryptData(ctx context.Context, plaintext []byte, dek []byte) ([]byte, error)
 	DecryptData(ctx context.Context, ciphertext []byte, dek []byte) ([]byte, error)
-	// Deprecated: Use generated functions instead (pattern: Process{StructName}Encx)
-	ProcessStruct(ctx context.Context, object any) error
-	// Deprecated: Use generated functions instead (pattern: Decrypt{StructName}Encx)
-	DecryptStruct(ctx context.Context, object any) error
 	EncryptDEK(ctx context.Context, plaintextDEK []byte) ([]byte, error)
 	DecryptDEKWithVersion(ctx context.Context, ciphertextDEK []byte, kekVersion int) ([]byte, error)
 	RotateKEK(ctx context.Context) error
@@ -75,11 +66,10 @@ type Crypto struct {
 	observabilityHook ObservabilityHook
 
 	// Internal components
-	dekOps          *crypto.DEKOperations
-	dataEncryption  *crypto.DataEncryption
-	hashingOps      *crypto.HashingOperations
-	keyRotationOps  *crypto.KeyRotationOperations
-	structProcessor *processor.StructProcessor
+	dekOps         *crypto.DEKOperations
+	dataEncryption *crypto.DataEncryption
+	hashingOps     *crypto.HashingOperations
+	keyRotationOps *crypto.KeyRotationOperations
 }
 
 // New creates a new Crypto instance using the legacy constructor signature.
@@ -167,11 +157,6 @@ func NewCrypto(ctx context.Context, options ...Option) (*Crypto, error) {
 	cryptoInstance.hashingOps = crypto.NewHashingOperations(cfg.Pepper, cryptoInstance.argon2Params)
 	cryptoInstance.keyRotationOps = crypto.NewKeyRotationOperations(cfg.KMSService, cfg.KEKAlias, cfg.KeyMetadataDB, cfg.ObservabilityHook)
 
-	// Initialize struct processor components
-	fieldProcessor := processor.NewFieldProcessor(cryptoInstance.dataEncryption, cryptoInstance.hashingOps)
-	processorValidator := processor.NewValidator(cryptoInstance.dekOps)
-	cryptoInstance.structProcessor = processor.NewStructProcessor(fieldProcessor, processorValidator, cfg.ObservabilityHook, cryptoInstance)
-
 	return cryptoInstance, nil
 }
 
@@ -256,55 +241,6 @@ func (a *errorCollectorAdapter) IsEmpty() bool {
 	return a.errMap.IsEmpty()
 }
 
-// ProcessStruct is deprecated. Use generated type-safe functions for better performance and type safety.
-//
-// This reflection-based approach is slower and less type-safe than the generated alternatives.
-// To migrate:
-//   1. Run `encx-gen generate .` to generate type-safe functions
-//   2. For a User struct, use ProcessUserEncx(ctx, crypto, &user)
-//   3. For an Order struct, use ProcessOrderEncx(ctx, crypto, &order)
-//   Pattern: Process{YourStructName}Encx
-//
-// Deprecated: Use generated type-safe functions instead (pattern: Process{StructName}Encx).
-func (c *Crypto) ProcessStruct(ctx context.Context, object any) error {
-	errorCollector := &errorCollectorAdapter{}
-	return c.structProcessor.ProcessStruct(ctx, object, errorCollector)
-}
-
-// DecryptStruct is deprecated. Use generated type-safe functions for better performance and type safety.
-//
-// This reflection-based approach is slower and less type-safe than the generated alternatives.
-// To migrate:
-//   1. Run `encx-gen generate .` to generate type-safe functions
-//   2. For a User struct, use DecryptUserEncx(ctx, crypto, &userEncx)
-//   3. For an Order struct, use DecryptOrderEncx(ctx, crypto, &orderEncx)
-//   Pattern: Decrypt{YourStructName}Encx
-//
-// Deprecated: Use generated type-safe functions instead (pattern: Decrypt{StructName}Encx).
-func (c *Crypto) DecryptStruct(ctx context.Context, object any) error {
-	errorCollector := &errorCollectorAdapter{}
-	return c.structProcessor.DecryptStruct(ctx, object, errorCollector)
-}
-
-// ProcessStructsBatch processes multiple structs concurrently with optimized batching.
-//
-// Deprecated: Use generated ProcessStructNameEncx functions in batch operations for better performance.
-func (c *Crypto) ProcessStructsBatch(ctx context.Context, structs []any, options ...*BatchProcessOptions) (*BatchProcessResult, error) {
-	return performance.ProcessStructsBatch(ctx, c, structs, options...)
-}
-
-// DecryptStructsBatch decrypts multiple structs concurrently with optimized batching.
-//
-// Deprecated: Use generated DecryptStructNameEncx functions in batch operations for better performance.
-func (c *Crypto) DecryptStructsBatch(ctx context.Context, structs []any, options ...*BatchProcessOptions) (*BatchProcessResult, error) {
-	return performance.DecryptStructsBatch(ctx, c, structs, options...)
-}
-
-// GetProcessingStats returns performance statistics
-func (c *Crypto) GetProcessingStats() map[string]interface{} {
-	return performance.GetProcessingStats()
-}
-
 // Getter methods for legacy compatibility
 func (c *Crypto) GetPepper() []byte {
 	return c.pepper
@@ -366,9 +302,4 @@ func (c *Crypto) getCurrentKEKVersion(ctx context.Context, alias string) (int, e
 		return 0, fmt.Errorf("failed to get current KEK version for alias '%s': %w", alias, err)
 	}
 	return version, nil
-}
-
-// NewStructTagValidator creates a new struct tag validator for validating encx tags
-func NewStructTagValidator() *processor.StructTagValidator {
-	return processor.NewStructTagValidator()
 }
