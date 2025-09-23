@@ -3,20 +3,14 @@ package encx
 import (
 	"fmt"
 
+	"github.com/hengadev/encx/internal/config"
 	"github.com/hengadev/errsx"
 )
 
-// TODO: document recommended parameter values in the struct definition
+// Argon2Params defines the parameters for Argon2id (re-exported from internal)
+type Argon2Params = config.Argon2Params
 
-// Argon2Params defines the parameters for Argon2id
-type Argon2Params struct {
-	Memory      uint32
-	Iterations  uint32
-	Parallelism uint8
-	SaltLength  uint32
-	KeyLength   uint32
-}
-
+// NewArgon2Params creates a new Argon2Params instance with validation
 func NewArgon2Params(
 	memory uint32,
 	iterations uint32,
@@ -24,22 +18,24 @@ func NewArgon2Params(
 	saltLength uint32,
 	keyLength uint32,
 ) (*Argon2Params, error) {
-	// check for minimum security requirements
-	params := &Argon2Params{
+	// Create the internal struct
+	params := &config.Argon2Params{
 		Memory:      memory,
 		Iterations:  iterations,
 		Parallelism: parallelism,
 		SaltLength:  saltLength,
 		KeyLength:   keyLength,
 	}
-	if err := params.Validate(); err != nil {
+
+	// Validate using public validation rules
+	if err := validateArgon2Params(params); err != nil {
 		return nil, fmt.Errorf("validate Argon2 parameters: %w", err)
 	}
 	return params, nil
 }
 
-// use a map for the errors here
-func (a *Argon2Params) Validate() error {
+// validateArgon2Params provides public validation with OWASP recommended minimums
+func validateArgon2Params(a *Argon2Params) error {
 	var errs errsx.Map
 	// OWASP recommended minimums as of 2023
 	if a.Memory < 19456 { // 19 MiB minimum
@@ -60,6 +56,12 @@ func (a *Argon2Params) Validate() error {
 	return errs.AsError()
 }
 
+// Validate validates the Argon2 parameters using public validation rules
+func (a *Argon2Params) Validate() error {
+	return validateArgon2Params(a)
+}
+
+// DefaultArgon2Params provides secure default parameters
 var DefaultArgon2Params = &Argon2Params{
 	Memory:      64 * 1024, // 64MB
 	Iterations:  3,
@@ -67,10 +69,3 @@ var DefaultArgon2Params = &Argon2Params{
 	SaltLength:  16,
 	KeyLength:   32,
 }
-
-// Interface methods for internal crypto package compatibility
-func (a *Argon2Params) GetMemory() uint32      { return a.Memory }
-func (a *Argon2Params) GetIterations() uint32  { return a.Iterations }
-func (a *Argon2Params) GetParallelism() uint8  { return a.Parallelism }
-func (a *Argon2Params) GetSaltLength() uint32  { return a.SaltLength }
-func (a *Argon2Params) GetKeyLength() uint32   { return a.KeyLength }
