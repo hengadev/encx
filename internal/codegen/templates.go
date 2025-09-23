@@ -92,6 +92,12 @@ func Process{{.StructName}}Encx(ctx context.Context, crypto *encx.Crypto, source
 		errs.Set("DEK encryption", err)
 	}
 
+	// Get and set the current KEK version
+	result.KeyVersion, err = crypto.GetCurrentKEKVersion(ctx, crypto.GetAlias())
+	if err != nil {
+		errs.Set("KEK version retrieval", err)
+	}
+
 	return result, errs.AsError()
 }
 
