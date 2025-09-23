@@ -3,7 +3,7 @@ package encx
 import (
 	"errors"
 	"fmt"
-	
+
 	"github.com/hengadev/encx/internal/types"
 )
 
