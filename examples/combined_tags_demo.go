@@ -6,38 +6,33 @@ import (
 	"log"
 
 	"github.com/hengadev/encx"
+	"github.com/hengadev/encx/internal/serialization"
 )
 
 // User struct demonstrating combined encx tags
+// The companion encrypted/hashed fields are auto-generated in UserEncx
 type User struct {
 	// Email: encrypt for secure storage, hash for lookup/indexing
-	Email             string `encx:"encrypt,hash_basic"`
-	EmailEncrypted    []byte // Stores encrypted email
-	EmailHash         string // Stores hashed email for lookups
+	Email    string `encx:"encrypt,hash_basic"`
 
 	// Password: hash securely, also encrypt for backup/recovery scenarios
-	Password          string `encx:"hash_secure,encrypt"`
-	PasswordHash      string // Stores Argon2id hashed password
-	PasswordEncrypted []byte // Stores encrypted password
+	Password string `encx:"hash_secure,encrypt"`
 
 	// Name: only encrypt (no hashing needed)
-	Name              string `encx:"encrypt"`
-	NameEncrypted     []byte
+	Name     string `encx:"encrypt"`
 
 	// Phone: only hash for basic lookups
-	Phone             string `encx:"hash_basic"`
-	PhoneHash         string
-
-	// Required fields for encx
-	DEK               []byte // Data Encryption Key
-	DEKEncrypted      []byte // Encrypted DEK
-	KeyVersion        int    // Key version for rotation
+	Phone    string `encx:"hash_basic"`
 }
 
 func main() {
-	// Create test crypto instance using SimpleTestKMS
-	crypto, kms := encx.NewTestCryptoWithSimpleKMS(nil)
-	_ = kms // Suppress unused variable warning
+	ctx := context.Background()
+
+	// Create test crypto instance
+	crypto, err := encx.NewTestCrypto(nil)
+	if err != nil {
+		log.Fatalf("Failed to create crypto instance: %v", err)
+	}
 
 	// Create user with sensitive data
 	user := &User{
@@ -47,7 +42,7 @@ func main() {
 		Phone:    "+1-555-0123",
 	}
 
-	fmt.Println("=== Combined Tags Demo ===")
+	fmt.Println("=== Combined Tags Demo (Code Generation API) ===")
 	fmt.Printf("Original User:\n")
 	fmt.Printf("  Email: %s\n", user.Email)
 	fmt.Printf("  Password: %s\n", user.Password)
@@ -55,34 +50,29 @@ func main() {
 	fmt.Printf("  Phone: %s\n", user.Phone)
 	fmt.Println()
 
-	// Process the struct (encrypt + hash operations)
-	ctx := context.Background()
-	if err := crypto.ProcessStruct(ctx, user); err != nil {
+	// Process the struct using generated code (encrypt + hash operations)
+	userEncx, err := ProcessUserEncx(ctx, crypto, user)
+	if err != nil {
 		log.Fatalf("Failed to process struct: %v", err)
 	}
 
-	fmt.Printf("After ProcessStruct:\n")
-	fmt.Printf("  Email: '%s' (cleared)\n", user.Email)
-	fmt.Printf("  EmailEncrypted: %d bytes\n", len(user.EmailEncrypted))
-	fmt.Printf("  EmailHash: %s\n", user.EmailHash)
+	fmt.Printf("After ProcessUserEncx (Generated Code):\n")
+	fmt.Printf("  EmailEncrypted: %d bytes\n", len(userEncx.EmailEncrypted))
+	fmt.Printf("  EmailHash: %s\n", userEncx.EmailHash)
 	fmt.Println()
 
-	fmt.Printf("  Password: '%s' (cleared)\n", user.Password)
-	fmt.Printf("  PasswordHash: %s\n", user.PasswordHash[:50]+"...")
-	fmt.Printf("  PasswordEncrypted: %d bytes\n", len(user.PasswordEncrypted))
+	fmt.Printf("  PasswordHashSecure: %s\n", userEncx.PasswordHashSecure[:50]+"...")
+	fmt.Printf("  PasswordEncrypted: %d bytes\n", len(userEncx.PasswordEncrypted))
 	fmt.Println()
 
-	fmt.Printf("  Name: '%s' (cleared)\n", user.Name)
-	fmt.Printf("  NameEncrypted: %d bytes\n", len(user.NameEncrypted))
+	fmt.Printf("  NameEncrypted: %d bytes\n", len(userEncx.NameEncrypted))
 	fmt.Println()
 
-	fmt.Printf("  Phone: '%s' (preserved - hash only)\n", user.Phone)
-	fmt.Printf("  PhoneHash: %s\n", user.PhoneHash)
+	fmt.Printf("  PhoneHash: %s\n", userEncx.PhoneHash)
 	fmt.Println()
 
-	fmt.Printf("  DEK: %d bytes\n", len(user.DEK))
-	fmt.Printf("  DEKEncrypted: %d bytes\n", len(user.DEKEncrypted))
-	fmt.Printf("  KeyVersion: %d\n", user.KeyVersion)
+	fmt.Printf("  DEKEncrypted: %d bytes\n", len(userEncx.DEKEncrypted))
+	fmt.Printf("  KeyVersion: %d\n", userEncx.KeyVersion)
 	fmt.Println()
 
 	// Demonstrate use cases for combined tags
@@ -96,9 +86,15 @@ func main() {
 	// Demonstrate lookup capability
 	fmt.Println("=== Lookup Demonstration ===")
 	testEmail := "user@example.com"
-	testEmailHash := crypto.HashBasic(ctx, []byte(testEmail))
-	
-	if testEmailHash == user.EmailHash {
+
+	// Important: Must serialize the value the same way as generated code
+	testEmailBytes, err := serialization.Serialize(testEmail)
+	if err != nil {
+		log.Fatalf("Failed to serialize test email: %v", err)
+	}
+	testEmailHash := crypto.HashBasic(ctx, testEmailBytes)
+
+	if testEmailHash == userEncx.EmailHash {
 		fmt.Printf("✅ Email lookup successful! Hash matches for: %s\n", testEmail)
 	} else {
 		fmt.Printf("❌ Email lookup failed\n")
@@ -106,15 +102,16 @@ func main() {
 
 	// Demonstrate decryption capability
 	fmt.Println("\n=== Decryption Demonstration ===")
-	if err := crypto.DecryptStruct(ctx, user); err != nil {
+	decryptedUser, err := DecryptUserEncx(ctx, crypto, userEncx)
+	if err != nil {
 		log.Fatalf("Failed to decrypt struct: %v", err)
 	}
 
-	fmt.Printf("After DecryptStruct:\n")
-	fmt.Printf("  Email: %s (restored)\n", user.Email)
-	fmt.Printf("  Password: %s (restored)\n", user.Password)
-	fmt.Printf("  Name: %s (restored)\n", user.Name)
-	fmt.Printf("  Phone: %s (unchanged)\n", user.Phone)
+	fmt.Printf("After DecryptUserEncx (Generated Code):\n")
+	fmt.Printf("  Email: %s (restored)\n", decryptedUser.Email)
+	fmt.Printf("  Password: %s (restored)\n", decryptedUser.Password)
+	fmt.Printf("  Name: %s (restored)\n", decryptedUser.Name)
+	fmt.Printf("  Phone: %s (from hash lookup)\n", user.Phone) // Original value preserved
 	fmt.Println()
 
 	fmt.Println("✅ Combined tags demo completed successfully!")
