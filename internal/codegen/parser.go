@@ -7,8 +7,6 @@ import (
 	"go/token"
 	"path/filepath"
 	"strings"
-
-	"github.com/hengadev/encx/internal/serialization"
 )
 
 // StructInfo contains information about a struct with encx tags
@@ -243,12 +241,10 @@ func parseOptionsPairs(optionsText string, options map[string]string) {
 
 // validateGenerationOptions validates the generation options parsed from comments
 func validateGenerationOptions(options map[string]string) error {
-	for key, value := range options {
+	for key := range options {
 		switch key {
 		case "serializer":
-			if _, err := serialization.ParseSerializerType(value); err != nil {
-				return fmt.Errorf("invalid serializer option '%s': %w", value, err)
-			}
+			return fmt.Errorf("serializer option is no longer supported; ENCX now uses a built-in compact serializer")
 		default:
 			// For now, ignore unknown options to allow for future extensions
 			// Could be made stricter based on configuration

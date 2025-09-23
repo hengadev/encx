@@ -5,24 +5,19 @@ import (
 	"strings"
 	"text/template"
 	"time"
-
-	"github.com/hengadev/encx/internal/serialization"
 )
 
 // TemplateData contains all data needed for code generation
 type TemplateData struct {
-	PackageName            string
-	StructName             string
-	SourceFile             string
-	GeneratedTime          string
-	SerializerType         string
-	SerializerFactory      string
-	SerializerFromMetadata string
-	GeneratorVersion       string
-	Imports                []string
-	EncryptedFields        []TemplateField
-	ProcessingSteps        []string
-	DecryptionSteps        []string
+	PackageName       string
+	StructName        string
+	SourceFile        string
+	GeneratedTime     string
+	GeneratorVersion  string
+	Imports           []string
+	EncryptedFields   []TemplateField
+	ProcessingSteps   []string
+	DecryptionSteps   []string
 }
 
 // TemplateField represents a field in the generated struct
@@ -47,6 +42,7 @@ import (
 	"github.com/hengadev/errsx"
 	"github.com/hengadev/encx"
 	"github.com/hengadev/encx/internal/metadata"
+	"github.com/hengadev/encx/internal/serialization"
 	{{range .Imports}}
 	"{{.}}"
 	{{end}}
@@ -73,7 +69,6 @@ func Process{{.StructName}}Encx(ctx context.Context, crypto *encx.Crypto, source
 	// Initialize result struct
 	result := &{{.StructName}}Encx{
 		Metadata: metadata.EncryptionMetadata{
-			SerializerType:   "{{.SerializerType}}",
 			KEKAlias:         crypto.GetAlias(),
 			EncryptionTime:   time.Now().Unix(),
 			GeneratorVersion: "{{.GeneratorVersion}}",
@@ -86,9 +81,6 @@ func Process{{.StructName}}Encx(ctx context.Context, crypto *encx.Crypto, source
 		errs.Set("DEK generation", err)
 		return result, errs.AsError()
 	}
-
-	// Initialize serializer
-	serializer := {{.SerializerFactory}}
 
 	{{range .ProcessingSteps}}
 	{{.}}
@@ -117,9 +109,6 @@ func Decrypt{{.StructName}}Encx(ctx context.Context, crypto *encx.Crypto, source
 		return result, errs.AsError()
 	}
 
-	// Initialize serializer (from metadata)
-	serializer := {{.SerializerFromMetadata}}
-
 	{{range .DecryptionSteps}}
 	{{.}}
 	{{end}}
@@ -132,7 +121,7 @@ func Decrypt{{.StructName}}Encx(ctx context.Context, crypto *encx.Crypto, source
 const encryptStepTemplate = `
 	// Process {{.FieldName}} (encrypt)
 	if source.{{.FieldName}} != {{.ZeroValue}} {
-		{{.FieldName}}Bytes, err := serializer.Serialize(source.{{.FieldName}})
+		{{.FieldName}}Bytes, err := serialization.Serialize(source.{{.FieldName}})
 		if err != nil {
 			errs.Set("{{.FieldName}} serialization", err)
 		} else {
@@ -146,7 +135,7 @@ const encryptStepTemplate = `
 const hashBasicStepTemplate = `
 	// Process {{.FieldName}} (hash_basic)
 	if source.{{.FieldName}} != {{.ZeroValue}} {
-		{{.FieldName}}Bytes, err := serializer.Serialize(source.{{.FieldName}})
+		{{.FieldName}}Bytes, err := serialization.Serialize(source.{{.FieldName}})
 		if err != nil {
 			errs.Set("{{.FieldName}} serialization", err)
 		} else {
@@ -157,7 +146,7 @@ const hashBasicStepTemplate = `
 const hashSecureStepTemplate = `
 	// Process {{.FieldName}} (hash_secure)
 	if source.{{.FieldName}} != {{.ZeroValue}} {
-		{{.FieldName}}Bytes, err := serializer.Serialize(source.{{.FieldName}})
+		{{.FieldName}}Bytes, err := serialization.Serialize(source.{{.FieldName}})
 		if err != nil {
 			errs.Set("{{.FieldName}} serialization", err)
 		} else {
@@ -176,7 +165,7 @@ const decryptStepTemplate = `
 		if err != nil {
 			errs.Set("{{.FieldName}} decryption", err)
 		} else {
-			err = serializer.Deserialize({{.FieldName}}Bytes, &result.{{.FieldName}})
+			err = serialization.Deserialize({{.FieldName}}Bytes, &result.{{.FieldName}})
 			if err != nil {
 				errs.Set("{{.FieldName}} deserialization", err)
 			}
@@ -212,43 +201,24 @@ func (te *TemplateEngine) GenerateCode(data TemplateData) ([]byte, error) {
 
 // GenerationConfig holds general generation settings
 type GenerationConfig struct {
-	OutputSuffix      string
-	FunctionPrefix    string
-	PackageName       string
-	DefaultSerializer serialization.SerializerType
+	OutputSuffix   string
+	FunctionPrefix string
+	PackageName    string
+	// Future configuration options can be added here
 }
 
 // BuildTemplateData builds template data from struct info
 func BuildTemplateData(structInfo StructInfo, config GenerationConfig) TemplateData {
-	// Determine which serializer to use (struct-specific option overrides global config)
-	selectedSerializer := config.DefaultSerializer
-	if serializerOption, exists := structInfo.GenerationOptions["serializer"]; exists {
-		if parsedSerializer, err := serialization.ParseSerializerType(serializerOption); err == nil {
-			selectedSerializer = parsedSerializer
-		}
-		// Note: Validation errors should be handled earlier in the validation phase
-	}
-
 	data := TemplateData{
-		PackageName:      structInfo.PackageName,
-		StructName:       structInfo.StructName,
-		SourceFile:       structInfo.SourceFile,
-		GeneratedTime:    time.Now().Format(time.RFC3339),
-		SerializerType:   selectedSerializer.String(),
-		GeneratorVersion: "1.0.0",
-		Imports:          []string{},
-		EncryptedFields:  []TemplateField{},
-		ProcessingSteps:  []string{},
-		DecryptionSteps:  []string{},
-	}
-
-	// Generate serializer factory using enum methods
-	data.SerializerFactory = selectedSerializer.SerializerFactory()
-	data.SerializerFromMetadata = selectedSerializer.SerializerFactory()
-
-	// Add required import
-	if importPath := selectedSerializer.RequiredImport(); importPath != "" {
-		data.Imports = append(data.Imports, importPath)
+		PackageName:       structInfo.PackageName,
+		StructName:        structInfo.StructName,
+		SourceFile:        structInfo.SourceFile,
+		GeneratedTime:     time.Now().Format(time.RFC3339),
+		GeneratorVersion:  "1.0.0",
+		Imports:           []string{},
+		EncryptedFields:   []TemplateField{},
+		ProcessingSteps:   []string{},
+		DecryptionSteps:   []string{},
 	}
 
 	// Process each field with encx tags
