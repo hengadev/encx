@@ -10,7 +10,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/hengadev/encx/internal/codegen"
-	"github.com/hengadev/encx/internal/serialization"
 )
 
 // generateCodeForDirectory is a helper function that simulates the CLI generation process
@@ -27,10 +26,9 @@ func generateCodeForDirectory(dir string) error {
 	}
 
 	codegenConfig := codegen.GenerationConfig{
-		OutputSuffix:      "_encx",
-		FunctionPrefix:    "Process",
-		PackageName:       "encx",
-		DefaultSerializer: serialization.JSON,
+		OutputSuffix:   "_encx",
+		FunctionPrefix: "Process",
+		PackageName:    "encx",
 	}
 
 	for _, structInfo := range structs {
