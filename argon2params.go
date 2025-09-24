@@ -56,10 +56,6 @@ func validateArgon2Params(a *Argon2Params) error {
 	return errs.AsError()
 }
 
-// Validate validates the Argon2 parameters using public validation rules
-func (a *Argon2Params) Validate() error {
-	return validateArgon2Params(a)
-}
 
 // DefaultArgon2Params provides secure default parameters
 var DefaultArgon2Params = &Argon2Params{
