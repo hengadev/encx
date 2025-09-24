@@ -43,3 +43,4 @@ func (em *EncryptionMetadata) Validate() error {
 	}
 	return nil
 }
+

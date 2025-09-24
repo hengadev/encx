@@ -119,9 +119,9 @@ func TestEncryptionMetadata_Validate(t *testing.T) {
 		{
 			name: "both missing",
 			metadata: &EncryptionMetadata{
-				PepperVersion:  1,
-				KEKAlias:       "",
-				EncryptionTime: time.Now().Unix(),
+				PepperVersion:    1,
+				KEKAlias:         "",
+				EncryptionTime:   time.Now().Unix(),
 				GeneratorVersion: "",
 			},
 			expectErr: ErrMissingKEKAlias, // Should return first error encountered
@@ -165,3 +165,4 @@ func TestErrorConstants(t *testing.T) {
 	assert.Equal(t, "generator version is required", ErrMissingGeneratorVersion.Error())
 	assert.Equal(t, "invalid metadata format", ErrInvalidMetadataFormat.Error())
 }
+

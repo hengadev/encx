@@ -297,3 +297,4 @@ func GetSerializedSize(value any) int {
 		return -1 // Unknown size
 	}
 }
+

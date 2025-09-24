@@ -31,71 +31,71 @@ type OperationMetrics struct {
 	LastCall        time.Time     `json:"last_call"`
 
 	// Memory metrics
-	TotalAllocs     uint64 `json:"total_allocs"`
-	TotalBytes      uint64 `json:"total_bytes"`
+	TotalAllocs uint64 `json:"total_allocs"`
+	TotalBytes  uint64 `json:"total_bytes"`
 
 	// Performance thresholds exceeded
-	SlowCallsCount  int64 `json:"slow_calls_count"`
-	SlowThreshold   time.Duration `json:"slow_threshold"`
+	SlowCallsCount int64         `json:"slow_calls_count"`
+	SlowThreshold  time.Duration `json:"slow_threshold"`
 }
 
 // CryptoProfilingConfig holds configuration for crypto profiling
 type CryptoProfilingConfig struct {
 	// Enable profiling for different crypto operations
-	EnableEncryptionProfiling bool
-	EnableDecryptionProfiling bool
+	EnableEncryptionProfiling    bool
+	EnableDecryptionProfiling    bool
 	EnableKeyOperationsProfiling bool
-	EnableHashingProfiling bool
+	EnableHashingProfiling       bool
 
 	// Performance thresholds
-	EncryptionSlowThreshold time.Duration
-	DecryptionSlowThreshold time.Duration
+	EncryptionSlowThreshold   time.Duration
+	DecryptionSlowThreshold   time.Duration
 	KeyOperationSlowThreshold time.Duration
-	HashingSlowThreshold time.Duration
+	HashingSlowThreshold      time.Duration
 
 	// Memory thresholds for triggering profiling
 	MemoryAllocationThreshold uint64
 
 	// Auto-profiling triggers
 	AutoProfileSlowOperations bool
-	AutoProfileHighMemory bool
+	AutoProfileHighMemory     bool
 
 	// Sample rates (0.0 = never, 1.0 = always)
 	OperationSampleRate float64
-	MemorySampleRate float64
+	MemorySampleRate    float64
 }
 
 // DefaultCryptoProfilingConfig returns default crypto profiling configuration
 func DefaultCryptoProfilingConfig() CryptoProfilingConfig {
 	return CryptoProfilingConfig{
-		EnableEncryptionProfiling: true,
-		EnableDecryptionProfiling: true,
+		EnableEncryptionProfiling:    true,
+		EnableDecryptionProfiling:    true,
 		EnableKeyOperationsProfiling: true,
-		EnableHashingProfiling: true,
+		EnableHashingProfiling:       true,
 
-		EncryptionSlowThreshold: time.Millisecond * 100,
-		DecryptionSlowThreshold: time.Millisecond * 100,
+		EncryptionSlowThreshold:   time.Millisecond * 100,
+		DecryptionSlowThreshold:   time.Millisecond * 100,
 		KeyOperationSlowThreshold: time.Millisecond * 500,
-		HashingSlowThreshold: time.Millisecond * 10,
+		HashingSlowThreshold:      time.Millisecond * 10,
 
 		MemoryAllocationThreshold: 1024 * 1024, // 1MB
 
 		AutoProfileSlowOperations: true,
-		AutoProfileHighMemory: true,
+		AutoProfileHighMemory:     true,
 
 		OperationSampleRate: 0.1, // Sample 10% of operations
-		MemorySampleRate: 1.0,    // Always track memory
+		MemorySampleRate:    1.0, // Always track memory
 	}
 }
 
 // NewCryptoProfiler creates a new crypto profiler
 func NewCryptoProfiler(profiler *Profiler) *CryptoProfiler {
 	return &CryptoProfiler{
-		profiler: profiler,
+		profiler:          profiler,
 		encryptionMetrics: make(map[string]*OperationMetrics),
 		decryptionMetrics: make(map[string]*OperationMetrics),
-		keyMetrics: make(map[string]*OperationMetrics),
-		hashingMetrics: make(map[string]*OperationMetrics),
+		keyMetrics:        make(map[string]*OperationMetrics),
+		hashingMetrics:    make(map[string]*OperationMetrics),
 	}
 }
 
@@ -158,8 +158,8 @@ func (cp *CryptoProfiler) updateOperationMetrics(metricsMap map[string]*Operatio
 	metrics, exists := metricsMap[operationName]
 	if !exists {
 		metrics = &OperationMetrics{
-			MinDuration: duration,
-			MaxDuration: duration,
+			MinDuration:   duration,
+			MaxDuration:   duration,
 			SlowThreshold: cp.getSlowThresholdForOperation(operationName),
 		}
 		metricsMap[operationName] = metrics
@@ -246,8 +246,8 @@ func (cp *CryptoProfiler) getSlowThresholdForOperation(operationName string) tim
 func contains(s, substr string) bool {
 	return len(s) >= len(substr) && (s == substr ||
 		len(s) > len(substr) && (s[:len(substr)] == substr ||
-		s[len(s)-len(substr):] == substr ||
-		indexSubstring(s, substr) >= 0))
+			s[len(s)-len(substr):] == substr ||
+			indexSubstring(s, substr) >= 0))
 }
 
 // indexSubstring finds the index of substring in string
@@ -291,11 +291,11 @@ func (cp *CryptoProfiler) GetHashingMetrics() map[string]*OperationMetrics {
 // GetAllMetrics returns all crypto operation metrics
 func (cp *CryptoProfiler) GetAllMetrics() CryptoMetricsReport {
 	return CryptoMetricsReport{
-		Encryption: cp.GetEncryptionMetrics(),
-		Decryption: cp.GetDecryptionMetrics(),
+		Encryption:    cp.GetEncryptionMetrics(),
+		Decryption:    cp.GetDecryptionMetrics(),
 		KeyOperations: cp.GetKeyMetrics(),
-		Hashing: cp.GetHashingMetrics(),
-		Timestamp: time.Now(),
+		Hashing:       cp.GetHashingMetrics(),
+		Timestamp:     time.Now(),
 	}
 }
 
@@ -339,45 +339,45 @@ func (cp *CryptoProfiler) GetTopSlowOperations(n int) []SlowOperationInfo {
 	// Collect all operations
 	for name, metrics := range cp.encryptionMetrics {
 		operations = append(operations, SlowOperationInfo{
-			Category: "encryption",
-			Name: name,
+			Category:        "encryption",
+			Name:            name,
 			AverageDuration: metrics.AverageDuration,
-			MaxDuration: metrics.MaxDuration,
-			SlowCallsCount: metrics.SlowCallsCount,
-			TotalCalls: metrics.TotalCalls,
+			MaxDuration:     metrics.MaxDuration,
+			SlowCallsCount:  metrics.SlowCallsCount,
+			TotalCalls:      metrics.TotalCalls,
 		})
 	}
 
 	for name, metrics := range cp.decryptionMetrics {
 		operations = append(operations, SlowOperationInfo{
-			Category: "decryption",
-			Name: name,
+			Category:        "decryption",
+			Name:            name,
 			AverageDuration: metrics.AverageDuration,
-			MaxDuration: metrics.MaxDuration,
-			SlowCallsCount: metrics.SlowCallsCount,
-			TotalCalls: metrics.TotalCalls,
+			MaxDuration:     metrics.MaxDuration,
+			SlowCallsCount:  metrics.SlowCallsCount,
+			TotalCalls:      metrics.TotalCalls,
 		})
 	}
 
 	for name, metrics := range cp.keyMetrics {
 		operations = append(operations, SlowOperationInfo{
-			Category: "key_operations",
-			Name: name,
+			Category:        "key_operations",
+			Name:            name,
 			AverageDuration: metrics.AverageDuration,
-			MaxDuration: metrics.MaxDuration,
-			SlowCallsCount: metrics.SlowCallsCount,
-			TotalCalls: metrics.TotalCalls,
+			MaxDuration:     metrics.MaxDuration,
+			SlowCallsCount:  metrics.SlowCallsCount,
+			TotalCalls:      metrics.TotalCalls,
 		})
 	}
 
 	for name, metrics := range cp.hashingMetrics {
 		operations = append(operations, SlowOperationInfo{
-			Category: "hashing",
-			Name: name,
+			Category:        "hashing",
+			Name:            name,
 			AverageDuration: metrics.AverageDuration,
-			MaxDuration: metrics.MaxDuration,
-			SlowCallsCount: metrics.SlowCallsCount,
-			TotalCalls: metrics.TotalCalls,
+			MaxDuration:     metrics.MaxDuration,
+			SlowCallsCount:  metrics.SlowCallsCount,
+			TotalCalls:      metrics.TotalCalls,
 		})
 	}
 
@@ -395,11 +395,11 @@ func (cp *CryptoProfiler) GetTopSlowOperations(n int) []SlowOperationInfo {
 // SlowOperationInfo contains information about slow operations
 type SlowOperationInfo struct {
 	Category        string        `json:"category"`
-	Name           string        `json:"name"`
+	Name            string        `json:"name"`
 	AverageDuration time.Duration `json:"average_duration"`
-	MaxDuration    time.Duration `json:"max_duration"`
-	SlowCallsCount int64         `json:"slow_calls_count"`
-	TotalCalls     int64         `json:"total_calls"`
+	MaxDuration     time.Duration `json:"max_duration"`
+	SlowCallsCount  int64         `json:"slow_calls_count"`
+	TotalCalls      int64         `json:"total_calls"`
 }
 
 // sortSlowOperations sorts operations by average duration (descending)
@@ -426,11 +426,11 @@ func (cp *CryptoProfiler) GetMemoryIntensiveOperations(n int) []MemoryOperationI
 	for name, metrics := range cp.encryptionMetrics {
 		if metrics.TotalCalls > 0 {
 			operations = append(operations, MemoryOperationInfo{
-				Category: "encryption",
-				Name: name,
-				TotalBytes: metrics.TotalBytes,
-				TotalAllocs: metrics.TotalAllocs,
-				AverageBytes: metrics.TotalBytes / uint64(metrics.TotalCalls),
+				Category:      "encryption",
+				Name:          name,
+				TotalBytes:    metrics.TotalBytes,
+				TotalAllocs:   metrics.TotalAllocs,
+				AverageBytes:  metrics.TotalBytes / uint64(metrics.TotalCalls),
 				AverageAllocs: metrics.TotalAllocs / uint64(metrics.TotalCalls),
 			})
 		}
@@ -439,11 +439,11 @@ func (cp *CryptoProfiler) GetMemoryIntensiveOperations(n int) []MemoryOperationI
 	for name, metrics := range cp.decryptionMetrics {
 		if metrics.TotalCalls > 0 {
 			operations = append(operations, MemoryOperationInfo{
-				Category: "decryption",
-				Name: name,
-				TotalBytes: metrics.TotalBytes,
-				TotalAllocs: metrics.TotalAllocs,
-				AverageBytes: metrics.TotalBytes / uint64(metrics.TotalCalls),
+				Category:      "decryption",
+				Name:          name,
+				TotalBytes:    metrics.TotalBytes,
+				TotalAllocs:   metrics.TotalAllocs,
+				AverageBytes:  metrics.TotalBytes / uint64(metrics.TotalCalls),
 				AverageAllocs: metrics.TotalAllocs / uint64(metrics.TotalCalls),
 			})
 		}
@@ -452,11 +452,11 @@ func (cp *CryptoProfiler) GetMemoryIntensiveOperations(n int) []MemoryOperationI
 	for name, metrics := range cp.keyMetrics {
 		if metrics.TotalCalls > 0 {
 			operations = append(operations, MemoryOperationInfo{
-				Category: "key_operations",
-				Name: name,
-				TotalBytes: metrics.TotalBytes,
-				TotalAllocs: metrics.TotalAllocs,
-				AverageBytes: metrics.TotalBytes / uint64(metrics.TotalCalls),
+				Category:      "key_operations",
+				Name:          name,
+				TotalBytes:    metrics.TotalBytes,
+				TotalAllocs:   metrics.TotalAllocs,
+				AverageBytes:  metrics.TotalBytes / uint64(metrics.TotalCalls),
 				AverageAllocs: metrics.TotalAllocs / uint64(metrics.TotalCalls),
 			})
 		}
@@ -465,11 +465,11 @@ func (cp *CryptoProfiler) GetMemoryIntensiveOperations(n int) []MemoryOperationI
 	for name, metrics := range cp.hashingMetrics {
 		if metrics.TotalCalls > 0 {
 			operations = append(operations, MemoryOperationInfo{
-				Category: "hashing",
-				Name: name,
-				TotalBytes: metrics.TotalBytes,
-				TotalAllocs: metrics.TotalAllocs,
-				AverageBytes: metrics.TotalBytes / uint64(metrics.TotalCalls),
+				Category:      "hashing",
+				Name:          name,
+				TotalBytes:    metrics.TotalBytes,
+				TotalAllocs:   metrics.TotalAllocs,
+				AverageBytes:  metrics.TotalBytes / uint64(metrics.TotalCalls),
 				AverageAllocs: metrics.TotalAllocs / uint64(metrics.TotalCalls),
 			})
 		}
@@ -489,10 +489,10 @@ func (cp *CryptoProfiler) GetMemoryIntensiveOperations(n int) []MemoryOperationI
 // MemoryOperationInfo contains information about memory usage of operations
 type MemoryOperationInfo struct {
 	Category      string `json:"category"`
-	Name         string `json:"name"`
-	TotalBytes   uint64 `json:"total_bytes"`
-	TotalAllocs  uint64 `json:"total_allocs"`
-	AverageBytes uint64 `json:"average_bytes"`
+	Name          string `json:"name"`
+	TotalBytes    uint64 `json:"total_bytes"`
+	TotalAllocs   uint64 `json:"total_allocs"`
+	AverageBytes  uint64 `json:"average_bytes"`
 	AverageAllocs uint64 `json:"average_allocs"`
 }
 
@@ -542,3 +542,4 @@ func ProfileGlobalKeyOperation(ctx context.Context, operationName string, operat
 func ProfileGlobalHashing(ctx context.Context, operationName string, dataSize int64, operation func() error) error {
 	return GetGlobalCryptoProfiler().ProfileHashing(ctx, operationName, dataSize, operation)
 }
+
