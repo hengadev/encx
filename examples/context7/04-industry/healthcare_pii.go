@@ -128,6 +128,268 @@ type PatientProfile struct {
 	// Note: SSN and Insurance ID intentionally excluded
 }
 
+// encryptPatientPHI manually encrypts all patient PHI fields
+func encryptPatientPHI(ctx context.Context, crypto *encx.Crypto, patient *Patient) error {
+	// Generate a DEK for this patient record
+	dek, err := crypto.GenerateDEK()
+	if err != nil {
+		return fmt.Errorf("failed to generate DEK: %w", err)
+	}
+
+	// Encrypt searchable fields (encrypt + hash)
+	mrnBytes := []byte(patient.MRN)
+	patient.MRNEncrypted, err = crypto.EncryptData(ctx, mrnBytes, dek)
+	if err != nil {
+		return fmt.Errorf("failed to encrypt MRN: %w", err)
+	}
+	patient.MRNHash = crypto.HashBasic(ctx, mrnBytes)
+	patient.MRN = ""
+
+	emailBytes := []byte(patient.Email)
+	patient.EmailEncrypted, err = crypto.EncryptData(ctx, emailBytes, dek)
+	if err != nil {
+		return fmt.Errorf("failed to encrypt email: %w", err)
+	}
+	patient.EmailHash = crypto.HashBasic(ctx, emailBytes)
+	patient.Email = ""
+
+	phoneBytes := []byte(patient.Phone)
+	patient.PhoneEncrypted, err = crypto.EncryptData(ctx, phoneBytes, dek)
+	if err != nil {
+		return fmt.Errorf("failed to encrypt phone: %w", err)
+	}
+	patient.PhoneHash = crypto.HashBasic(ctx, phoneBytes)
+	patient.Phone = ""
+
+	// Encrypt personal information (encrypt only)
+	firstNameBytes := []byte(patient.FirstName)
+	patient.FirstNameEncrypted, err = crypto.EncryptData(ctx, firstNameBytes, dek)
+	if err != nil {
+		return fmt.Errorf("failed to encrypt first name: %w", err)
+	}
+	patient.FirstName = ""
+
+	lastNameBytes := []byte(patient.LastName)
+	patient.LastNameEncrypted, err = crypto.EncryptData(ctx, lastNameBytes, dek)
+	if err != nil {
+		return fmt.Errorf("failed to encrypt last name: %w", err)
+	}
+	patient.LastName = ""
+
+	dobBytes := []byte(patient.DateOfBirth)
+	patient.DateOfBirthEncrypted, err = crypto.EncryptData(ctx, dobBytes, dek)
+	if err != nil {
+		return fmt.Errorf("failed to encrypt date of birth: %w", err)
+	}
+	patient.DateOfBirth = ""
+
+	addressBytes := []byte(patient.Address)
+	patient.AddressEncrypted, err = crypto.EncryptData(ctx, addressBytes, dek)
+	if err != nil {
+		return fmt.Errorf("failed to encrypt address: %w", err)
+	}
+	patient.Address = ""
+
+	cityBytes := []byte(patient.City)
+	patient.CityEncrypted, err = crypto.EncryptData(ctx, cityBytes, dek)
+	if err != nil {
+		return fmt.Errorf("failed to encrypt city: %w", err)
+	}
+	patient.City = ""
+
+	stateBytes := []byte(patient.State)
+	patient.StateEncrypted, err = crypto.EncryptData(ctx, stateBytes, dek)
+	if err != nil {
+		return fmt.Errorf("failed to encrypt state: %w", err)
+	}
+	patient.State = ""
+
+	zipBytes := []byte(patient.ZipCode)
+	patient.ZipCodeEncrypted, err = crypto.EncryptData(ctx, zipBytes, dek)
+	if err != nil {
+		return fmt.Errorf("failed to encrypt zip code: %w", err)
+	}
+	patient.ZipCode = ""
+
+	// Hash secure identifiers (hash only - no encryption)
+	patient.SSNHashSecure, err = crypto.HashSecure(ctx, []byte(patient.SSN))
+	if err != nil {
+		return fmt.Errorf("failed to hash SSN: %w", err)
+	}
+	patient.SSN = ""
+
+	patient.InsuranceIDHashSecure, err = crypto.HashSecure(ctx, []byte(patient.InsuranceID))
+	if err != nil {
+		return fmt.Errorf("failed to hash insurance ID: %w", err)
+	}
+	patient.InsuranceID = ""
+
+	// Encrypt and store the DEK
+	patient.DEKEncrypted, err = crypto.EncryptDEK(ctx, dek)
+	if err != nil {
+		return fmt.Errorf("failed to encrypt DEK: %w", err)
+	}
+	patient.KeyVersion = 1
+	patient.DEK = nil // Clear DEK from memory
+
+	return nil
+}
+
+// encryptMedicalRecord manually encrypts all medical record fields
+func encryptMedicalRecord(ctx context.Context, crypto *encx.Crypto, record *MedicalRecord) error {
+	// Generate a DEK for this medical record
+	dek, err := crypto.GenerateDEK()
+	if err != nil {
+		return fmt.Errorf("failed to generate DEK: %w", err)
+	}
+
+	// Encrypt medical information fields
+	ccBytes := []byte(record.ChiefComplaint)
+	record.ChiefComplaintEncrypted, err = crypto.EncryptData(ctx, ccBytes, dek)
+	if err != nil {
+		return fmt.Errorf("failed to encrypt chief complaint: %w", err)
+	}
+	record.ChiefComplaint = ""
+
+	diagBytes := []byte(record.Diagnosis)
+	record.DiagnosisEncrypted, err = crypto.EncryptData(ctx, diagBytes, dek)
+	if err != nil {
+		return fmt.Errorf("failed to encrypt diagnosis: %w", err)
+	}
+	record.Diagnosis = ""
+
+	treatBytes := []byte(record.Treatment)
+	record.TreatmentEncrypted, err = crypto.EncryptData(ctx, treatBytes, dek)
+	if err != nil {
+		return fmt.Errorf("failed to encrypt treatment: %w", err)
+	}
+	record.Treatment = ""
+
+	medBytes := []byte(record.Medications)
+	record.MedicationsEncrypted, err = crypto.EncryptData(ctx, medBytes, dek)
+	if err != nil {
+		return fmt.Errorf("failed to encrypt medications: %w", err)
+	}
+	record.Medications = ""
+
+	notesBytes := []byte(record.Notes)
+	record.NotesEncrypted, err = crypto.EncryptData(ctx, notesBytes, dek)
+	if err != nil {
+		return fmt.Errorf("failed to encrypt notes: %w", err)
+	}
+	record.Notes = ""
+
+	// Hash medical codes for searchability
+	record.ICD10CodeHash = crypto.HashBasic(ctx, []byte(record.ICD10Code))
+	record.ICD10Code = ""
+
+	record.CPTCodeHash = crypto.HashBasic(ctx, []byte(record.CPTCode))
+	record.CPTCode = ""
+
+	// Encrypt and store the DEK
+	record.DEKEncrypted, err = crypto.EncryptDEK(ctx, dek)
+	if err != nil {
+		return fmt.Errorf("failed to encrypt DEK: %w", err)
+	}
+	record.KeyVersion = 1
+	record.DEK = nil // Clear DEK from memory
+
+	return nil
+}
+
+// decryptPatient manually decrypts patient PHI fields
+func decryptPatient(ctx context.Context, crypto *encx.Crypto, patient *Patient) error {
+	// Decrypt the DEK first
+	dek, err := crypto.DecryptDEKWithVersion(ctx, patient.DEKEncrypted, patient.KeyVersion)
+	if err != nil {
+		return fmt.Errorf("failed to decrypt DEK: %w", err)
+	}
+
+	// Decrypt all encrypted fields
+	if len(patient.MRNEncrypted) > 0 {
+		mrnBytes, err := crypto.DecryptData(ctx, patient.MRNEncrypted, dek)
+		if err != nil {
+			return fmt.Errorf("failed to decrypt MRN: %w", err)
+		}
+		patient.MRN = string(mrnBytes)
+	}
+
+	if len(patient.EmailEncrypted) > 0 {
+		emailBytes, err := crypto.DecryptData(ctx, patient.EmailEncrypted, dek)
+		if err != nil {
+			return fmt.Errorf("failed to decrypt email: %w", err)
+		}
+		patient.Email = string(emailBytes)
+	}
+
+	if len(patient.PhoneEncrypted) > 0 {
+		phoneBytes, err := crypto.DecryptData(ctx, patient.PhoneEncrypted, dek)
+		if err != nil {
+			return fmt.Errorf("failed to decrypt phone: %w", err)
+		}
+		patient.Phone = string(phoneBytes)
+	}
+
+	if len(patient.FirstNameEncrypted) > 0 {
+		fnBytes, err := crypto.DecryptData(ctx, patient.FirstNameEncrypted, dek)
+		if err != nil {
+			return fmt.Errorf("failed to decrypt first name: %w", err)
+		}
+		patient.FirstName = string(fnBytes)
+	}
+
+	if len(patient.LastNameEncrypted) > 0 {
+		lnBytes, err := crypto.DecryptData(ctx, patient.LastNameEncrypted, dek)
+		if err != nil {
+			return fmt.Errorf("failed to decrypt last name: %w", err)
+		}
+		patient.LastName = string(lnBytes)
+	}
+
+	if len(patient.DateOfBirthEncrypted) > 0 {
+		dobBytes, err := crypto.DecryptData(ctx, patient.DateOfBirthEncrypted, dek)
+		if err != nil {
+			return fmt.Errorf("failed to decrypt date of birth: %w", err)
+		}
+		patient.DateOfBirth = string(dobBytes)
+	}
+
+	if len(patient.AddressEncrypted) > 0 {
+		addrBytes, err := crypto.DecryptData(ctx, patient.AddressEncrypted, dek)
+		if err != nil {
+			return fmt.Errorf("failed to decrypt address: %w", err)
+		}
+		patient.Address = string(addrBytes)
+	}
+
+	if len(patient.CityEncrypted) > 0 {
+		cityBytes, err := crypto.DecryptData(ctx, patient.CityEncrypted, dek)
+		if err != nil {
+			return fmt.Errorf("failed to decrypt city: %w", err)
+		}
+		patient.City = string(cityBytes)
+	}
+
+	if len(patient.StateEncrypted) > 0 {
+		stateBytes, err := crypto.DecryptData(ctx, patient.StateEncrypted, dek)
+		if err != nil {
+			return fmt.Errorf("failed to decrypt state: %w", err)
+		}
+		patient.State = string(stateBytes)
+	}
+
+	if len(patient.ZipCodeEncrypted) > 0 {
+		zipBytes, err := crypto.DecryptData(ctx, patient.ZipCodeEncrypted, dek)
+		if err != nil {
+			return fmt.Errorf("failed to decrypt zip code: %w", err)
+		}
+		patient.ZipCode = string(zipBytes)
+	}
+
+	// Note: SSN and InsuranceID are hashed only and cannot be decrypted
+	return nil
+}
+
 func main() {
 	ctx := context.Background()
 
@@ -165,8 +427,8 @@ func main() {
 	fmt.Printf("  SSN: %s\n", patient.SSN)
 	fmt.Printf("  DOB: %s\n", patient.DateOfBirth)
 
-	// Encrypt all PHI according to HIPAA requirements
-	if err := crypto.ProcessStruct(ctx, patient); err != nil {
+	// Encrypt all PHI according to HIPAA requirements (manual approach)
+	if err := encryptPatientPHI(ctx, crypto, patient); err != nil {
 		log.Fatal("Failed to encrypt patient PHI:", err)
 	}
 
@@ -202,7 +464,7 @@ func main() {
 	fmt.Printf("  Medications: %s\n", record.Medications)
 
 	// Encrypt medical information
-	if err := crypto.ProcessStruct(ctx, record); err != nil {
+	if err := encryptMedicalRecord(ctx, crypto, record); err != nil {
 		log.Fatal("Failed to encrypt medical record:", err)
 	}
 
@@ -218,16 +480,16 @@ func main() {
 
 	// Patient lookup by MRN (authorized access)
 	searchPatient := &Patient{MRN: "MRN-2024-001001"}
-	if err := crypto.ProcessStruct(ctx, searchPatient); err != nil {
-		log.Fatal("Failed to hash MRN for search:", err)
-	}
+	// Generate search hash manually
+	searchPatient.MRNHash = crypto.HashBasic(ctx, []byte(searchPatient.MRN))
+	searchPatient.MRN = ""
 
 	fmt.Printf("Patient lookup by MRN:\n")
 	fmt.Printf("  Search hash: %s...\n", searchPatient.MRNHash[:16])
 	fmt.Printf("  Matches patient: %t\n", searchPatient.MRNHash == patient.MRNHash)
 
 	// Create safe patient profile (decrypt only necessary data)
-	if err := crypto.DecryptStruct(ctx, patient); err != nil {
+	if err := decryptPatient(ctx, crypto, patient); err != nil {
 		log.Fatal("Failed to decrypt patient data:", err)
 	}
 
@@ -269,7 +531,7 @@ func (s *PatientService) RegisterPatient(ctx context.Context, patient *Patient) 
 	}
 
 	// Encrypt all PHI
-	if err := s.crypto.ProcessStruct(ctx, patient); err != nil {
+	if err := encryptPatientPHI(ctx, s.crypto, patient); err != nil {
 		return fmt.Errorf("failed to encrypt patient PHI: %w", err)
 	}
 
@@ -286,9 +548,8 @@ func (s *PatientService) RegisterPatient(ctx context.Context, patient *Patient) 
 func (s *PatientService) FindPatientByMRN(ctx context.Context, mrn string) (*Patient, error) {
 	// Generate search hash
 	searchPatient := &Patient{MRN: mrn}
-	if err := s.crypto.ProcessStruct(ctx, searchPatient); err != nil {
-		return nil, fmt.Errorf("failed to hash MRN: %w", err)
-	}
+	searchPatient.MRNHash = s.crypto.HashBasic(ctx, []byte(searchPatient.MRN))
+	searchPatient.MRN = ""
 
 	// In production: query database by hash
 	// SELECT * FROM patients WHERE mrn_hash = ?
@@ -308,8 +569,8 @@ func (s *PatientService) GetPatientProfile(ctx context.Context, patientID int, r
 	// In production: load encrypted patient from database
 	// patient := loadEncryptedPatient(patientID)
 
-	// Decrypt only for authorized access
-	// err := s.crypto.DecryptStruct(ctx, patient)
+	// Decrypt only for authorized access using generated function
+	// decryptedPatient, err := DecryptPatientEncx(ctx, s.crypto, patient)
 
 	// Log access for HIPAA audit trail
 	s.logPatientAccess(ctx, patientID, requesterRole, "profile_access")
@@ -336,7 +597,7 @@ func (s *MedicalRecordService) CreateMedicalRecord(ctx context.Context, record *
 	}
 
 	// Encrypt medical information
-	if err := s.crypto.ProcessStruct(ctx, record); err != nil {
+	if err := encryptMedicalRecord(ctx, s.crypto, record); err != nil {
 		return fmt.Errorf("failed to encrypt medical record: %w", err)
 	}
 
@@ -350,9 +611,8 @@ func (s *MedicalRecordService) CreateMedicalRecord(ctx context.Context, record *
 func (s *MedicalRecordService) FindRecordsByDiagnosisCode(ctx context.Context, icd10Code string) ([]int, error) {
 	// Generate search hash for ICD-10 code
 	searchRecord := &MedicalRecord{ICD10Code: icd10Code}
-	if err := s.crypto.ProcessStruct(ctx, searchRecord); err != nil {
-		return nil, fmt.Errorf("failed to hash ICD-10 code: %w", err)
-	}
+	searchRecord.ICD10CodeHash = s.crypto.HashBasic(ctx, []byte(searchRecord.ICD10Code))
+	searchRecord.ICD10Code = ""
 
 	// Query by hash enables research without exposing PHI
 	// SELECT patient_id FROM medical_records WHERE icd10_code_hash = ?

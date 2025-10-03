@@ -47,6 +47,177 @@ type Customer struct {
 }
 
 // UserAccount demonstrates password handling with recovery capability
+// Helper functions for manual encryption
+
+// processCustomer manually encrypts and hashes customer fields
+func processCustomer(ctx context.Context, crypto *encx.Crypto, customer *Customer) error {
+	// Generate a DEK for this customer
+	dek, err := crypto.GenerateDEK()
+	if err != nil {
+		return fmt.Errorf("failed to generate DEK: %w", err)
+	}
+
+	// Encrypt and hash email (searchable)
+	if customer.Email != "" {
+		emailBytes := []byte(customer.Email)
+		customer.EmailEncrypted, err = crypto.EncryptData(ctx, emailBytes, dek)
+		if err != nil {
+			return fmt.Errorf("failed to encrypt email: %w", err)
+		}
+		customer.EmailHash = crypto.HashBasic(ctx, emailBytes)
+		customer.Email = ""
+	}
+
+	// Encrypt and hash phone (searchable)
+	if customer.Phone != "" {
+		phoneBytes := []byte(customer.Phone)
+		customer.PhoneEncrypted, err = crypto.EncryptData(ctx, phoneBytes, dek)
+		if err != nil {
+			return fmt.Errorf("failed to encrypt phone: %w", err)
+		}
+		customer.PhoneHash = crypto.HashBasic(ctx, phoneBytes)
+		customer.Phone = ""
+	}
+
+	// Encrypt address (no hash needed)
+	if customer.Address != "" {
+		addrBytes := []byte(customer.Address)
+		customer.AddressEncrypted, err = crypto.EncryptData(ctx, addrBytes, dek)
+		if err != nil {
+			return fmt.Errorf("failed to encrypt address: %w", err)
+		}
+		customer.Address = ""
+	}
+
+	// Hash customer number (searchable, no encryption)
+	if customer.CustomerNumber != "" {
+		customer.CustomerNumberHash = crypto.HashBasic(ctx, []byte(customer.CustomerNumber))
+		customer.CustomerNumber = ""
+	}
+
+	// Encrypt and store the DEK
+	customer.DEKEncrypted, err = crypto.EncryptDEK(ctx, dek)
+	if err != nil {
+		return fmt.Errorf("failed to encrypt DEK: %w", err)
+	}
+	customer.KeyVersion = 1
+	customer.DEK = nil // Clear DEK from memory
+
+	return nil
+}
+
+// processUserAccount manually encrypts and hashes user account fields
+func processUserAccount(ctx context.Context, crypto *encx.Crypto, user *UserAccount) error {
+	// Generate a DEK for this user account
+	dek, err := crypto.GenerateDEK()
+	if err != nil {
+		return fmt.Errorf("failed to generate DEK: %w", err)
+	}
+
+	// Encrypt and hash email (searchable)
+	if user.Email != "" {
+		emailBytes := []byte(user.Email)
+		user.EmailEncrypted, err = crypto.EncryptData(ctx, emailBytes, dek)
+		if err != nil {
+			return fmt.Errorf("failed to encrypt email: %w", err)
+		}
+		user.EmailHash = crypto.HashBasic(ctx, emailBytes)
+		user.Email = ""
+	}
+
+	// Process password - both secure hash and encryption
+	if user.Password != "" {
+		passwordBytes := []byte(user.Password)
+		// Secure hash for authentication
+		user.PasswordHashSecure, err = crypto.HashSecure(ctx, passwordBytes)
+		if err != nil {
+			return fmt.Errorf("failed to hash password securely: %w", err)
+		}
+		// Encrypt for recovery scenarios
+		user.PasswordEncrypted, err = crypto.EncryptData(ctx, passwordBytes, dek)
+		if err != nil {
+			return fmt.Errorf("failed to encrypt password: %w", err)
+		}
+		user.Password = ""
+	}
+
+	// Encrypt and store the DEK
+	user.DEKEncrypted, err = crypto.EncryptDEK(ctx, dek)
+	if err != nil {
+		return fmt.Errorf("failed to encrypt DEK: %w", err)
+	}
+	user.KeyVersion = 1
+	user.DEK = nil // Clear DEK from memory
+
+	return nil
+}
+
+// decryptCustomer manually decrypts customer fields
+func decryptCustomer(ctx context.Context, crypto *encx.Crypto, customer *Customer) error {
+	// Decrypt the DEK first
+	dek, err := crypto.DecryptDEKWithVersion(ctx, customer.DEKEncrypted, customer.KeyVersion)
+	if err != nil {
+		return fmt.Errorf("failed to decrypt DEK: %w", err)
+	}
+
+	// Decrypt all encrypted fields
+	if len(customer.EmailEncrypted) > 0 {
+		emailBytes, err := crypto.DecryptData(ctx, customer.EmailEncrypted, dek)
+		if err != nil {
+			return fmt.Errorf("failed to decrypt email: %w", err)
+		}
+		customer.Email = string(emailBytes)
+	}
+
+	if len(customer.PhoneEncrypted) > 0 {
+		phoneBytes, err := crypto.DecryptData(ctx, customer.PhoneEncrypted, dek)
+		if err != nil {
+			return fmt.Errorf("failed to decrypt phone: %w", err)
+		}
+		customer.Phone = string(phoneBytes)
+	}
+
+	if len(customer.AddressEncrypted) > 0 {
+		addrBytes, err := crypto.DecryptData(ctx, customer.AddressEncrypted, dek)
+		if err != nil {
+			return fmt.Errorf("failed to decrypt address: %w", err)
+		}
+		customer.Address = string(addrBytes)
+	}
+
+	// Note: Hashed fields cannot be decrypted
+	return nil
+}
+
+// decryptUserAccount manually decrypts user account fields
+func decryptUserAccount(ctx context.Context, crypto *encx.Crypto, user *UserAccount) error {
+	// Decrypt the DEK first
+	dek, err := crypto.DecryptDEKWithVersion(ctx, user.DEKEncrypted, user.KeyVersion)
+	if err != nil {
+		return fmt.Errorf("failed to decrypt DEK: %w", err)
+	}
+
+	// Decrypt email
+	if len(user.EmailEncrypted) > 0 {
+		emailBytes, err := crypto.DecryptData(ctx, user.EmailEncrypted, dek)
+		if err != nil {
+			return fmt.Errorf("failed to decrypt email: %w", err)
+		}
+		user.Email = string(emailBytes)
+	}
+
+	// Decrypt password (for recovery scenarios)
+	if len(user.PasswordEncrypted) > 0 {
+		passwordBytes, err := crypto.DecryptData(ctx, user.PasswordEncrypted, dek)
+		if err != nil {
+			return fmt.Errorf("failed to decrypt password: %w", err)
+		}
+		user.Password = string(passwordBytes)
+	}
+
+	return nil
+}
+
 type UserAccount struct {
 	// Basic information
 	Username string `json:"username" db:"username"`
@@ -91,7 +262,7 @@ func main() {
 	fmt.Printf("Original phone: %s\n", customer.Phone)
 
 	// Process customer data
-	if err := crypto.ProcessStruct(ctx, customer); err != nil {
+	if err := processCustomer(ctx, crypto, customer); err != nil {
 		log.Fatal("Failed to process customer:", err)
 	}
 
@@ -105,7 +276,7 @@ func main() {
 
 	// To search for a customer by email, create a temporary customer with just the email
 	searchCustomer := &Customer{Email: "alice.johnson@example.com"}
-	if err := crypto.ProcessStruct(ctx, searchCustomer); err != nil {
+	if err := processCustomer(ctx, crypto, searchCustomer); err != nil {
 		log.Fatal("Failed to process search customer:", err)
 	}
 
@@ -114,7 +285,7 @@ func main() {
 	fmt.Printf("Matches original hash: %t\n", searchCustomer.EmailHash == customer.EmailHash)
 
 	// Decrypt for display
-	if err := crypto.DecryptStruct(ctx, customer); err != nil {
+	if err := decryptCustomer(ctx, crypto, customer); err != nil {
 		log.Fatal("Failed to decrypt customer:", err)
 	}
 
@@ -135,7 +306,7 @@ func main() {
 	fmt.Printf("Original password: %s\n", user.Password)
 
 	// Process user account
-	if err := crypto.ProcessStruct(ctx, user); err != nil {
+	if err := processUserAccount(ctx, crypto, user); err != nil {
 		log.Fatal("Failed to process user account:", err)
 	}
 
@@ -154,7 +325,7 @@ func main() {
 
 	// Demonstrate password recovery (admin function)
 	fmt.Println("\n=== Password Recovery (Admin) ===")
-	if err := crypto.DecryptStruct(ctx, user); err != nil {
+	if err := decryptUserAccount(ctx, crypto, user); err != nil {
 		log.Fatal("Failed to decrypt user for recovery:", err)
 	}
 	fmt.Printf("Recovered password: %s\n", user.Password)
@@ -168,7 +339,7 @@ func FindCustomerByEmail(crypto *encx.Crypto, email string) (string, error) {
 
 	// Create temporary customer to generate search hash
 	searchCustomer := &Customer{Email: email}
-	if err := crypto.ProcessStruct(ctx, searchCustomer); err != nil {
+	if err := processCustomer(ctx, crypto, searchCustomer); err != nil {
 		return "", fmt.Errorf("failed to hash email: %w", err)
 	}
 
@@ -193,7 +364,7 @@ func RegisterCustomer(crypto *encx.Crypto, email, phone, address string) (*Custo
 	}
 
 	// Encrypt and hash the customer data
-	if err := crypto.ProcessStruct(ctx, customer); err != nil {
+	if err := processCustomer(ctx, crypto, customer); err != nil {
 		return nil, fmt.Errorf("failed to process customer: %w", err)
 	}
 
@@ -214,7 +385,7 @@ func GetCustomerProfile(crypto *encx.Crypto, encryptedCustomer *Customer) (*Cust
 	profile := *encryptedCustomer
 
 	// Decrypt sensitive data for display
-	if err := crypto.DecryptStruct(ctx, &profile); err != nil {
+	if err := decryptCustomer(ctx, crypto, &profile); err != nil {
 		return nil, fmt.Errorf("failed to decrypt customer: %w", err)
 	}
 
@@ -229,7 +400,7 @@ func UpdateCustomerEmail(crypto *encx.Crypto, customer *Customer, newEmail strin
 	customer.Email = newEmail
 
 	// Re-encrypt and hash with new email
-	if err := crypto.ProcessStruct(ctx, customer); err != nil {
+	if err := processCustomer(ctx, crypto, customer); err != nil {
 		return fmt.Errorf("failed to update customer email: %w", err)
 	}
 
@@ -247,7 +418,7 @@ func SearchCustomersByPhonePrefix(crypto *encx.Crypto, phoneNumbers []string) ([
 
 	for _, phone := range phoneNumbers {
 		customer := &Customer{Phone: phone}
-		if err := crypto.ProcessStruct(ctx, customer); err != nil {
+		if err := processCustomer(ctx, crypto, customer); err != nil {
 			return nil, fmt.Errorf("failed to hash phone %s: %w", phone, err)
 		}
 		hashes = append(hashes, customer.PhoneHash)
