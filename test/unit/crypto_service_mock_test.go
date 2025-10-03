@@ -48,16 +48,6 @@ func (m *CryptoServiceMock) DecryptData(ctx context.Context, ciphertext []byte, 
 	return args.Get(0).([]byte), args.Error(1)
 }
 
-func (m *CryptoServiceMock) ProcessStruct(ctx context.Context, object any) error {
-	args := m.Called(ctx, object)
-	return args.Error(0)
-}
-
-func (m *CryptoServiceMock) DecryptStruct(ctx context.Context, object any) error {
-	args := m.Called(ctx, object)
-	return args.Error(0)
-}
-
 func (m *CryptoServiceMock) EncryptDEK(ctx context.Context, plaintextDEK []byte) ([]byte, error) {
 	args := m.Called(ctx, plaintextDEK)
 	return args.Get(0).([]byte), args.Error(1)
