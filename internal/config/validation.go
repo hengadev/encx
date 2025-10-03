@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"reflect"
 	"strings"
 
 	"github.com/hengadev/encx/internal/monitoring"
@@ -49,6 +48,42 @@ func (a *Argon2Params) GetIterations() uint32  { return a.Iterations }
 func (a *Argon2Params) GetParallelism() uint8  { return a.Parallelism }
 func (a *Argon2Params) GetSaltLength() uint32  { return a.SaltLength }
 func (a *Argon2Params) GetKeyLength() uint32   { return a.KeyLength }
+
+// Validate checks if the Argon2 parameters are within acceptable ranges
+func (a *Argon2Params) Validate() error {
+	var errors []string
+
+	// Memory should be at least 8KB (8192 KiB)
+	if a.Memory < 8192 {
+		errors = append(errors, "memory")
+	}
+
+	// Iterations should be at least 2
+	if a.Iterations < 2 {
+		errors = append(errors, "iterations")
+	}
+
+	// Parallelism should be at least 1
+	if a.Parallelism < 1 {
+		errors = append(errors, "parallelism")
+	}
+
+	// Salt length should be at least 16 bytes
+	if a.SaltLength < 16 {
+		errors = append(errors, "saltLength")
+	}
+
+	// Key length should be at least 32 bytes
+	if a.KeyLength < 32 {
+		errors = append(errors, "keyLength")
+	}
+
+	if len(errors) > 0 {
+		return fmt.Errorf("argon2 validation failed for fields: %v", errors)
+	}
+
+	return nil
+}
 
 // Type aliases for interfaces from monitoring package
 type (
@@ -224,36 +259,6 @@ func checkDirectoryWritable(dirPath string) error {
 	if err := os.Remove(testFile); err != nil {
 		// Log warning but don't fail validation
 		// logger.Warn("Failed to remove test file", "file", testFile, "error", err)
-	}
-
-	return nil
-}
-
-// ValidateStructForEncryption validates a struct for encryption operations
-func (v *Validator) ValidateStructForEncryption(structType reflect.Type) error {
-	if structType.Kind() != reflect.Struct {
-		return fmt.Errorf("expected struct type, got %s", structType.Kind())
-	}
-
-	// Check for required fields
-	requiredFields := []string{"DEK", "DEKEncrypted", "KeyVersion"}
-	for _, fieldName := range requiredFields {
-		field, found := structType.FieldByName(fieldName)
-		if !found {
-			return fmt.Errorf("required field '%s' not found in struct %s", fieldName, structType.Name())
-		}
-
-		// Validate field types
-		switch fieldName {
-		case "DEK", "DEKEncrypted":
-			if field.Type.Kind() != reflect.Slice || field.Type.Elem().Kind() != reflect.Uint8 {
-				return fmt.Errorf("field '%s' must be of type []byte in struct %s", fieldName, structType.Name())
-			}
-		case "KeyVersion":
-			if field.Type.Kind() != reflect.Int {
-				return fmt.Errorf("field '%s' must be of type int in struct %s", fieldName, structType.Name())
-			}
-		}
 	}
 
 	return nil
