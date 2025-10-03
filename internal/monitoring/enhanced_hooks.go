@@ -79,11 +79,11 @@ func (e *EnhancedObservabilityHook) OnProcessComplete(ctx context.Context, opera
 	success := err == nil
 
 	fields := map[string]any{
-		"operation": operation,
-		"phase":     "complete",
-		"duration":  duration.String(),
+		"operation":   operation,
+		"phase":       "complete",
+		"duration":    duration.String(),
 		"duration_ms": duration.Nanoseconds() / 1000000,
-		"success":   success,
+		"success":     success,
 	}
 
 	// Add metadata to fields
@@ -360,3 +360,4 @@ func (e *EnhancedObservabilityHook) Stop() error {
 
 	return nil
 }
+

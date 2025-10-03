@@ -1,7 +1,6 @@
 package security
 
 import (
-	"context"
 	"crypto/rand"
 	"errors"
 	"testing"

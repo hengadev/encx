@@ -33,18 +33,16 @@ func (suite *ReliabilityIntegrationTestSuite) SetupSuite() {
 
 	// Create circuit breaker for KMS operations
 	cbConfig := reliability.CircuitBreakerConfig{
-		Name:           "test-kms",
-		MaxRequests:    3,
-		Interval:       5 * time.Second,
-		Timeout:        10 * time.Second,
-		FailureThreshold: 2,
+		MaxConcurrentRequests: 3,
+		Timeout:              10 * time.Second,
+		FailureThreshold:     2,
+		SuccessThreshold:     2,
 	}
 
-	var err error
-	suite.circuitBreaker, err = reliability.NewCircuitBreaker(cbConfig)
-	require.NoError(suite.T(), err)
+	suite.circuitBreaker = reliability.NewCircuitBreaker("test-kms", cbConfig)
 
 	// Create crypto instance with failing KMS and circuit breaker
+	var err error
 	suite.crypto, err = encx.NewCrypto(suite.ctx,
 		encx.WithKMSService(suite.failingKMS),
 		encx.WithKEKAlias("reliability-test-key"),

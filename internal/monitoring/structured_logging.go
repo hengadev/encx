@@ -95,7 +95,7 @@ func NewStructuredLogger(config LoggerConfig) *StructuredLogger {
 	}
 
 	opts := &slog.HandlerOptions{
-		Level: slogLevel,
+		Level:     slogLevel,
 		AddSource: config.Level == LevelDebug,
 		ReplaceAttr: func(groups []string, a slog.Attr) slog.Attr {
 			// Customize timestamp format
@@ -255,8 +255,8 @@ func (l *StructuredLogger) log(ctx context.Context, level LogLevel, msg string, 
 // LogCryptoOperation logs a crypto operation with standard fields
 func (l *StructuredLogger) LogCryptoOperation(ctx context.Context, operation string, duration time.Duration, err error, metadata map[string]any) {
 	fields := map[string]any{
-		"operation": operation,
-		"duration":  duration.String(),
+		"operation":   operation,
+		"duration":    duration.String(),
 		"duration_ms": duration.Nanoseconds() / 1000000,
 	}
 
@@ -343,9 +343,9 @@ func (h *ConsoleHandler) Handle(ctx context.Context, record slog.Record) error {
 	case slog.LevelDebug:
 		levelStr = "\033[36mDEBUG\033[0m" // Cyan
 	case slog.LevelInfo:
-		levelStr = "\033[32mINFO\033[0m"  // Green
+		levelStr = "\033[32mINFO\033[0m" // Green
 	case slog.LevelWarn:
-		levelStr = "\033[33mWARN\033[0m"  // Yellow
+		levelStr = "\033[33mWARN\033[0m" // Yellow
 	case slog.LevelError:
 		levelStr = "\033[31mERROR\033[0m" // Red
 	default:
@@ -437,4 +437,3 @@ func NewDevelopmentLogger(component string) *StructuredLogger {
 		},
 	})
 }
-

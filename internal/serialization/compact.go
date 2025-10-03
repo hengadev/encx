@@ -196,4 +196,3 @@ func Deserialize(data []byte, target any) error {
 		return fmt.Errorf("unsupported target type for compact deserialization: %T", target)
 	}
 }
-

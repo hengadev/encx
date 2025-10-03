@@ -9,6 +9,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/hengadev/encx/test/testutils"
 )
 
 func TestNewCrypto_ValidConfiguration(t *testing.T) {
@@ -16,7 +17,7 @@ func TestNewCrypto_ValidConfiguration(t *testing.T) {
 	tempDir := t.TempDir()
 
 	// Create a test KMS service
-	kms := NewSimpleTestKMS()
+	kms := testutils.NewSimpleTestKMS()
 	pepper := []byte("test-pepper-exactly-32-bytes-OK!")
 
 	crypto, err := NewCrypto(ctx,
@@ -396,7 +397,7 @@ func TestSetDefaults(t *testing.T) {
 
 func TestBackwardCompatibility(t *testing.T) {
 	ctx := context.Background()
-	kms := NewSimpleTestKMS()
+	kms := testutils.NewSimpleTestKMS()
 
 	// Test that the old New function still works
 	crypto, err := New(ctx, kms, "test-kek", "secret/pepper")

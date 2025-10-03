@@ -2,7 +2,6 @@ package security
 
 import (
 	"context"
-	"crypto/subtle"
 	"fmt"
 	"runtime"
 	"strings"
@@ -325,7 +324,7 @@ func (sv *SecurityValidator) ValidateTokenFormat(token string, minLength int) er
 
 	// Basic entropy check - ensure it's not all the same character
 	if len(token) > 0 {
-		firstChar := token[0]
+		firstChar := rune(token[0])
 		allSame := true
 		for _, char := range token {
 			if char != firstChar {

@@ -49,7 +49,7 @@ func (suite *PerformanceBaselineTestSuite) SetupSuite() {
 // warmUpSystem performs initial operations to warm up caches and connections
 func (suite *PerformanceBaselineTestSuite) warmUpSystem() {
 	for i := 0; i < 10; i++ {
-		dek, _ := suite.crypto.GenerateDEK(suite.ctx)
+		dek, _ := suite.crypto.GenerateDEK()
 		testData := []byte("warmup data")
 		encrypted, _ := suite.crypto.EncryptData(suite.ctx, testData, dek)
 		suite.crypto.DecryptData(suite.ctx, encrypted, dek)

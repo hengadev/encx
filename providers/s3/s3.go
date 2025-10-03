@@ -3,15 +3,18 @@ package s3bucket
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
 	"fmt"
-	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/config"
-	"github.com/aws/aws-sdk-go-v2/service/s3"
-	"github.com/aws/aws-sdk-go-v2/service/s3/types"
-	"github.com/google/uuid"
 	"io"
 	"log"
 	"net/http"
+
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
+	// "github.com/aws/aws-sdk-go-v2/service/s3/types"
+	"github.com/google/uuid"
+	"github.com/hengadev/encx"
 )
 
 // AWSS3Uploader defines the method used to upload to S3
@@ -88,7 +91,7 @@ func createS3FileWriter(ctx context.Context, s3Client AWSS3Uploader, bucket, key
 }
 
 // uploadImageToS3 handles the HTTP upload, encryption, and S3 upload.
-func uploadImageToS3(w http.ResponseWriter, r *http.Request, cryptoService *Crypto, s3Client AWSS3Uploader, bucket string) {
+func uploadImageToS3(w http.ResponseWriter, r *http.Request, cryptoService *encx.Crypto, s3Client AWSS3Uploader, bucket string) {
 	// 1. Get the image from the HTTP request.
 	file, _, err := r.FormFile("image")
 	if err != nil {
@@ -116,7 +119,8 @@ func uploadImageToS3(w http.ResponseWriter, r *http.Request, cryptoService *Cryp
 	}
 
 	// 5. Encrypt the image data and write it to the S3 writer.
-	err = cryptoService.EncryptStream(file, s3Writer, dek)
+	ctx := context.Background()
+	err = cryptoService.EncryptStream(ctx, file, s3Writer, dek)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Encryption or upload failed: %v", err), http.StatusInternalServerError)
 		return
@@ -181,6 +185,9 @@ func (k *YourKmsService) CreateKey(ctx context.Context, alias string) (string, e
 func (k *YourKmsService) GetSecret(ctx context.Context, path string) ([]byte, error) {
 	return []byte("thisisatotallysecurepepper12345678"), nil
 }
+
+// Crypto represents a local crypto service for the s3 provider example
+type Crypto struct{}
 
 func (c *Crypto) GenerateDEK() ([]byte, error) {
 	dek := make([]byte, 32)
