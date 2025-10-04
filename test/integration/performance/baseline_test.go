@@ -64,7 +64,7 @@ func (suite *PerformanceBaselineTestSuite) TestDEKGenerationBaseline() {
 	start := time.Now()
 
 	for i := 0; i < iterations; i++ {
-		dek, err := suite.crypto.GenerateDEK(suite.ctx)
+		dek, err := suite.crypto.GenerateDEK()
 		require.NoError(suite.T(), err)
 		assert.Len(suite.T(), dek, 32, "DEK should be 32 bytes")
 	}
@@ -93,7 +93,7 @@ func (suite *PerformanceBaselineTestSuite) TestDataEncryptionBaseline() {
 	const expectedMaxLatency = 5 * time.Millisecond // 5ms max per encryption
 
 	// Generate DEK once
-	dek, err := suite.crypto.GenerateDEK(suite.ctx)
+	dek, err := suite.crypto.GenerateDEK()
 	require.NoError(suite.T(), err)
 
 	// Test with different data sizes
@@ -135,7 +135,7 @@ func (suite *PerformanceBaselineTestSuite) TestDataDecryptionBaseline() {
 	const iterations = 1000
 
 	// Generate DEK and test data
-	dek, err := suite.crypto.GenerateDEK(suite.ctx)
+	dek, err := suite.crypto.GenerateDEK()
 	require.NoError(suite.T(), err)
 
 	testSizes := []int{16, 64, 256, 1024, 4096}
@@ -179,8 +179,7 @@ func (suite *PerformanceBaselineTestSuite) TestHashingBaseline() {
 	// Test basic hash for searching
 	start := time.Now()
 	for i := 0; i < iterations; i++ {
-		hash, err := suite.crypto.HashForSearch(suite.ctx, fmt.Sprintf("%s%d", testData, i))
-		require.NoError(suite.T(), err)
+		hash := suite.crypto.HashBasic(suite.ctx, []byte(fmt.Sprintf("%s%d", testData, i)))
 		assert.NotEmpty(suite.T(), hash)
 	}
 	searchHashDuration := time.Since(start)
@@ -188,7 +187,7 @@ func (suite *PerformanceBaselineTestSuite) TestHashingBaseline() {
 	// Test secure hash
 	start = time.Now()
 	for i := 0; i < iterations; i++ {
-		hash, err := suite.crypto.HashSecure(suite.ctx, fmt.Sprintf("%s%d", testData, i))
+		hash, err := suite.crypto.HashSecure(suite.ctx, []byte(fmt.Sprintf("%s%d", testData, i)))
 		require.NoError(suite.T(), err)
 		assert.NotEmpty(suite.T(), hash)
 	}
@@ -209,7 +208,7 @@ func (suite *PerformanceBaselineTestSuite) TestHashingBaseline() {
 
 // TestConcurrentPerformance tests performance under concurrent load
 func (suite *PerformanceBaselineTestSuite) TestConcurrentPerformance() {
-	const numGoroutines = runtime.NumCPU()
+	numGoroutines := runtime.NumCPU()
 	const operationsPerGoroutine = 100
 
 	var wg sync.WaitGroup
@@ -226,7 +225,7 @@ func (suite *PerformanceBaselineTestSuite) TestConcurrentPerformance() {
 				opStart := time.Now()
 
 				// Perform complete encrypt/decrypt cycle
-				dek, err := suite.crypto.GenerateDEK(suite.ctx)
+				dek, err := suite.crypto.GenerateDEK()
 				if err != nil {
 					suite.T().Errorf("DEK generation failed: %v", err)
 					continue
@@ -312,7 +311,7 @@ func (suite *PerformanceBaselineTestSuite) TestMemoryUsageBaseline() {
 	runtime.ReadMemStats(&m1)
 
 	// Perform operations
-	dek, _ := suite.crypto.GenerateDEK(suite.ctx)
+	dek, _ := suite.crypto.GenerateDEK()
 	testData := make([]byte, 1024) // 1KB test data
 
 	for i := 0; i < iterations; i++ {
@@ -367,7 +366,7 @@ func (suite *PerformanceBaselineTestSuite) TestLoadTestBaseline() {
 					return
 				case <-ticker.C:
 					// Perform operation
-					dek, err := suite.crypto.GenerateDEK(ctx)
+					dek, err := suite.crypto.GenerateDEK()
 					if err != nil {
 						errorCount++
 						continue

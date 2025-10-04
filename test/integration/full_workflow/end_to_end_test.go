@@ -13,8 +13,6 @@ import (
 	"github.com/stretchr/testify/suite"
 
 	"github.com/hengadev/encx"
-	"github.com/hengadev/encx/internal/codegen"
-	"github.com/hengadev/encx/internal/config"
 )
 
 // EndToEndWorkflowTestSuite tests complete ENCX workflows from configuration to operation
@@ -186,7 +184,7 @@ func (suite *EndToEndWorkflowTestSuite) TestMultipleDataTypes() {
 			}
 
 			// Generate DEK
-			dek, err := suite.crypto.GenerateDEK(suite.ctx)
+			dek, err := suite.crypto.GenerateDEK()
 			require.NoError(t, err)
 
 			// Encrypt
@@ -205,7 +203,7 @@ func (suite *EndToEndWorkflowTestSuite) TestMultipleDataTypes() {
 // testFieldEncryption tests individual field encryption
 func (suite *EndToEndWorkflowTestSuite) testFieldEncryption(user TestUser) {
 	// Test email encryption
-	dek, err := suite.crypto.GenerateDEK(suite.ctx)
+	dek, err := suite.crypto.GenerateDEK()
 	require.NoError(suite.T(), err)
 
 	emailBytes := []byte(user.Email)
@@ -222,18 +220,16 @@ func (suite *EndToEndWorkflowTestSuite) testFieldEncryption(user TestUser) {
 // testHashingOperations tests searchable hashing
 func (suite *EndToEndWorkflowTestSuite) testHashingOperations(user TestUser) {
 	// Test basic hash (for searching)
-	emailHash, err := suite.crypto.HashForSearch(suite.ctx, user.Email)
-	require.NoError(suite.T(), err)
+	emailHash := suite.crypto.HashBasic(suite.ctx, []byte(user.Email))
 	assert.NotEmpty(suite.T(), emailHash)
 
 	// Test secure hash (for authentication)
-	ssnHash, err := suite.crypto.HashSecure(suite.ctx, user.SSN)
+	ssnHash, err := suite.crypto.HashSecure(suite.ctx, []byte(user.SSN))
 	require.NoError(suite.T(), err)
 	assert.NotEmpty(suite.T(), ssnHash)
 
 	// Ensure different data produces different hashes
-	differentEmailHash, err := suite.crypto.HashForSearch(suite.ctx, "different@example.com")
-	require.NoError(suite.T(), err)
+	differentEmailHash := suite.crypto.HashBasic(suite.ctx, []byte("different@example.com"))
 	assert.NotEqual(suite.T(), emailHash, differentEmailHash)
 }
 
@@ -260,7 +256,7 @@ func (suite *EndToEndWorkflowTestSuite) testBulkOperations() {
 	}
 
 	// Process all users
-	dek, err := suite.crypto.GenerateDEK(suite.ctx)
+	dek, err := suite.crypto.GenerateDEK()
 	require.NoError(suite.T(), err)
 
 	for i, user := range users {
@@ -272,8 +268,8 @@ func (suite *EndToEndWorkflowTestSuite) testBulkOperations() {
 		require.NoError(suite.T(), err, "Failed to encrypt phone for user %d", i+1)
 
 		// Hash for searching
-		emailHash, err := suite.crypto.HashForSearch(suite.ctx, user.Email)
-		require.NoError(suite.T(), err, "Failed to hash email for user %d", i+1)
+		emailHash := suite.crypto.HashBasic(suite.ctx, []byte(user.Email))
+		require.NotEmpty(suite.T(), emailHash, "Failed to hash email for user %d", i+1)
 
 		// Store encrypted versions
 		users[i].EmailEncrypted = encryptedEmail
@@ -302,7 +298,7 @@ func (suite *EndToEndWorkflowTestSuite) testConcurrentOperations() {
 				testData := []byte(fmt.Sprintf("test-data-g%d-op%d", goroutineID, j))
 
 				// Generate DEK
-				dek, err := suite.crypto.GenerateDEK(suite.ctx)
+				dek, err := suite.crypto.GenerateDEK()
 				if err != nil {
 					results <- err
 					continue

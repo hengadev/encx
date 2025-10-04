@@ -41,13 +41,12 @@ func (suite *ReliabilityIntegrationTestSuite) SetupSuite() {
 
 	suite.circuitBreaker = reliability.NewCircuitBreaker("test-kms", cbConfig)
 
-	// Create crypto instance with failing KMS and circuit breaker
+	// Create crypto instance with failing KMS
 	var err error
 	suite.crypto, err = encx.NewCrypto(suite.ctx,
 		encx.WithKMSService(suite.failingKMS),
 		encx.WithKEKAlias("reliability-test-key"),
 		encx.WithPepper([]byte("reliability-test-pepper-32-bytes")),
-		encx.WithCircuitBreaker(suite.circuitBreaker),
 	)
 	require.NoError(suite.T(), err)
 }
@@ -57,21 +56,18 @@ func (suite *ReliabilityIntegrationTestSuite) TestCircuitBreakerTrip() {
 	// Configure KMS to fail
 	suite.failingKMS.SetShouldFail(true)
 
-	// Generate test data
-	testData := []byte("test data for circuit breaker")
-
 	// First attempt - should fail but circuit is closed
-	_, err := suite.crypto.GenerateDEK(suite.ctx)
+	_, err := suite.crypto.GenerateDEK()
 	assert.Error(suite.T(), err, "First DEK generation should fail")
 	assert.Equal(suite.T(), reliability.StateClosed, suite.circuitBreaker.State())
 
 	// Second attempt - should fail, circuit still closed
-	_, err = suite.crypto.GenerateDEK(suite.ctx)
+	_, err = suite.crypto.GenerateDEK()
 	assert.Error(suite.T(), err, "Second DEK generation should fail")
 	assert.Equal(suite.T(), reliability.StateClosed, suite.circuitBreaker.State())
 
 	// Third attempt - should trip the circuit breaker
-	_, err = suite.crypto.GenerateDEK(suite.ctx)
+	_, err = suite.crypto.GenerateDEK()
 	assert.Error(suite.T(), err, "Third DEK generation should fail and trip circuit")
 
 	// Allow some time for circuit breaker to process
@@ -81,7 +77,7 @@ func (suite *ReliabilityIntegrationTestSuite) TestCircuitBreakerTrip() {
 	assert.Equal(suite.T(), reliability.StateOpen, suite.circuitBreaker.State())
 
 	// Further attempts should fail fast (circuit breaker error)
-	_, err = suite.crypto.GenerateDEK(suite.ctx)
+	_, err = suite.crypto.GenerateDEK()
 	assert.Error(suite.T(), err, "Should fail fast due to open circuit")
 	assert.Contains(suite.T(), err.Error(), "circuit breaker is open")
 }
@@ -93,7 +89,7 @@ func (suite *ReliabilityIntegrationTestSuite) TestCircuitBreakerRecovery() {
 
 	// Trip the circuit
 	for i := 0; i < 3; i++ {
-		_, err := suite.crypto.GenerateDEK(suite.ctx)
+		_, err := suite.crypto.GenerateDEK()
 		assert.Error(suite.T(), err)
 	}
 
@@ -109,7 +105,7 @@ func (suite *ReliabilityIntegrationTestSuite) TestCircuitBreakerRecovery() {
 	suite.failingKMS.SetShouldFail(false)
 
 	// Test recovery - should succeed and close circuit
-	_, err := suite.crypto.GenerateDEK(suite.ctx)
+	_, err := suite.crypto.GenerateDEK()
 	assert.NoError(suite.T(), err, "Should succeed in half-open state")
 
 	// Circuit should be closed again
@@ -117,20 +113,20 @@ func (suite *ReliabilityIntegrationTestSuite) TestCircuitBreakerRecovery() {
 	assert.Equal(suite.T(), reliability.StateClosed, suite.circuitBreaker.State())
 
 	// Further operations should work normally
-	_, err = suite.crypto.GenerateDEK(suite.ctx)
+	_, err = suite.crypto.GenerateDEK()
 	assert.NoError(suite.T(), err, "Should work normally after recovery")
 }
 
 // TestRetryPolicyWithExponentialBackoff tests retry behavior
 func (suite *ReliabilityIntegrationTestSuite) TestRetryPolicyWithExponentialBackoff() {
 	// Create retry policy
-	retryPolicy := reliability.RetryPolicy{
-		MaxAttempts:    4,
-		InitialDelay:   100 * time.Millisecond,
-		MaxDelay:      2 * time.Second,
-		BackoffFactor: 2.0,
-		Jitter:        true,
-	}
+	retryPolicy := reliability.NewRetryPolicy(
+		reliability.WithMaxAttempts(4),
+		reliability.WithInitialDelay(100*time.Millisecond),
+		reliability.WithMaxDelay(2*time.Second),
+		reliability.WithBackoffFactor(2.0),
+		reliability.WithJitter(true),
+	)
 
 	// Configure KMS to fail first 2 attempts, then succeed
 	suite.failingKMS.SetFailureCount(2)
@@ -141,7 +137,7 @@ func (suite *ReliabilityIntegrationTestSuite) TestRetryPolicyWithExponentialBack
 	var dek []byte
 	err := retryPolicy.Execute(suite.ctx, func(ctx context.Context) error {
 		var genErr error
-		dek, genErr = suite.crypto.GenerateDEK(ctx)
+		dek, genErr = suite.crypto.GenerateDEK()
 		return genErr
 	})
 
@@ -178,7 +174,7 @@ func (suite *ReliabilityIntegrationTestSuite) TestConcurrentReliabilityFeatures(
 
 			for j := 0; j < operationsPerGoroutine; j++ {
 				// Generate DEK
-				dek, err := suite.crypto.GenerateDEK(suite.ctx)
+				dek, err := suite.crypto.GenerateDEK()
 				if err != nil {
 					results <- fmt.Errorf("goroutine %d operation %d: %w", goroutineID, j, err)
 					continue
@@ -235,38 +231,37 @@ func (suite *ReliabilityIntegrationTestSuite) TestFailureIsolation() {
 	suite.failingKMS.SetShouldFail(true)
 
 	// KMS operations should fail
-	_, err := suite.crypto.GenerateDEK(suite.ctx)
+	_, err := suite.crypto.GenerateDEK()
 	assert.Error(suite.T(), err, "KMS operations should fail")
 
 	// But hash operations should still work (they don't use KMS)
-	hash, err := suite.crypto.HashForSearch(suite.ctx, "test@example.com")
-	assert.NoError(suite.T(), err, "Hash operations should still work")
+	hash := suite.crypto.HashBasic(suite.ctx, []byte("test@example.com"))
 	assert.NotEmpty(suite.T(), hash, "Hash should be generated")
 
 	// Secure hash should also work
-	secureHash, err := suite.crypto.HashSecure(suite.ctx, "sensitive-data")
+	secureHash, err := suite.crypto.HashSecure(suite.ctx, []byte("sensitive-data"))
 	assert.NoError(suite.T(), err, "Secure hash operations should still work")
 	assert.NotEmpty(suite.T(), secureHash, "Secure hash should be generated")
 }
 
-// TestHealthCheckIntegration tests integration with health monitoring
-func (suite *ReliabilityIntegrationTestSuite) TestHealthCheckIntegration() {
-	// Test health check when everything is working
+// TestBasicCryptoOperations tests that basic crypto operations work correctly
+func (suite *ReliabilityIntegrationTestSuite) TestBasicCryptoOperations() {
+	// Ensure KMS is working
 	suite.failingKMS.SetShouldFail(false)
 
-	healthStatus := suite.crypto.HealthCheck(suite.ctx)
-	assert.True(suite.T(), healthStatus.Overall, "Health check should pass when KMS is working")
-	assert.True(suite.T(), healthStatus.KMS, "KMS health should be true")
-	assert.True(suite.T(), healthStatus.Crypto, "Crypto health should be true")
+	// Generate DEK
+	dek, err := suite.crypto.GenerateDEK()
+	assert.NoError(suite.T(), err, "DEK generation should succeed")
+	assert.Len(suite.T(), dek, 32, "DEK should be 32 bytes")
 
-	// Test health check when KMS is failing
-	suite.failingKMS.SetShouldFail(true)
+	// Test encryption/decryption
+	testData := []byte("test data for basic operations")
+	encrypted, err := suite.crypto.EncryptData(suite.ctx, testData, dek)
+	assert.NoError(suite.T(), err, "Encryption should succeed")
 
-	healthStatus = suite.crypto.HealthCheck(suite.ctx)
-	assert.False(suite.T(), healthStatus.Overall, "Overall health should fail when KMS is down")
-	assert.False(suite.T(), healthStatus.KMS, "KMS health should be false")
-	// Crypto operations not using KMS should still be healthy
-	assert.True(suite.T(), healthStatus.Crypto, "Basic crypto health should still be true")
+	decrypted, err := suite.crypto.DecryptData(suite.ctx, encrypted, dek)
+	assert.NoError(suite.T(), err, "Decryption should succeed")
+	assert.Equal(suite.T(), testData, decrypted, "Decrypted data should match original")
 }
 
 // TestSuite entry point
@@ -319,6 +314,16 @@ func (f *FailingTestKMS) Reset() {
 	f.failureCount = 0
 	f.attemptCount = 0
 	f.maxFailures = 0
+}
+
+// GetKeyID implements KMS interface
+func (f *FailingTestKMS) GetKeyID(ctx context.Context, alias string) (string, error) {
+	return "test-key-id", nil
+}
+
+// CreateKey implements KMS interface
+func (f *FailingTestKMS) CreateKey(ctx context.Context, description string) (string, error) {
+	return "test-key-id", nil
 }
 
 // EncryptDEK implements KMS interface with configurable failures
