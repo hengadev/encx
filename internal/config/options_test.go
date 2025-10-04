@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -379,4 +380,293 @@ func TestDefaultConfig(t *testing.T) {
 	assert.Equal(t, uint8(4), config.Argon2Params.Parallelism)
 	assert.Equal(t, uint32(16), config.Argon2Params.SaltLength)
 	assert.Equal(t, uint32(32), config.Argon2Params.KeyLength)
+}
+
+func TestWithPepperSecretPath(t *testing.T) {
+	tests := []struct {
+		name       string
+		secretPath string
+		wantErr    bool
+		errMsg     string
+	}{
+		{
+			name:       "valid secret path",
+			secretPath: "/secrets/pepper",
+			wantErr:    false,
+		},
+		{
+			name:       "empty secret path",
+			secretPath: "",
+			wantErr:    true,
+			errMsg:     "pepper secret path cannot be empty",
+		},
+		{
+			name:       "whitespace only secret path",
+			secretPath: "   ",
+			wantErr:    true,
+			errMsg:     "pepper secret path cannot be empty",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			config := &Config{}
+			option := WithPepperSecretPath(tt.secretPath)
+			err := option(config)
+
+			if tt.wantErr {
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), tt.errMsg)
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, tt.secretPath, config.PepperSecretPath)
+			}
+		})
+	}
+}
+
+func TestWithDBPath(t *testing.T) {
+	// Create a temporary directory for testing
+	tempDir, err := os.MkdirTemp("", "encx_test_dbpath_")
+	assert.NoError(t, err)
+	defer os.RemoveAll(tempDir)
+
+	tests := []struct {
+		name    string
+		path    string
+		wantErr bool
+		errMsg  string
+		setup   func() string
+	}{
+		{
+			name:    "valid writable directory",
+			path:    tempDir,
+			wantErr: false,
+		},
+		{
+			name:    "empty path",
+			path:    "",
+			wantErr: true,
+			errMsg:  "database path cannot be empty",
+		},
+		{
+			name:    "whitespace only path",
+			path:    "   ",
+			wantErr: true,
+			errMsg:  "database path cannot be empty",
+		},
+		{
+			name: "non-existent directory gets created",
+			setup: func() string {
+				return filepath.Join(tempDir, "new_subdir")
+			},
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			path := tt.path
+			if tt.setup != nil {
+				path = tt.setup()
+			}
+
+			config := &Config{}
+			option := WithDBPath(path)
+			err := option(config)
+
+			if tt.wantErr {
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), tt.errMsg)
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, path, config.DBPath)
+			}
+		})
+	}
+}
+
+func TestWithDBFilename(t *testing.T) {
+	tests := []struct {
+		name     string
+		filename string
+		wantErr  bool
+		errMsg   string
+	}{
+		{
+			name:     "valid filename",
+			filename: "test.db",
+			wantErr:  false,
+		},
+		{
+			name:     "empty filename",
+			filename: "",
+			wantErr:  true,
+			errMsg:   "database filename cannot be empty",
+		},
+		{
+			name:     "whitespace only filename",
+			filename: "   ",
+			wantErr:  true,
+			errMsg:   "database filename cannot be empty",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			config := &Config{}
+			option := WithDBFilename(tt.filename)
+			err := option(config)
+
+			if tt.wantErr {
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), tt.errMsg)
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, tt.filename, config.DBFilename)
+			}
+		})
+	}
+}
+
+func TestWithKeyMetadataDBFilename(t *testing.T) {
+	tests := []struct {
+		name     string
+		filename string
+		wantErr  bool
+		errMsg   string
+	}{
+		{
+			name:     "valid filename",
+			filename: "metadata.db",
+			wantErr:  false,
+		},
+		{
+			name:     "empty filename",
+			filename: "",
+			wantErr:  true,
+			errMsg:   "database filename cannot be empty",
+		},
+		{
+			name:     "whitespace only filename",
+			filename: "   ",
+			wantErr:  true,
+			errMsg:   "database filename cannot be empty",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			config := &Config{}
+			option := WithKeyMetadataDBFilename(tt.filename)
+			err := option(config)
+
+			if tt.wantErr {
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), tt.errMsg)
+			} else {
+				assert.NoError(t, err)
+				assert.NotNil(t, config.KeyMetadataDB)
+				assert.Equal(t, tt.filename, config.DBFilename)
+				// Clean up
+				if config.KeyMetadataDB != nil {
+					config.KeyMetadataDB.Close()
+				}
+				// Clean up created directory
+				os.RemoveAll(config.DBPath)
+			}
+		})
+	}
+}
+
+func TestWithMetricsCollector(t *testing.T) {
+	// Create a mock metrics collector
+	mockCollector := &MockMetricsCollector{}
+
+	config := &Config{}
+	option := WithMetricsCollector(mockCollector)
+	err := option(config)
+
+	assert.NoError(t, err)
+	assert.Equal(t, mockCollector, config.MetricsCollector)
+}
+
+func TestWithMetricsCollector_Nil(t *testing.T) {
+	config := &Config{}
+	option := WithMetricsCollector(nil)
+	err := option(config)
+
+	assert.NoError(t, err)
+	assert.Nil(t, config.MetricsCollector)
+}
+
+func TestWithObservabilityHook(t *testing.T) {
+	// Create a mock observability hook
+	mockHook := &MockObservabilityHook{}
+
+	config := &Config{}
+	option := WithObservabilityHook(mockHook)
+	err := option(config)
+
+	assert.NoError(t, err)
+	assert.Equal(t, mockHook, config.ObservabilityHook)
+}
+
+func TestWithObservabilityHook_Nil(t *testing.T) {
+	config := &Config{}
+	option := WithObservabilityHook(nil)
+	err := option(config)
+
+	assert.NoError(t, err)
+	assert.Nil(t, config.ObservabilityHook)
+}
+
+// Mock implementations for monitoring interfaces
+type MockMetricsCollector struct {
+	mock.Mock
+}
+
+func (m *MockMetricsCollector) IncrementCounter(name string, tags map[string]string) {
+	m.Called(name, tags)
+}
+
+func (m *MockMetricsCollector) IncrementCounterBy(name string, value int64, tags map[string]string) {
+	m.Called(name, value, tags)
+}
+
+func (m *MockMetricsCollector) SetGauge(name string, value float64, tags map[string]string) {
+	m.Called(name, value, tags)
+}
+
+func (m *MockMetricsCollector) RecordTiming(name string, duration time.Duration, tags map[string]string) {
+	m.Called(name, duration, tags)
+}
+
+func (m *MockMetricsCollector) RecordValue(name string, value float64, tags map[string]string) {
+	m.Called(name, value, tags)
+}
+
+func (m *MockMetricsCollector) Flush() error {
+	args := m.Called()
+	return args.Error(0)
+}
+
+type MockObservabilityHook struct {
+	mock.Mock
+}
+
+func (m *MockObservabilityHook) OnProcessStart(ctx context.Context, operation string, metadata map[string]any) {
+	m.Called(ctx, operation, metadata)
+}
+
+func (m *MockObservabilityHook) OnProcessComplete(ctx context.Context, operation string, duration time.Duration, err error, metadata map[string]any) {
+	m.Called(ctx, operation, duration, err, metadata)
+}
+
+func (m *MockObservabilityHook) OnError(ctx context.Context, operation string, err error, metadata map[string]any) {
+	m.Called(ctx, operation, err, metadata)
+}
+
+func (m *MockObservabilityHook) OnKeyOperation(ctx context.Context, operation string, keyAlias string, keyVersion int, metadata map[string]any) {
+	m.Called(ctx, operation, keyAlias, keyVersion, metadata)
 }
