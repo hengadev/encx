@@ -316,3 +316,96 @@ func TestHashingOperations_EdgeCases(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotEmpty(t, secureHash, "Should handle large input for secure hash")
 }
+
+func TestHashingOperations_CompareSecureHashAndValue(t *testing.T) {
+	pepper := []byte("test-pepper-16-bytes")
+	argon2Params := &config.Argon2Params{
+		Memory:      64 * 1024,
+		Iterations:  3,
+		Parallelism: 4,
+		SaltLength:  16,
+		KeyLength:   32,
+	}
+
+	ho := NewHashingOperations(pepper, argon2Params)
+	ctx := context.Background()
+
+	testCases := []struct {
+		name      string
+		value     []byte
+		hashValue string
+		wantMatch bool
+		wantErr   bool
+	}{
+		{
+			name:      "matching value",
+			value:     []byte("test-password"),
+			hashValue: "", // Will be filled in during test
+			wantMatch: true,
+			wantErr:   false,
+		},
+		{
+			name:      "non-matching value",
+			value:     []byte("wrong-password"),
+			hashValue: "", // Will be filled with hash of "test-password"
+			wantMatch: false,
+			wantErr:   false,
+		},
+		{
+			name:      "empty value",
+			value:     []byte(""),
+			hashValue: "", // Will be filled in during test
+			wantMatch: true,
+			wantErr:   false,
+		},
+	}
+
+	for _, tt := range testCases {
+		t.Run(tt.name, func(t *testing.T) {
+			// Generate hash for comparison
+			var hashValue string
+			var err error
+
+			if tt.name == "non-matching value" {
+				// Hash a different value
+				hashValue, err = ho.HashSecure(ctx, []byte("test-password"))
+				require.NoError(t, err)
+			} else {
+				// Hash the same value
+				hashValue, err = ho.HashSecure(ctx, tt.value)
+				require.NoError(t, err)
+			}
+
+			// Test comparison
+			match, err := ho.CompareSecureHashAndValue(ctx, tt.value, hashValue)
+
+			if tt.wantErr {
+				assert.Error(t, err)
+				return
+			}
+
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantMatch, match)
+		})
+	}
+}
+
+func TestHashingOperations_CompareEdgeCases(t *testing.T) {
+	pepper := []byte("test-pepper-16-bytes")
+	argon2Params := &config.Argon2Params{
+		Memory:      64 * 1024,
+		Iterations:  3,
+		Parallelism: 4,
+		SaltLength:  16,
+		KeyLength:   32,
+	}
+
+	ho := NewHashingOperations(pepper, argon2Params)
+	ctx := context.Background()
+
+	t.Run("invalid hash format for secure compare", func(t *testing.T) {
+		match, err := ho.CompareSecureHashAndValue(ctx, []byte("test"), "invalid-hash-format")
+		assert.Error(t, err)
+		assert.False(t, match)
+	})
+}
