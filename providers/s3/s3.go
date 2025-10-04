@@ -3,7 +3,6 @@ package s3bucket
 import (
 	"bytes"
 	"context"
-	"crypto/rand"
 	"fmt"
 	"io"
 	"log"
@@ -127,7 +126,7 @@ func uploadImageToS3(w http.ResponseWriter, r *http.Request, cryptoService *encx
 	}
 
 	// 6. (Optional) Encrypt the DEK with the KEK.
-	encryptedDEK, err := cryptoService.EncryptData(dek, cryptoService.kek)
+	encryptedDEK, err := cryptoService.EncryptDEK(ctx, dek)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Failed to encrypt DEK: %v", err), http.StatusInternalServerError)
 		return
@@ -153,7 +152,11 @@ func main() {
 
 	// 3.  Initialize Crypto (you'll need your KMS setup)
 	kmsService := &YourKmsService{} // Replace with your actual KMS implementation
-	cryptoService, err := New(ctx, kmsService, "your-kek-alias", "your-pepper-secret-path")
+	cryptoService, err := encx.NewCrypto(ctx,
+		encx.WithKMSService(kmsService),
+		encx.WithKEKAlias("your-kek-alias"),
+		encx.WithPepper([]byte("your-pepper-exactly-32-bytes-OK!")),
+	)
 	if err != nil {
 		log.Fatalf("failed to create Crypto service: %v", err)
 	}
@@ -173,27 +176,28 @@ func main() {
 	}
 }
 
-// Dummy KMS Service
+// Dummy KMS Service - implements config.KeyManagementService interface
 type YourKmsService struct{}
 
 func (k *YourKmsService) GetKeyID(ctx context.Context, alias string) (string, error) {
 	return "dummy-kms-key-id", nil
 }
-func (k *YourKmsService) CreateKey(ctx context.Context, alias string) (string, error) {
+
+func (k *YourKmsService) CreateKey(ctx context.Context, description string) (string, error) {
 	return "dummy-kms-key-id", nil
 }
-func (k *YourKmsService) GetSecret(ctx context.Context, path string) ([]byte, error) {
-	return []byte("thisisatotallysecurepepper12345678"), nil
+
+func (k *YourKmsService) EncryptDEK(ctx context.Context, keyID string, plaintext []byte) ([]byte, error) {
+	// In a real implementation, this would use AWS KMS or similar to encrypt the DEK
+	// For this example, we'll just return a dummy encrypted value
+	return append([]byte("encrypted:"), plaintext...), nil
 }
 
-// Crypto represents a local crypto service for the s3 provider example
-type Crypto struct{}
-
-func (c *Crypto) GenerateDEK() ([]byte, error) {
-	dek := make([]byte, 32)
-	_, err := io.ReadFull(rand.Reader, dek)
-	if err != nil {
-		return nil, fmt.Errorf("failed to generate DEK: %w", err)
+func (k *YourKmsService) DecryptDEK(ctx context.Context, keyID string, ciphertext []byte) ([]byte, error) {
+	// In a real implementation, this would use AWS KMS or similar to decrypt the DEK
+	// For this example, we'll just strip the "encrypted:" prefix
+	if len(ciphertext) > 10 && string(ciphertext[:10]) == "encrypted:" {
+		return ciphertext[10:], nil
 	}
-	return dek, nil
+	return ciphertext, nil
 }
