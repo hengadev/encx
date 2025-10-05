@@ -368,23 +368,77 @@ crypto.DecryptStruct(ctx, newUser) // Uses key v2
 
 ## KMS Providers
 
+### AWS KMS
+
+```go
+import "github.com/hengadev/encx/providers/awskms"
+
+kmsService, err := awskms.New(ctx, awskms.Config{
+    Region: "us-east-1",
+})
+if err != nil {
+    log.Fatal(err)
+}
+
+crypto, err := encx.NewCrypto(ctx,
+    encx.WithKMSService(kmsService),
+    encx.WithKEKAlias("alias/my-encryption-key"),
+    encx.WithPepper(pepper),
+)
+```
+
+**[→ Full AWS KMS Documentation](./providers/awskms/README.md)**
+
 ### HashiCorp Vault
 
 ```go
-import "github.com/hengadev/encx/providers/vault"
+import "github.com/hengadev/encx/providers/hashicorpvault"
 
-kms, err := vault.NewKMSService(client)
-crypto, err := encx.New(ctx, encx.WithKMSService(kms))
+vaultClient, err := vault.NewClient(&vault.Config{
+    Address: "https://vault.example.com",
+})
+if err != nil {
+    log.Fatal(err)
+}
+
+kmsService, err := hashicorpvault.NewKMSService(vaultClient)
+if err != nil {
+    log.Fatal(err)
+}
+
+crypto, err := encx.NewCrypto(ctx,
+    encx.WithKMSService(kmsService),
+    encx.WithKEKAlias("transit/keys/my-key"),
+    encx.WithPepper(pepper),
+)
 ```
 
-### S3 (for testing/development)
+**[→ Full HashiCorp Vault Documentation](./providers/hashicorpvault/README.md)**
+
+## Examples
+
+### S3 Streaming Upload with Encryption
+
+Example showing how to encrypt files on-the-fly and stream them directly to AWS S3:
 
 ```go
-import "github.com/hengadev/encx/providers/s3"
+import (
+    "github.com/hengadev/encx"
+    "github.com/hengadev/encx/providers/awskms"
+    "github.com/aws/aws-sdk-go-v2/service/s3"
+)
 
-kms, err := s3.NewKMSService(bucket, region)
-crypto, err := encx.New(ctx, encx.WithKMSService(kms))
+// Encrypt file and stream to S3
+err := crypto.EncryptStream(ctx, fileReader, s3Writer, dek)
 ```
+
+**[→ Full S3 Streaming Example](./examples/s3-streaming-upload/README.md)**
+
+Features:
+- Zero-copy streaming encryption
+- Minimal memory usage (4KB buffer)
+- Production-ready with error handling
+- Includes HTTP upload server example
 
 ## Best Practices
 
@@ -501,9 +555,9 @@ When using the `encx` package, add the following to your `.gitignore`:
 
 ## 🚧 TODOs
 
-- [ ] implement example for different key management services: 
+- [ ] implement example for different key management services:
     - [x] HashiCorp Vault
-    - [ ] AWS KMS
+    - [x] AWS KMS
     - [ ] Azure Key Vault
     - [ ] Google Cloud KMS
     - [ ] Thales CipherTrust (formerly Vormetric)
