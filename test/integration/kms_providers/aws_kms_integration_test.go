@@ -7,17 +7,20 @@ import (
 	"context"
 	"os"
 	"testing"
+	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 
 	"github.com/hengadev/encx"
+	"github.com/hengadev/encx/providers/awskms"
 )
 
 // AWSKMSIntegrationTestSuite contains integration tests for AWS KMS provider
-// Note: This test suite is prepared for when AWS KMS provider is implemented
 type AWSKMSIntegrationTestSuite struct {
 	suite.Suite
-	// awsKMS  *awskms.Service  // Will be uncommented when AWS provider is implemented
+	awsKMS encx.KeyManagementService
 	crypto *encx.Crypto
 	ctx    context.Context
 	keyID  string
@@ -32,44 +35,46 @@ func (suite *AWSKMSIntegrationTestSuite) SetupSuite() {
 		suite.T().Skip("Skipping AWS KMS integration tests: AWS credentials not configured")
 	}
 
-	// TODO: Implement when AWS KMS provider is available
-	suite.T().Skip("AWS KMS provider not yet implemented")
+	// Create AWS KMS service
+	region := os.Getenv("AWS_REGION")
+	if region == "" {
+		region = "us-east-1"
+	}
 
-	/*
-	// Create AWS KMS service (when implemented)
-	awsKMS, err := awskms.New()
+	kmsService, err := awskms.New(suite.ctx, awskms.Config{
+		Region: region,
+	})
 	require.NoError(suite.T(), err, "Failed to create AWS KMS service")
-	suite.awsKMS = awsKMS
+	suite.awsKMS = kmsService
 
-	// Create a test key or use existing key
-	keyArn := os.Getenv("AWS_KMS_KEY_ARN")
-	if keyArn == "" {
+	// Use existing key or create a test key
+	keyAlias := os.Getenv("AWS_KMS_KEY_ALIAS")
+	if keyAlias == "" {
 		// Create a new test key
-		keyID, err := awsKMS.CreateKey(suite.ctx, "encx-integration-test")
+		keyID, err := suite.awsKMS.CreateKey(suite.ctx, "encx-integration-test")
 		require.NoError(suite.T(), err, "Failed to create test key")
 		suite.keyID = keyID
+		suite.T().Logf("Created test KMS key: %s", keyID)
 	} else {
-		suite.keyID = keyArn
+		// Use existing key alias
+		keyID, err := suite.awsKMS.GetKeyID(suite.ctx, keyAlias)
+		require.NoError(suite.T(), err, "Failed to get KMS key ID for alias: %s", keyAlias)
+		suite.keyID = keyID
+		suite.T().Logf("Using existing KMS key: %s (alias: %s)", keyID, keyAlias)
 	}
 
 	// Create crypto instance with AWS KMS
-	options := &config.CryptoOptions{
-		KMSService:    awsKMS,
-		KEKAlias:      suite.keyID,
-		Argon2Params:  config.DefaultArgon2Params(),
-		PepperSecrets: []string{"arn:aws:secretsmanager:region:account:secret:encx/pepper"},
-	}
-
-	suite.crypto, err = encx.New(suite.ctx, options)
+	pepper := []byte("test-pepper-exactly-32-bytes-OK!")
+	suite.crypto, err = encx.NewCrypto(suite.ctx,
+		encx.WithKMSService(suite.awsKMS),
+		encx.WithKEKAlias(suite.keyID),
+		encx.WithPepper(pepper),
+	)
 	require.NoError(suite.T(), err, "Failed to create crypto instance")
-	*/
 }
 
 // TestAWSKMSBasicOperations tests basic AWS KMS operations
 func (suite *AWSKMSIntegrationTestSuite) TestAWSKMSBasicOperations() {
-	suite.T().Skip("AWS KMS provider not yet implemented")
-
-	/*
 	// Test DEK encryption/decryption
 	testDEK := make([]byte, 32)
 	for i := range testDEK {
@@ -85,14 +90,10 @@ func (suite *AWSKMSIntegrationTestSuite) TestAWSKMSBasicOperations() {
 	decryptedDEK, err := suite.awsKMS.DecryptDEK(suite.ctx, suite.keyID, encryptedDEK)
 	assert.NoError(suite.T(), err)
 	assert.Equal(suite.T(), testDEK, decryptedDEK)
-	*/
 }
 
 // TestAWSKMSEncryptionRoundtrip tests full encryption/decryption roundtrip
 func (suite *AWSKMSIntegrationTestSuite) TestAWSKMSEncryptionRoundtrip() {
-	suite.T().Skip("AWS KMS provider not yet implemented")
-
-	/*
 	testDEK := make([]byte, 32)
 	for i := range testDEK {
 		testDEK[i] = byte(i % 256)
@@ -107,19 +108,15 @@ func (suite *AWSKMSIntegrationTestSuite) TestAWSKMSEncryptionRoundtrip() {
 		assert.NoError(suite.T(), err)
 		assert.Equal(suite.T(), testDEK, decrypted)
 	}
-	*/
 }
 
 // TestAWSKMSWithCryptoOperations tests crypto operations using AWS KMS
 func (suite *AWSKMSIntegrationTestSuite) TestAWSKMSWithCryptoOperations() {
-	suite.T().Skip("AWS KMS provider not yet implemented")
-
-	/*
 	// Test data encryption with AWS KMS
 	testData := []byte("sensitive user data for AWS KMS integration test")
 
 	// Generate DEK
-	dek, err := suite.crypto.GenerateDEK(suite.ctx)
+	dek, err := suite.crypto.GenerateDEK()
 	assert.NoError(suite.T(), err)
 
 	// Encrypt data
@@ -130,14 +127,10 @@ func (suite *AWSKMSIntegrationTestSuite) TestAWSKMSWithCryptoOperations() {
 	decrypted, err := suite.crypto.DecryptData(suite.ctx, encrypted, dek)
 	assert.NoError(suite.T(), err)
 	assert.Equal(suite.T(), testData, decrypted)
-	*/
 }
 
 // TestAWSKMSConcurrentOperations tests concurrent access
 func (suite *AWSKMSIntegrationTestSuite) TestAWSKMSConcurrentOperations() {
-	suite.T().Skip("AWS KMS provider not yet implemented")
-
-	/*
 	const numGoroutines = 10
 	const operationsPerGoroutine = 3
 
@@ -181,7 +174,6 @@ func (suite *AWSKMSIntegrationTestSuite) TestAWSKMSConcurrentOperations() {
 			suite.T().Fatal("Timeout waiting for concurrent operations")
 		}
 	}
-	*/
 }
 
 // TestSuite entry point
@@ -198,6 +190,15 @@ func TestAWSEnvironmentSetup(t *testing.T) {
 		t.Skip("Skipping AWS environment test: AWS_ACCESS_KEY_ID not set")
 	}
 
-	t.Log("AWS environment variables detected, but AWS KMS provider not yet implemented")
-	// TODO: Test AWS KMS service creation when provider is implemented
+	ctx := context.Background()
+	region := os.Getenv("AWS_REGION")
+
+	// Test AWS KMS service creation
+	kmsService, err := awskms.New(ctx, awskms.Config{
+		Region: region,
+	})
+	require.NoError(t, err, "Failed to create AWS KMS service")
+	assert.NotNil(t, kmsService)
+
+	t.Logf("Successfully created AWS KMS service for region: %s", region)
 }
