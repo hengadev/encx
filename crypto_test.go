@@ -1,11 +1,13 @@
 package encx_test
 
 import (
+	"bytes"
 	"context"
 	"testing"
 
 	"github.com/hengadev/encx"
 	"github.com/hengadev/encx/internal/serialization"
+	"github.com/hengadev/encx/internal/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -475,4 +477,115 @@ func TestConcurrentOperations(t *testing.T) {
 	for err := range errChan {
 		t.Errorf("Concurrent operation failed: %v", err)
 	}
+}
+
+// TestEncryptStream tests stream encryption
+func TestEncryptStream(t *testing.T) {
+	ctx := context.Background()
+	crypto, err := encx.NewTestCrypto(nil)
+	require.NoError(t, err)
+
+	dek, err := crypto.GenerateDEK()
+	require.NoError(t, err)
+
+	// Test data
+	plaintext := []byte("test stream data for encryption")
+	reader := bytes.NewReader(plaintext)
+	var writer bytes.Buffer
+
+	err = crypto.EncryptStream(ctx, reader, &writer, dek)
+	assert.NoError(t, err)
+	assert.NotEmpty(t, writer.Bytes())
+}
+
+// TestDecryptStream tests stream decryption
+func TestDecryptStream(t *testing.T) {
+	ctx := context.Background()
+	crypto, err := encx.NewTestCrypto(nil)
+	require.NoError(t, err)
+
+	dek, err := crypto.GenerateDEK()
+	require.NoError(t, err)
+
+	// Encrypt first
+	plaintext := []byte("test stream data for decryption")
+	encryptReader := bytes.NewReader(plaintext)
+	var encryptWriter bytes.Buffer
+	err = crypto.EncryptStream(ctx, encryptReader, &encryptWriter, dek)
+	require.NoError(t, err)
+
+	// Decrypt
+	decryptReader := bytes.NewReader(encryptWriter.Bytes())
+	var decryptWriter bytes.Buffer
+	err = crypto.DecryptStream(ctx, decryptReader, &decryptWriter, dek)
+	assert.NoError(t, err)
+	assert.Equal(t, plaintext, decryptWriter.Bytes())
+}
+
+// TestGetPepper tests GetPepper method
+func TestGetPepper(t *testing.T) {
+	ctx := context.Background()
+	pepper := []byte("test-pepper-exactly-32-bytes-OK!")
+	crypto, err := encx.NewCrypto(ctx,
+		encx.WithKMSService(encx.NewSimpleTestKMS()),
+		encx.WithKEKAlias("test-key"),
+		encx.WithPepper(pepper),
+	)
+	require.NoError(t, err)
+
+	retrievedPepper := crypto.GetPepper()
+	assert.Equal(t, pepper, retrievedPepper)
+}
+
+// TestGetArgon2Params tests GetArgon2Params method
+func TestGetArgon2Params(t *testing.T) {
+	ctx := context.Background()
+	params, err := encx.NewArgon2Params(64*1024, 2, 4, 16, 32)
+	require.NoError(t, err)
+	crypto, err := encx.NewCrypto(ctx,
+		encx.WithKMSService(encx.NewSimpleTestKMS()),
+		encx.WithKEKAlias("test-key"),
+		encx.WithPepper([]byte("test-pepper-exactly-32-bytes-OK!")),
+		encx.WithArgon2Params(params),
+	)
+	require.NoError(t, err)
+
+	retrievedParams := crypto.GetArgon2Params()
+	assert.NotNil(t, retrievedParams)
+}
+
+// TestGetAlias tests GetAlias method
+func TestGetAlias(t *testing.T) {
+	ctx := context.Background()
+	alias := "test-kek-alias"
+	crypto, err := encx.NewCrypto(ctx,
+		encx.WithKMSService(encx.NewSimpleTestKMS()),
+		encx.WithKEKAlias(alias),
+		encx.WithPepper([]byte("test-pepper-exactly-32-bytes-OK!")),
+	)
+	require.NoError(t, err)
+
+	retrievedAlias := crypto.GetAlias()
+	assert.Equal(t, alias, retrievedAlias)
+}
+
+// TestNewArgon2Params tests Argon2Params constructor
+func TestNewArgon2Params(t *testing.T) {
+	params, err := encx.NewArgon2Params(128*1024, 3, 8, 16, 32)
+	assert.NoError(t, err)
+	assert.NotNil(t, params)
+}
+
+// TestUninitializedPepperError tests pepper error handling
+func TestUninitializedPepperError(t *testing.T) {
+	err := encx.NewUninitalizedPepperError()
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "pepper")
+}
+
+// TestMissingFieldError tests missing field error
+func TestMissingFieldError(t *testing.T) {
+	err := encx.NewMissingFieldError("test-field", types.Encrypt)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "test-field")
 }
