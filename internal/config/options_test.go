@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -101,14 +102,20 @@ func TestWithKEKAlias(t *testing.T) {
 		},
 		{
 			name:    "alias too long",
-			alias:   string(make([]byte, 257)), // 257 characters
+			alias:   strings.Repeat("a", 257), // 257 characters
 			wantErr: true,
 			errMsg:  "KEK alias too long",
 		},
 		{
 			name:    "alias at max length",
-			alias:   string(make([]byte, 256)), // 256 characters
+			alias:   strings.Repeat("a", 256), // 256 characters
 			wantErr: false,
+		},
+		{
+			name:    "alias with invalid character",
+			alias:   "test@alias",
+			wantErr: true,
+			errMsg:  "invalid character",
 		},
 	}
 
@@ -130,6 +137,9 @@ func TestWithKEKAlias(t *testing.T) {
 }
 
 func TestWithPepper(t *testing.T) {
+	// Helper to create a valid 32-byte pepper with non-zero values
+	validPepper := []byte("test-pepper-exactly-32-bytes-OK!")
+
 	tests := []struct {
 		name    string
 		pepper  []byte
@@ -138,7 +148,7 @@ func TestWithPepper(t *testing.T) {
 	}{
 		{
 			name:    "valid pepper",
-			pepper:  []byte("valid-pepper-16-bytes"),
+			pepper:  validPepper,
 			wantErr: false,
 		},
 		{
@@ -157,23 +167,19 @@ func TestWithPepper(t *testing.T) {
 			name:    "pepper too short",
 			pepper:  []byte("short"),
 			wantErr: true,
-			errMsg:  "pepper too short",
+			errMsg:  "must be exactly 32 bytes",
 		},
 		{
 			name:    "pepper too long",
-			pepper:  make([]byte, 257), // 257 bytes
+			pepper:  make([]byte, 64),
 			wantErr: true,
-			errMsg:  "pepper too long",
+			errMsg:  "must be exactly 32 bytes",
 		},
 		{
-			name:    "pepper at min length",
-			pepper:  make([]byte, 16), // 16 bytes
-			wantErr: false,
-		},
-		{
-			name:    "pepper at max length",
-			pepper:  make([]byte, 256), // 256 bytes
-			wantErr: false,
+			name:    "pepper all zeros",
+			pepper:  make([]byte, 32), // All zeros
+			wantErr: true,
+			errMsg:  "uninitialized",
 		},
 	}
 
@@ -340,7 +346,7 @@ func TestWithArgon2Params(t *testing.T) {
 
 func TestApplyOptions(t *testing.T) {
 	mockKMS := &MockKeyManagementService{}
-	pepper := []byte("test-pepper-16-bytes")
+	pepper := []byte("test-pepper-exactly-32-bytes-OK!")
 
 	config := &Config{}
 	options := []Option{

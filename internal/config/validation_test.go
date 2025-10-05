@@ -148,6 +148,8 @@ func TestValidator_ValidateConfig(t *testing.T) {
 		KeyLength:   32,
 	}
 
+	validPepper := []byte("test-pepper-exactly-32-bytes-OK!")
+
 	tests := []struct {
 		name    string
 		config  *Config
@@ -159,7 +161,7 @@ func TestValidator_ValidateConfig(t *testing.T) {
 			config: &Config{
 				KMSService:   mockKMS,
 				KEKAlias:     "test-key",
-				Pepper:       []byte("valid-pepper-16-bytes"),
+				Pepper:       validPepper,
 				Argon2Params: validParams,
 				DBPath:       tempDir,
 				DBFilename:   "test.db",
@@ -177,7 +179,7 @@ func TestValidator_ValidateConfig(t *testing.T) {
 			config: &Config{
 				KMSService:   nil,
 				KEKAlias:     "test-key",
-				Pepper:       []byte("valid-pepper-16-bytes"),
+				Pepper:       validPepper,
 				Argon2Params: validParams,
 				DBPath:       tempDir,
 				DBFilename:   "test.db",
@@ -190,7 +192,7 @@ func TestValidator_ValidateConfig(t *testing.T) {
 			config: &Config{
 				KMSService:   mockKMS,
 				KEKAlias:     "",
-				Pepper:       []byte("valid-pepper-16-bytes"),
+				Pepper:       validPepper,
 				Argon2Params: validParams,
 				DBPath:       tempDir,
 				DBFilename:   "test.db",
@@ -340,7 +342,7 @@ func TestValidator_validateKMSService(t *testing.T) {
 	t.Run("nil KMS service", func(t *testing.T) {
 		err := validator.validateKMSService(nil)
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "KMS service cannot be nil")
+		assert.Contains(t, err.Error(), "KMS service is required")
 	})
 }
 
@@ -362,13 +364,13 @@ func TestValidator_validateKEKAlias(t *testing.T) {
 			name:    "empty alias",
 			alias:   "",
 			wantErr: true,
-			errMsg:  "KEK alias cannot be empty",
+			errMsg:  "KEK alias is required",
 		},
 		{
 			name:    "whitespace only alias",
 			alias:   "   ",
 			wantErr: true,
-			errMsg:  "KEK alias cannot be empty",
+			errMsg:  "KEK alias is required",
 		},
 		{
 			name:    "alias too long",
