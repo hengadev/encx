@@ -14,3 +14,8 @@ cmd/
 bin/
 learning_exercises/
 test_invalid.go
+
+# Binaries
+combined_tags_demo
+encx-gen
+*.encx-gen-cache.json
