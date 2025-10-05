@@ -1,3 +1,6 @@
+//go:build integration
+// +build integration
+
 package full_workflow_test
 
 import (

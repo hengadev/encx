@@ -1,3 +1,6 @@
+//go:build integration
+// +build integration
+
 package kms_providers_test
 
 import (

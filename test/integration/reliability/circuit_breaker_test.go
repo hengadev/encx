@@ -1,3 +1,6 @@
+//go:build integration
+// +build integration
+
 package reliability_test
 
 import (
@@ -34,7 +37,7 @@ func (suite *ReliabilityIntegrationTestSuite) SetupSuite() {
 	// Create circuit breaker for KMS operations
 	cbConfig := reliability.CircuitBreakerConfig{
 		MaxConcurrentRequests: 3,
-		Timeout:              10 * time.Second,
+		Timeout:              500 * time.Millisecond, // Reduced for fast tests
 		FailureThreshold:     2,
 		SuccessThreshold:     2,
 	}
@@ -97,8 +100,8 @@ func (suite *ReliabilityIntegrationTestSuite) TestCircuitBreakerRecovery() {
 	time.Sleep(100 * time.Millisecond)
 	assert.Equal(suite.T(), reliability.StateOpen, suite.circuitBreaker.State())
 
-	// Wait for timeout to transition to half-open
-	time.Sleep(11 * time.Second)
+	// Wait for timeout to transition to half-open (timeout is 500ms)
+	time.Sleep(600 * time.Millisecond)
 	assert.Equal(suite.T(), reliability.StateHalfOpen, suite.circuitBreaker.State())
 
 	// Fix the KMS
