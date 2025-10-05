@@ -41,9 +41,9 @@ type SerializerConfig struct {
 
 // LoadConfig loads configuration from a YAML file
 func LoadConfig(path string) (*Config, error) {
-	// If file doesn't exist, return default config
+	// Check if file exists
 	if _, err := os.Stat(path); os.IsNotExist(err) {
-		return DefaultConfig(), nil
+		return nil, fmt.Errorf("config file not found: %s", path)
 	}
 
 	data, err := os.ReadFile(path)
@@ -51,7 +51,12 @@ func LoadConfig(path string) (*Config, error) {
 		return nil, fmt.Errorf("failed to read config file: %w", err)
 	}
 
-	config := DefaultConfig()
+	// Start with empty config, not defaults
+	config := &Config{
+		Packages:    make(map[string]PackageConfig),
+		Serializers: make(map[string]SerializerConfig),
+	}
+
 	if err := yaml.Unmarshal(data, config); err != nil {
 		return nil, fmt.Errorf("failed to parse config file: %w", err)
 	}
@@ -79,8 +84,8 @@ func DefaultConfig() *Config {
 		Version: "1",
 		Generation: GenerationConfig{
 			OutputSuffix:      "_encx",
-			FunctionPrefix:    "",
-			PackageName:       "auto",
+			FunctionPrefix:    "Process",
+			PackageName:       "encx",
 			DefaultSerializer: "json",
 		},
 		Packages: make(map[string]PackageConfig),
@@ -103,29 +108,100 @@ func DefaultConfig() *Config {
 
 // Validate checks if the configuration is valid
 func (c *Config) Validate() error {
+	// Version is optional - default to "1" if not set
 	if c.Version == "" {
-		return fmt.Errorf("version is required")
+		c.Version = "1"
+	}
+
+	// Validate generation config
+	if c.Generation.OutputSuffix == "" {
+		return fmt.Errorf("output_suffix cannot be empty")
+	}
+
+	if c.Generation.FunctionPrefix == "" {
+		return fmt.Errorf("function_prefix cannot be empty")
+	}
+
+	if c.Generation.PackageName == "" {
+		return fmt.Errorf("package_name cannot be empty")
 	}
 
 	if c.Generation.DefaultSerializer == "" {
 		return fmt.Errorf("default serializer is required")
 	}
 
-	// Check if default serializer exists
-	if _, exists := c.Serializers[c.Generation.DefaultSerializer]; !exists {
-		return fmt.Errorf("default serializer '%s' not found in serializers config", c.Generation.DefaultSerializer)
+	// Validate identifiers
+	if !isValidGoIdentifier(c.Generation.FunctionPrefix) {
+		return fmt.Errorf("function_prefix must be a valid Go identifier")
+	}
+
+	if c.Generation.PackageName != "auto" && !isValidGoIdentifier(c.Generation.PackageName) {
+		return fmt.Errorf("package_name must be a valid Go identifier")
+	}
+
+	// Validate output suffix format
+	if !isValidOutputSuffix(c.Generation.OutputSuffix) {
+		return fmt.Errorf("output_suffix must start with underscore or letter")
+	}
+
+	// Check if default serializer exists or is a known type
+	validSerializers := map[string]bool{"json": true, "protobuf": true}
+	if !validSerializers[c.Generation.DefaultSerializer] {
+		return fmt.Errorf("default_serializer must be one of: json, protobuf")
 	}
 
 	// Validate each package config
-	for pkg, config := range c.Packages {
-		if config.Serializer != "" {
-			if _, exists := c.Serializers[config.Serializer]; !exists {
-				return fmt.Errorf("serializer '%s' for package '%s' not found in serializers config", config.Serializer, pkg)
+	for pkg, pkgConfig := range c.Packages {
+		if pkgConfig.Serializer != "" {
+			// Check against known serializers or configured serializers
+			if len(c.Serializers) > 0 {
+				// If serializers are configured, check against those
+				if _, exists := c.Serializers[pkgConfig.Serializer]; !exists {
+					return fmt.Errorf("serializer '%s' for package '%s' not found in serializers config", pkgConfig.Serializer, pkg)
+				}
+			} else {
+				// If no serializers configured, check against known valid ones
+				if !validSerializers[pkgConfig.Serializer] {
+					return fmt.Errorf("invalid serializer for package %s", pkg)
+				}
 			}
 		}
 	}
 
 	return nil
+}
+
+// isValidGoIdentifier checks if a string is a valid Go identifier
+func isValidGoIdentifier(s string) bool {
+	if s == "" {
+		return false
+	}
+
+	// Must start with letter or underscore
+	first := rune(s[0])
+	if !((first >= 'a' && first <= 'z') || (first >= 'A' && first <= 'Z') || first == '_') {
+		return false
+	}
+
+	// Rest can be letters, digits, or underscores
+	for _, r := range s[1:] {
+		if !((r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '_') {
+			return false
+		}
+	}
+
+	return true
+}
+
+// isValidOutputSuffix checks if output suffix is valid
+func isValidOutputSuffix(s string) bool {
+	if s == "" {
+		return false
+	}
+
+	// Must start with underscore or letter
+	first := rune(s[0])
+	return (first >= 'a' && first <= 'z') || (first >= 'A' && first <= 'Z') || first == '_'
 }
 
 // ToCodegenConfig converts the YAML config to the codegen GenerationConfig
