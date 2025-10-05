@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/hengadev/errsx"
 	"github.com/hengadev/encx/internal/monitoring"
 )
 
@@ -51,38 +52,34 @@ func (a *Argon2Params) GetKeyLength() uint32   { return a.KeyLength }
 
 // Validate checks if the Argon2 parameters are within acceptable ranges
 func (a *Argon2Params) Validate() error {
-	var errors []string
+	errs := errsx.Map{}
 
 	// Memory should be at least 8KB (8192 KiB)
 	if a.Memory < 8192 {
-		errors = append(errors, "memory")
+		errs.Set("memory", fmt.Errorf("memory must be at least 8192 KiB, got %d", a.Memory))
 	}
 
 	// Iterations should be at least 2
 	if a.Iterations < 2 {
-		errors = append(errors, "iterations")
+		errs.Set("iterations", fmt.Errorf("iterations must be at least 2, got %d", a.Iterations))
 	}
 
 	// Parallelism should be at least 1
 	if a.Parallelism < 1 {
-		errors = append(errors, "parallelism")
+		errs.Set("parallelism", fmt.Errorf("parallelism must be at least 1, got %d", a.Parallelism))
 	}
 
 	// Salt length should be at least 16 bytes
 	if a.SaltLength < 16 {
-		errors = append(errors, "saltLength")
+		errs.Set("saltLength", fmt.Errorf("salt length must be at least 16 bytes, got %d", a.SaltLength))
 	}
 
 	// Key length should be at least 32 bytes
 	if a.KeyLength < 32 {
-		errors = append(errors, "keyLength")
+		errs.Set("keyLength", fmt.Errorf("key length must be at least 32 bytes, got %d", a.KeyLength))
 	}
 
-	if len(errors) > 0 {
-		return fmt.Errorf("argon2 validation failed for fields: %v", errors)
-	}
-
-	return nil
+	return errs.AsError()
 }
 
 // Type aliases for interfaces from monitoring package
@@ -138,7 +135,7 @@ func (v *Validator) ValidateConfig(config *Config) error {
 // validateKMSService validates the KMS service
 func (v *Validator) validateKMSService(kms KeyManagementService) error {
 	if kms == nil {
-		return fmt.Errorf("KMS service cannot be nil")
+		return fmt.Errorf("KMS service is required")
 	}
 	return nil
 }
@@ -146,7 +143,7 @@ func (v *Validator) validateKMSService(kms KeyManagementService) error {
 // validateKEKAlias validates the KEK alias
 func (v *Validator) validateKEKAlias(alias string) error {
 	if strings.TrimSpace(alias) == "" {
-		return fmt.Errorf("KEK alias cannot be empty or whitespace only")
+		return fmt.Errorf("KEK alias is required")
 	}
 	if len(alias) > 256 {
 		return fmt.Errorf("KEK alias too long: maximum 256 characters, got %d", len(alias))
@@ -224,16 +221,30 @@ func (v *Validator) validateSerializer() error {
 
 // validatePepperConfig validates pepper configuration
 func (v *Validator) validatePepperConfig(pepper []byte, pepperSecretPath string) error {
+	// Check for conflict: both pepper and pepperSecretPath provided
+	if len(pepper) > 0 && strings.TrimSpace(pepperSecretPath) != "" {
+		return fmt.Errorf("pepper cannot be provided both directly and via secret path")
+	}
+
 	if len(pepper) == 0 && strings.TrimSpace(pepperSecretPath) == "" {
-		return fmt.Errorf("either pepper bytes or pepper secret path must be provided")
+		return fmt.Errorf("pepper must be provided")
 	}
 
 	if len(pepper) > 0 {
-		if len(pepper) < 16 {
-			return fmt.Errorf("pepper too short: minimum 16 bytes, got %d", len(pepper))
+		if len(pepper) != 32 {
+			return fmt.Errorf("pepper must be exactly 32 bytes, got %d", len(pepper))
 		}
-		if len(pepper) > 256 {
-			return fmt.Errorf("pepper too long: maximum 256 bytes, got %d", len(pepper))
+
+		// Check if pepper is all zeros (uninitialized)
+		allZeros := true
+		for _, b := range pepper {
+			if b != 0 {
+				allZeros = false
+				break
+			}
+		}
+		if allZeros {
+			return fmt.Errorf("pepper is uninitialized (all zeros)")
 		}
 	}
 

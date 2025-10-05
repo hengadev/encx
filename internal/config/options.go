@@ -31,7 +31,16 @@ func WithKEKAlias(alias string) Option {
 		if len(alias) > 256 {
 			return fmt.Errorf("KEK alias too long: maximum 256 characters, got %d", len(alias))
 		}
-		c.KEKAlias = alias
+
+		// Validate characters: alphanumeric, hyphens, underscores, and forward slashes
+		for _, ch := range alias {
+			if !((ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') ||
+				 (ch >= '0' && ch <= '9') || ch == '-' || ch == '_' || ch == '/') {
+				return fmt.Errorf("KEK alias contains invalid character '%c': only alphanumeric, hyphens, underscores, and forward slashes allowed", ch)
+			}
+		}
+
+		c.KEKAlias = strings.TrimSpace(alias)
 		return nil
 	}
 }
@@ -42,12 +51,22 @@ func WithPepper(pepper []byte) Option {
 		if len(pepper) == 0 {
 			return fmt.Errorf("pepper cannot be empty")
 		}
-		if len(pepper) < 16 {
-			return fmt.Errorf("pepper too short: minimum 16 bytes, got %d", len(pepper))
+		if len(pepper) != 32 {
+			return fmt.Errorf("pepper must be exactly 32 bytes, got %d", len(pepper))
 		}
-		if len(pepper) > 256 {
-			return fmt.Errorf("pepper too long: maximum 256 bytes, got %d", len(pepper))
+
+		// Check if pepper is all zeros (uninitialized)
+		allZeros := true
+		for _, b := range pepper {
+			if b != 0 {
+				allZeros = false
+				break
+			}
 		}
+		if allZeros {
+			return fmt.Errorf("pepper is uninitialized (all zeros)")
+		}
+
 		c.Pepper = pepper
 		return nil
 	}
@@ -67,6 +86,9 @@ func WithPepperSecretPath(secretPath string) Option {
 // WithArgon2Params sets the Argon2 hashing parameters
 func WithArgon2Params(params *Argon2Params) Option {
 	return func(c *Config) error {
+		if params == nil {
+			return fmt.Errorf("Argon2 parameters cannot be nil")
+		}
 		validator := NewValidator()
 		if err := validator.validateArgon2Params(params); err != nil {
 			return fmt.Errorf("invalid Argon2 parameters: %w", err)
@@ -80,9 +102,20 @@ func WithArgon2Params(params *Argon2Params) Option {
 // WithKeyMetadataDB sets the database connection directly
 func WithKeyMetadataDB(db *sql.DB) Option {
 	return func(c *Config) error {
+		// Check if database was already configured via path
+		if c.KeyMetadataDB != nil {
+			return fmt.Errorf("database cannot be configured both via connection and path")
+		}
+
 		if db == nil {
 			return fmt.Errorf("database connection cannot be nil")
 		}
+
+		// Test the database connection
+		if err := db.Ping(); err != nil {
+			return fmt.Errorf("database connection test failed: %w", err)
+		}
+
 		c.KeyMetadataDB = db
 		return nil
 	}
@@ -119,6 +152,11 @@ func WithDBFilename(filename string) Option {
 // WithKeyMetadataDBPath sets the full path to the key metadata database
 func WithKeyMetadataDBPath(path string) Option {
 	return func(c *Config) error {
+		// Check if database was already configured via WithKeyMetadataDB
+		if c.KeyMetadataDB != nil {
+			return fmt.Errorf("database cannot be configured both via connection and path")
+		}
+
 		if strings.TrimSpace(path) == "" {
 			return fmt.Errorf("database path cannot be empty")
 		}
@@ -129,6 +167,7 @@ func WithKeyMetadataDBPath(path string) Option {
 		}
 
 		c.KeyMetadataDB = db
+		c.DBPath = path
 		return nil
 	}
 }
@@ -138,6 +177,16 @@ func WithKeyMetadataDBFilename(filename string) Option {
 	return func(c *Config) error {
 		if strings.TrimSpace(filename) == "" {
 			return fmt.Errorf("database filename cannot be empty")
+		}
+
+		// Validate that filename doesn't contain path separators
+		if strings.ContainsAny(filename, "/\\") {
+			return fmt.Errorf("database filename cannot contain path separators")
+		}
+
+		// Validate filename length
+		if len(filename) > 255 {
+			return fmt.Errorf("database filename too long: maximum 255 characters, got %d", len(filename))
 		}
 
 		cwd, err := os.Getwd()
