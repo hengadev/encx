@@ -4,7 +4,6 @@
 !CLAUDE.md
 
 notes/
-cmd/
 .env
 .encx/
 
@@ -16,6 +15,6 @@ learning_exercises/
 test_invalid.go
 
 # Binaries
-combined_tags_demo
-encx-gen
+/combined_tags_demo
+/encx-gen
 *.encx-gen-cache.json

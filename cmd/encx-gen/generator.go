@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -140,14 +141,27 @@ func (g *Generator) Generate(packages []string, dryRun bool) error {
 			}
 
 			// Determine output file path
-			outputFileName := structInfo.SourceFile
-			if ext := ".go"; !strings.HasSuffix(outputFileName, ext) {
-				outputFileName += ext
+			// Extract just the base filename from the source file
+			baseFileName := filepath.Base(structInfo.SourceFile)
+			baseFileName = strings.TrimSuffix(baseFileName, ".go")
+
+			// Construct the output filename with suffix
+			outputBaseName := baseFileName + g.config.Generation.OutputSuffix + ".go"
+
+			// Determine the output directory
+			outputDir := packagePath
+			if g.outputDir != "" {
+				outputDir = g.outputDir
 			}
-			outputFileName = strings.TrimSuffix(outputFileName, ".go") + g.config.Generation.OutputSuffix + ".go"
+
+			// Build the full output file path
+			outputFileName := filepath.Join(outputDir, outputBaseName)
+
+			// Build the full source file path
+			sourceFilePath := filepath.Join(packagePath, structInfo.SourceFile)
 
 			// Check if regeneration is needed (incremental generation)
-			needsRegen, err := g.needsRegeneration(structInfo, outputFileName)
+			needsRegen, err := g.needsRegeneration(sourceFilePath, outputFileName)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "Warning: failed to check regeneration need for %s: %v\n", outputFileName, err)
 				needsRegen = true // Default to regeneration on error
@@ -176,7 +190,7 @@ func (g *Generator) Generate(packages []string, dryRun bool) error {
 				}
 
 				// Update cache
-				if err := g.updateCache(structInfo, outputFileName); err != nil {
+				if err := g.updateCache(sourceFilePath, outputFileName); err != nil {
 					fmt.Fprintf(os.Stderr, "Warning: failed to update cache for %s: %v\n", outputFileName, err)
 				}
 
@@ -200,7 +214,7 @@ func (g *Generator) Generate(packages []string, dryRun bool) error {
 
 // loadCache loads the generation cache from disk
 func (g *Generator) loadCache() error {
-	cacheFile := ".encx-gen-cache.json"
+	cacheFile := filepath.Join(g.outputDir, ".encx-gen-cache.json")
 	data, err := os.ReadFile(cacheFile)
 	if os.IsNotExist(err) {
 		// No cache file exists, start fresh
@@ -219,7 +233,7 @@ func (g *Generator) loadCache() error {
 
 // saveCache saves the generation cache to disk
 func (g *Generator) saveCache() error {
-	cacheFile := ".encx-gen-cache.json"
+	cacheFile := filepath.Join(g.outputDir, ".encx-gen-cache.json")
 	data, err := json.MarshalIndent(g.cache, "", "  ")
 	if err != nil {
 		return fmt.Errorf("failed to marshal cache: %w", err)
@@ -245,14 +259,14 @@ func (g *Generator) calculateFileHash(filePath string) (string, error) {
 }
 
 // needsRegeneration checks if a struct needs to be regenerated
-func (g *Generator) needsRegeneration(structInfo codegen.StructInfo, outputPath string) (bool, error) {
+func (g *Generator) needsRegeneration(sourceFilePath string, outputPath string) (bool, error) {
 	// Check if source file hash changed
-	sourceHash, err := g.calculateFileHash(structInfo.SourceFile)
+	sourceHash, err := g.calculateFileHash(sourceFilePath)
 	if err != nil {
 		return true, err // If we can't read the file, regenerate
 	}
 
-	cachedHash, exists := g.cache.SourceHashes[structInfo.SourceFile]
+	cachedHash, exists := g.cache.SourceHashes[sourceFilePath]
 	if !exists || cachedHash != sourceHash {
 		return true, nil // Source file changed or not in cache
 	}
@@ -269,7 +283,7 @@ func (g *Generator) needsRegeneration(structInfo codegen.StructInfo, outputPath 
 	}
 
 	// Check if the source file is newer than generated file
-	sourceInfo, err := os.Stat(structInfo.SourceFile)
+	sourceInfo, err := os.Stat(sourceFilePath)
 	if err != nil {
 		return true, err
 	}
@@ -282,15 +296,15 @@ func (g *Generator) needsRegeneration(structInfo codegen.StructInfo, outputPath 
 }
 
 // updateCache updates the cache with new file information
-func (g *Generator) updateCache(structInfo codegen.StructInfo, outputPath string) error {
-	sourceHash, err := g.calculateFileHash(structInfo.SourceFile)
+func (g *Generator) updateCache(sourceFilePath string, outputPath string) error {
+	sourceHash, err := g.calculateFileHash(sourceFilePath)
 	if err != nil {
 		return err
 	}
 
-	g.cache.SourceHashes[structInfo.SourceFile] = sourceHash
+	g.cache.SourceHashes[sourceFilePath] = sourceHash
 	g.cache.GeneratedFiles[outputPath] = GeneratedFileInfo{
-		SourceFile:    structInfo.SourceFile,
+		SourceFile:    sourceFilePath,
 		SourceHash:    sourceHash,
 		GeneratedTime: time.Now(),
 	}
