@@ -619,7 +619,7 @@ func TestValidator_validatePepperConfig(t *testing.T) {
 	}{
 		{
 			name:             "valid pepper bytes",
-			pepper:           []byte("valid-pepper-16-bytes"),
+			pepper:           []byte("test-pepper-exactly-32-bytes-OK!"),
 			pepperSecretPath: "",
 			wantErr:          false,
 		},
@@ -631,37 +631,38 @@ func TestValidator_validatePepperConfig(t *testing.T) {
 		},
 		{
 			name:             "both pepper and secret path provided",
-			pepper:           []byte("valid-pepper-16-bytes"),
+			pepper:           []byte("test-pepper-exactly-32-bytes-OK!"),
 			pepperSecretPath: "/secrets/pepper",
-			wantErr:          false,
+			wantErr:          true,
+			errMsg:           "cannot be provided both directly and via secret path",
 		},
 		{
 			name:             "neither pepper nor secret path provided",
 			pepper:           nil,
 			pepperSecretPath: "",
 			wantErr:          true,
-			errMsg:           "either pepper bytes or pepper secret path must be provided",
+			errMsg:           "pepper must be provided",
 		},
 		{
 			name:             "empty pepper and empty secret path",
 			pepper:           []byte{},
 			pepperSecretPath: "",
 			wantErr:          true,
-			errMsg:           "either pepper bytes or pepper secret path must be provided",
+			errMsg:           "pepper must be provided",
 		},
 		{
 			name:             "pepper too short",
 			pepper:           []byte("short"),
 			pepperSecretPath: "",
 			wantErr:          true,
-			errMsg:           "pepper too short",
+			errMsg:           "must be exactly 32 bytes",
 		},
 		{
 			name:             "pepper too long",
-			pepper:           make([]byte, 300),
+			pepper:           make([]byte, 64),
 			pepperSecretPath: "",
 			wantErr:          true,
-			errMsg:           "pepper too long",
+			errMsg:           "must be exactly 32 bytes",
 		},
 	}
 
