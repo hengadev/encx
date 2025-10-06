@@ -9,29 +9,28 @@ A production-ready Go library for field-level encryption, hashing, and key manag
 ```go
 // Install: go get github.com/hengadev/encx
 
-// Define struct with encryption tags
+// Define struct with encryption tags (no companion fields needed)
 type User struct {
-    Email             string `encx:"encrypt,hash_basic"` // Encrypt + searchable
-    EmailEncrypted    []byte // Auto-populated
-    EmailHash         string // For fast lookups
-
-    Password          string `encx:"hash_secure"`       // Secure password hash
-    PasswordHash      string // For authentication
-
-    // Required encryption fields
-    DEK               []byte
-    DEKEncrypted      []byte
-    KeyVersion        int
+    Email    string `encx:"encrypt,hash_basic"` // Encrypt + searchable
+    Password string `encx:"hash_secure"`        // Secure password hash
 }
 
-// Process (encrypt/hash) user data
+// Generate code (one-time setup)
+//go:generate encx-gen generate .
+
+// Use generated functions for type-safe encryption
 crypto, _ := encx.NewTestCrypto(nil)
 user := &User{Email: "user@example.com", Password: "secret123"}
-err := crypto.ProcessStruct(ctx, user)
 
-// Now: user.EmailEncrypted contains encrypted email
-//      user.EmailHash contains searchable hash
-//      user.PasswordHash contains secure hash
+// Process returns separate struct with encrypted/hashed fields
+userEncx, err := ProcessUserEncx(ctx, crypto, user)
+
+// userEncx.EmailEncrypted contains encrypted email
+// userEncx.EmailHash contains searchable hash
+// userEncx.PasswordHash contains secure hash
+
+// Decrypt when needed
+decryptedUser, err := DecryptUserEncx(ctx, crypto, userEncx)
 ```
 
 **→ [See all patterns and use cases](./docs/CONTEXT7_GUIDE.md)**
@@ -55,7 +54,7 @@ err := crypto.ProcessStruct(ctx, user)
 go get github.com/hengadev/encx
 ```
 
-### Basic Usage
+### Basic Usage with Code Generation (Recommended)
 
 ```go
 package main
@@ -64,109 +63,151 @@ import (
     "context"
     "fmt"
     "log"
-    
+
     "github.com/hengadev/encx"
 )
 
-// Define your struct with encx tags
+//go:generate encx-gen generate .
+
+// Define your struct with encx tags (no companion fields needed)
 type User struct {
-    Name             string `encx:"encrypt"`
-    NameEncrypted    []byte
-    Email            string `encx:"hash_basic"`
-    EmailHash        string
-    Password         string `encx:"hash_secure"`
-    PasswordHash     string
-    
-    // Required fields
-    DEK              []byte
-    DEKEncrypted     []byte
-    KeyVersion       int
+    Name     string `encx:"encrypt"`
+    Email    string `encx:"hash_basic"`
+    Password string `encx:"hash_secure"`
 }
 
 func main() {
-    // Create crypto instance (see Configuration section for production setup)
+    ctx := context.Background()
     crypto, _ := encx.NewTestCrypto(nil)
-    
+
     // Create user with sensitive data
     user := &User{
         Name:     "John Doe",
         Email:    "john@example.com",
         Password: "secret123",
     }
-    
-    // Process the struct (encrypt/hash operations)
-    ctx := context.Background()
-    if err := crypto.ProcessStruct(ctx, user); err != nil {
+
+    // Process returns encrypted struct (generated function)
+    userEncx, err := ProcessUserEncx(ctx, crypto, user)
+    if err != nil {
         log.Fatal(err)
     }
-    
-    // Original sensitive fields are now cleared/processed
-    fmt.Printf("Name: '%s' (cleared)\n", user.Name)
-    fmt.Printf("NameEncrypted: %d bytes\n", len(user.NameEncrypted))
-    fmt.Printf("EmailHash: %s\n", user.EmailHash)
-    fmt.Printf("PasswordHash: %s\n", user.PasswordHash[:20]+"...")
-    
-    // Decrypt when needed
-    if err := crypto.DecryptStruct(ctx, user); err != nil {
+
+    // Store encrypted data in database
+    fmt.Printf("NameEncrypted: %d bytes\n", len(userEncx.NameEncrypted))
+    fmt.Printf("EmailHash: %s\n", userEncx.EmailHash[:16]+"...")
+    fmt.Printf("PasswordHash: %s...\n", userEncx.PasswordHash[:20]+"...")
+
+    // Decrypt when needed (generated function)
+    decryptedUser, err := DecryptUserEncx(ctx, crypto, userEncx)
+    if err != nil {
         log.Fatal(err)
     }
-    
-    fmt.Printf("Decrypted Name: %s\n", user.Name)
+
+    fmt.Printf("Decrypted Name: %s\n", decryptedUser.Name)
 }
+```
+
+### Manual Approach (For Learning)
+
+For educational purposes or when code generation isn't available:
+
+```go
+// Define struct with companion fields manually
+type User struct {
+    Name          string `encx:"encrypt"`
+    NameEncrypted []byte
+
+    Email     string `encx:"hash_basic"`
+    EmailHash string
+
+    Password     string `encx:"hash_secure"`
+    PasswordHash string
+
+    // Required fields
+    DEK          []byte
+    DEKEncrypted []byte
+    KeyVersion   int
+}
+
+// Use reflection-based processing
+crypto.ProcessStruct(ctx, &user) // Modifies user in place
 ```
 
 ## Struct Tags Reference
 
 ### Single Operation Tags
 
-- `encx:"encrypt"` - Encrypts field, stores in companion `*Encrypted []byte` field
-- `encx:"hash_basic"` - SHA-256 hash, stores in companion `*Hash string` field  
-- `encx:"hash_secure"` - Argon2id hash with pepper, stores in companion `*Hash string` field
+- `encx:"encrypt"` - Encrypts field value
+- `encx:"hash_basic"` - Creates SHA-256 hash for searchable indexing
+- `encx:"hash_secure"` - Creates Argon2id hash with pepper (for passwords)
 
 ### Combined Operation Tags
 
-- `encx:"encrypt,hash_basic"` - Both encrypts AND hashes the field
+- `encx:"encrypt,hash_basic"` - Both encrypts AND hashes the field (searchable encryption)
 - `encx:"hash_secure,encrypt"` - Secure hash for auth + encryption for recovery
 
-### Required Struct Fields
+### Code Generation vs Manual Approach
 
-Every struct must include these fields:
-
+**Code Generation (Recommended):**
 ```go
-type YourStruct struct {
-    // Your tagged fields...
-    
-    DEK          []byte  // Data Encryption Key (auto-generated)
-    DEKEncrypted []byte  // Encrypted DEK (set automatically)  
-    KeyVersion   int     // Key version for rotation (set automatically)
+// Source struct - clean and simple
+type User struct {
+    Email string `encx:"encrypt,hash_basic"`
+}
+
+// Generated *Encx struct (automatic)
+type UserEncx struct {
+    EmailEncrypted []byte
+    EmailHash      string
+    DEKEncrypted   []byte
+    KeyVersion     int
+    Metadata       string
+}
+```
+
+**Manual Approach (Legacy):**
+```go
+// Requires companion fields in the same struct
+type User struct {
+    Email          string `encx:"encrypt,hash_basic"`
+    EmailEncrypted []byte  // Manual companion field
+    EmailHash      string  // Manual companion field
+
+    DEK          []byte
+    DEKEncrypted []byte
+    KeyVersion   int
 }
 ```
 
 ## Advanced Examples
 
-### Combined Tags for Email
+### Combined Tags for Email (Searchable Encryption)
 
-Perfect for user lookup + privacy:
+Perfect for user lookup + privacy using code generation:
 
 ```go
+//go:generate encx-gen generate .
+
+// Source struct - clean definition
 type User struct {
-    Email             string `encx:"encrypt,hash_basic"`
-    EmailEncrypted    []byte // For secure storage
-    EmailHash         string // For fast user lookups
-    
-    DEK               []byte
-    DEKEncrypted      []byte
-    KeyVersion        int
+    Email string `encx:"encrypt,hash_basic"`
 }
 
 // Usage
 user := &User{Email: "user@example.com"}
-crypto.ProcessStruct(ctx, user)
+userEncx, err := ProcessUserEncx(ctx, crypto, user)
 
-// Now you can:
-// 1. Store user.EmailEncrypted securely in database
-// 2. Use user.EmailHash for fast user lookups
-// 3. Decrypt user.Email when needed for display
+// Generated UserEncx has:
+// - EmailEncrypted []byte  // For secure storage
+// - EmailHash      string  // For fast user lookups
+
+// Database search example
+db.Where("email_hash = ?", userEncx.EmailHash).First(&foundUser)
+
+// Decrypt when needed
+decrypted, _ := DecryptUserEncx(ctx, crypto, foundUser)
+fmt.Println(decrypted.Email) // "user@example.com"
 ```
 
 ### Password with Recovery
@@ -174,50 +215,56 @@ crypto.ProcessStruct(ctx, user)
 Secure authentication + recovery capability:
 
 ```go
+//go:generate encx-gen generate .
+
 type User struct {
-    Password          string `encx:"hash_secure,encrypt"`
-    PasswordHash      string // For authentication (Argon2id)
-    PasswordEncrypted []byte // For recovery scenarios
-    
-    DEK               []byte
-    DEKEncrypted      []byte
-    KeyVersion        int
+    Password string `encx:"hash_secure,encrypt"`
 }
 
-// Usage for login
-func (u *User) CheckPassword(plaintext string) bool {
-    return crypto.CompareSecureHashAndValue(ctx, plaintext, u.PasswordHash)
-}
+// Registration
+user := &User{Password: "secret123"}
+userEncx, _ := ProcessUserEncx(ctx, crypto, user)
 
-// Usage for password recovery
-func (u *User) RecoverPassword() string {
-    crypto.DecryptStruct(ctx, u)
-    return u.Password // Temporarily available for recovery
-}
+// Generated UserEncx has:
+// - PasswordHash      string // For authentication (Argon2id)
+// - PasswordEncrypted []byte // For recovery scenarios
+
+// Login verification
+isValid := crypto.CompareSecureHashAndValue(ctx, inputPassword, userEncx.PasswordHash)
+
+// Password recovery (admin function)
+recovered, _ := DecryptUserEncx(ctx, crypto, userEncx)
+fmt.Println(recovered.Password) // Original password temporarily available
 ```
 
 ### Embedded Structs
 
-ENCX automatically processes embedded structs:
+Code generation handles embedded structs automatically:
 
 ```go
+//go:generate encx-gen generate .
+
 type Address struct {
-    Street           string `encx:"encrypt"`
-    StreetEncrypted  []byte
-    City             string `encx:"hash_basic"`
-    CityHash         string
+    Street string `encx:"encrypt"`
+    City   string `encx:"hash_basic"`
 }
 
 type User struct {
-    Name             string `encx:"encrypt"`
-    NameEncrypted    []byte
-    
-    Address          Address // Automatically processed
-    
-    DEK              []byte
-    DEKEncrypted     []byte
-    KeyVersion       int
+    Name    string  `encx:"encrypt"`
+    Address Address // Embedded struct, automatically processed
 }
+
+// Usage
+user := &User{
+    Name: "John Doe",
+    Address: Address{
+        Street: "123 Main St",
+        City:   "Springfield",
+    },
+}
+
+userEncx, _ := ProcessUserEncx(ctx, crypto, user)
+// Generated UserEncx includes all encrypted/hashed fields from embedded struct
 ```
 
 ## Configuration
@@ -245,14 +292,15 @@ crypto, err := encx.NewCrypto(ctx,
 ### Testing Setup
 
 ```go
-// For unit tests with mocking
+// For unit tests with code generation
 func TestUserEncryption(t *testing.T) {
     crypto, _ := encx.NewTestCrypto(t)
-    
+
     user := &User{Name: "Test User"}
-    err := crypto.ProcessStruct(ctx, user)
+    userEncx, err := ProcessUserEncx(ctx, crypto, user)
+
     assert.NoError(t, err)
-    assert.NotEmpty(t, user.NameEncrypted)
+    assert.NotEmpty(t, userEncx.NameEncrypted)
 }
 
 // For integration tests
@@ -260,8 +308,15 @@ func TestUserEncryptionIntegration(t *testing.T) {
     crypto, _ := encx.NewTestCrypto(t, &encx.TestCryptoOptions{
         Pepper: []byte("test-pepper-exactly-32-bytes!!"),
     })
-    
-    // Test with real crypto operations
+
+    // Test full encrypt/decrypt cycle
+    user := &User{Name: "Integration Test"}
+    userEncx, err := ProcessUserEncx(ctx, crypto, user)
+    assert.NoError(t, err)
+
+    decrypted, err := DecryptUserEncx(ctx, crypto, userEncx)
+    assert.NoError(t, err)
+    assert.Equal(t, "Integration Test", decrypted.Name)
 }
 ```
 
@@ -352,18 +407,18 @@ ENCX automatically handles multiple key versions:
 ```go
 // User encrypted with key version 1
 oldUser := &User{Name: "Alice"}
-crypto.ProcessStruct(ctx, oldUser) // Uses current key (v1)
+oldUserEncx, _ := ProcessUserEncx(ctx, crypto, oldUser) // Uses current key (v1)
 
 // Rotate key
 crypto.RotateKEK(ctx)
 
-// New user encrypted with key version 2  
+// New user encrypted with key version 2
 newUser := &User{Name: "Bob"}
-crypto.ProcessStruct(ctx, newUser) // Uses current key (v2)
+newUserEncx, _ := ProcessUserEncx(ctx, crypto, newUser) // Uses current key (v2)
 
-// Both can be decrypted
-crypto.DecryptStruct(ctx, oldUser) // Uses key v1
-crypto.DecryptStruct(ctx, newUser) // Uses key v2
+// Both can be decrypted regardless of key version
+DecryptUserEncx(ctx, crypto, oldUserEncx) // Automatically uses key v1
+DecryptUserEncx(ctx, crypto, newUserEncx) // Automatically uses key v2
 ```
 
 ## KMS Providers
@@ -460,12 +515,13 @@ InternalID string `encx:"encrypt,hash_basic,hash_secure"` // Too much
 ### 2. Proper Error Handling
 
 ```go
-if err := crypto.ProcessStruct(ctx, user); err != nil {
+userEncx, err := ProcessUserEncx(ctx, crypto, user)
+if err != nil {
     // Log the error for debugging
     log.Printf("Encryption failed: %v", err)
-    
+
     // Return user-friendly error
-    return fmt.Errorf("failed to process user data")
+    return nil, fmt.Errorf("failed to process user data: %w", err)
 }
 ```
 
