@@ -106,7 +106,7 @@
 // # Production Configuration
 //
 //	// With AWS KMS
-//	crypto, err := encx.New(ctx,
+//	crypto, err := encx.NewCrypto(ctx,
 //	    encx.WithKMSService(awsKMS),
 //	    encx.WithDatabase(db),
 //	    encx.WithPepper(pepper),
@@ -114,7 +114,7 @@
 //	)
 //
 //	// With HashiCorp Vault
-//	crypto, err := encx.New(ctx,
+//	crypto, err := encx.NewCrypto(ctx,
 //	    encx.WithKMSService(vaultKMS),
 //	    encx.WithDatabase(db),
 //	    encx.WithPepper(pepper),

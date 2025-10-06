@@ -15,7 +15,7 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 )
 
-// Type aliases for backward compatibility
+// Type aliases
 type (
 	MetricsCollector  = monitoring.MetricsCollector
 	ObservabilityHook = monitoring.ObservabilityHook
@@ -24,7 +24,7 @@ type (
 	Action            = types.Action
 )
 
-// Action constants for backward compatibility
+// Action constants
 const (
 	Unknown    = types.Unknown
 	BasicHash  = types.BasicHash
@@ -33,7 +33,7 @@ const (
 	Decrypt    = types.Decrypt
 )
 
-// Interface aliases for backward compatibility
+// Interface aliases
 type (
 	KeyManagementService = config.KeyManagementService
 )
@@ -72,52 +72,7 @@ type Crypto struct {
 	keyRotationOps *crypto.KeyRotationOperations
 }
 
-// New creates a new Crypto instance using the legacy constructor signature.
-// Deprecated: Use NewCrypto with options instead for better validation and flexibility.
-//
-// Example migration:
-//
-//	// Old way:
-//	crypto, err := encx.New(ctx, kmsService, "my-kek", "secret/pepper")
-//
-//	// New way:
-//	crypto, err := encx.NewCrypto(ctx,
-//	    encx.WithKMSService(kmsService),
-//	    encx.WithKEKAlias("my-kek"),
-//	    encx.WithPepperSecretPath("secret/pepper"),
-//	)
-func New(
-	ctx context.Context,
-	kmsService KeyManagementService,
-	kekAlias string,
-	pepperSecretPath string,
-	options ...Option,
-) (*Crypto, error) {
-	return NewCryptoLegacy(ctx, kmsService, kekAlias, pepperSecretPath, options...)
-}
-
-// NewCryptoLegacy creates a new Crypto instance using the legacy parameter style
-func NewCryptoLegacy(
-	ctx context.Context,
-	kmsService KeyManagementService,
-	kekAlias string,
-	pepperSecretPath string,
-	options ...Option,
-) (*Crypto, error) {
-	// Convert legacy parameters to options
-	opts := []Option{
-		WithKMSService(kmsService),
-		WithKEKAlias(kekAlias),
-		WithPepperSecretPath(pepperSecretPath),
-	}
-
-	// Append additional options
-	opts = append(opts, options...)
-
-	return NewCrypto(ctx, opts...)
-}
-
-// NewCrypto creates a new Crypto instance using the options pattern
+// NewCrypto creates a new Crypto instance
 func NewCrypto(ctx context.Context, options ...Option) (*Crypto, error) {
 	cfg := config.DefaultConfig()
 
@@ -241,7 +196,7 @@ func (a *errorCollectorAdapter) IsEmpty() bool {
 	return a.errMap.IsEmpty()
 }
 
-// Getter methods for legacy compatibility
+// Getter methods
 func (c *Crypto) GetPepper() []byte {
 	return c.pepper
 }
