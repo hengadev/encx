@@ -14,7 +14,19 @@ bin/
 learning_exercises/
 test_invalid.go
 
-# Binaries
+# Binaries and executables
 /combined_tags_demo
 /encx-gen
+cmd/encx-gen/encx-gen
+examples/**/[!.]*/[^.]*
+*.exe
+
+# Test outputs
+coverage.out
+*.test
+*.prof
+*.out
+
+# Cache files
 *.encx-gen-cache.json
+IMPROVEMENT_ROADMAP.md
