@@ -48,33 +48,39 @@
 //	    Password: "secret123",
 //	}
 //
-//	// Use generated type-safe functions (recommended)
-//	userEncx, err := ProcessUserEncx(ctx, crypto, user)        // For User struct
-//	orderEncx, err := ProcessOrderEncx(ctx, crypto, order)     // For Order struct
+//	// Use generated type-safe functions
+//	userEncx, err := ProcessUserEncx(ctx, crypto, user)
+//	orderEncx, err := ProcessOrderEncx(ctx, crypto, order)
 //	// Pattern: Process{YourStructName}Encx
-//
-// Legacy reflection-based approach (deprecated):
-//
-//	err := crypto.ProcessStruct(ctx, user) // Deprecated: use generated functions
 //
 // # Struct Tags
 //
 // Single operation tags:
-//   - encx:"encrypt" - Encrypts field, stores in companion *Encrypted []byte field
-//   - encx:"hash_basic" - SHA-256 hash, stores in companion *Hash string field
-//   - encx:"hash_secure" - Argon2id hash with pepper, stores in companion *Hash string field
+//   - encx:"encrypt" - Encrypts field value
+//   - encx:"hash_basic" - Creates SHA-256 hash for searchable indexing
+//   - encx:"hash_secure" - Creates Argon2id hash with pepper (for passwords)
 //
 // Combined operation tags:
-//   - encx:"encrypt,hash_basic" - Both encrypts AND hashes the field
+//   - encx:"encrypt,hash_basic" - Both encrypts AND hashes the field (searchable encryption)
 //   - encx:"hash_secure,encrypt" - Secure hash for auth + encryption for recovery
 //
-// # Required Struct Fields
+// # Code Generation
 //
-// Every struct must include these fields:
+// Code generation creates a separate {StructName}Encx struct with all encrypted/hashed fields:
 //
-//	DEK          []byte  // Data Encryption Key (auto-generated)
-//	DEKEncrypted []byte  // Encrypted DEK (set automatically)
-//	KeyVersion   int     // Key version for rotation (set automatically)
+//	// Your source struct
+//	type User struct {
+//	    Email string `encx:"encrypt,hash_basic"`
+//	}
+//
+//	// Generated UserEncx struct (automatic)
+//	type UserEncx struct {
+//	    EmailEncrypted []byte
+//	    EmailHash      string
+//	    DEKEncrypted   []byte
+//	    KeyVersion     int
+//	    Metadata       string
+//	}
 //
 // # Advanced Example: Combined Tags
 //
@@ -88,18 +94,14 @@
 //	    // - UserEncx.EmailHash string (for fast lookups)
 //	}
 //
-//	// Usage (with generated functions - recommended)
+//	// Usage
 //	user := &User{Email: "user@example.com"}
-//	userEncx, err := ProcessUserEncx(ctx, crypto, user)    // For User struct
-//	// Pattern: Process{YourStructName}Encx
-//
-// Usage (legacy reflection approach - deprecated)
-//	crypto.ProcessStruct(ctx, user) // Deprecated
+//	userEncx, err := ProcessUserEncx(ctx, crypto, user)
 //
 //	// Now you can:
-//	// 1. Store user.EmailEncrypted securely in database
-//	// 2. Use user.EmailHash for fast user lookups
-//	// 3. Decrypt user.Email when needed for display
+//	// 1. Store userEncx.EmailEncrypted securely in database
+//	// 2. Use userEncx.EmailHash for fast user lookups
+//	// 3. Decrypt with DecryptUserEncx when needed for display
 //
 // # Production Configuration
 //
@@ -121,24 +123,21 @@
 //
 // # Validation
 //
-// Compile-time validation:
+// Validate struct tags before generating code:
 //
-//	go run github.com/hengadev/encx/cmd/validate-tags -v
+//	encx-gen validate -v .
+//	encx-gen validate -v ./models ./api
 //
-// Runtime validation:
+// Validation runs automatically before generation:
 //
-//	if err := encx.ValidateStruct(&user); err != nil {
-//	    log.Fatalf("Invalid struct: %v", err)
-//	}
+//	encx-gen generate -v .
 //
 // # Error Handling
 //
 // ENCX provides structured error handling with sentinel errors for precise error classification:
 //
 //	user := &User{Name: "John", Email: "john@example.com"}
-//	userEncx, err := ProcessUserEncx(ctx, crypto, user) // For User struct (recommended)
-//	// Pattern: Process{YourStructName}Encx
-//	// err := crypto.ProcessStruct(ctx, user) // Legacy approach (deprecated)
+//	userEncx, err := ProcessUserEncx(ctx, crypto, user)
 //	if err != nil {
 //	    switch {
 //	    case encx.IsRetryableError(err):
@@ -186,30 +185,30 @@
 //
 // # Testing
 //
-// Unit testing with mocks:
+// Unit testing with generated functions:
 //
-//	func TestUserService(t *testing.T) {
-//	    // For generated functions, test directly with ProcessUserEncx, ProcessOrderEncx, etc.
-//	    // Pattern: Process{YourStructName}Encx
-//	    // or mock the crypto parameter passed to generated functions
-//	    mockCrypto := encx.NewCryptoServiceMock()
-//	    // mockCrypto.On("ProcessStruct", mock.Anything, mock.Anything).Return(nil) // Legacy
+//	func TestUserEncryption(t *testing.T) {
+//	    crypto, _ := encx.NewTestCrypto(t)
 //
-//	    service := NewUserService(mockCrypto)
-//	    err := service.CreateUser("test@example.com")
+//	    user := &User{Email: "test@example.com"}
+//	    userEncx, err := ProcessUserEncx(ctx, crypto, user)
+//
 //	    assert.NoError(t, err)
-//
-//	    mockCrypto.AssertExpectations(t)
+//	    assert.NotEmpty(t, userEncx.EmailEncrypted)
 //	}
 //
-// Integration testing:
+// Integration testing with full cycle:
 //
-//	func TestUserServiceIntegration(t *testing.T) {
+//	func TestUserEncryptDecryptCycle(t *testing.T) {
 //	    crypto, _ := encx.NewTestCrypto(t)
-//	    service := NewUserService(crypto)
 //
-//	    err := service.CreateUser("test@example.com")
+//	    original := &User{Email: "test@example.com"}
+//	    userEncx, err := ProcessUserEncx(ctx, crypto, original)
 //	    assert.NoError(t, err)
+//
+//	    decrypted, err := DecryptUserEncx(ctx, crypto, userEncx)
+//	    assert.NoError(t, err)
+//	    assert.Equal(t, original.Email, decrypted.Email)
 //	}
 //
 // # Documentation

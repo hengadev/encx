@@ -18,8 +18,7 @@ import (
 //go:generate encx-gen validate -v .
 //go:generate encx-gen generate -v .
 
-// User demonstrates the new code generation approach
-// This replaces the reflection-based ProcessStruct with generated functions
+// User demonstrates the code generation approach
 // Notice: NO companion fields needed - they're generated automatically
 type User struct {
 	// Basic information
@@ -283,81 +282,6 @@ func simulateProductEncryption(ctx context.Context, crypto *encx.Crypto, product
 	return productEncx, nil
 }
 
-// simulateManualEncryption represents the slower manual approach
-func simulateManualEncryption(ctx context.Context, crypto *encx.Crypto, user *User) error {
-	// This simulates the slower, manual encryption that would happen
-	// with reflection or manual field-by-field processing
-
-	// Generate DEK
-	dek, err := crypto.GenerateDEK()
-	if err != nil {
-		return fmt.Errorf("failed to generate DEK: %w", err)
-	}
-
-	// Simulate manual field processing (slower than generated code)
-	if user.Email != "" {
-		emailBytes := []byte(user.Email)
-		_, err = crypto.EncryptData(ctx, emailBytes, dek)
-		if err != nil {
-			return err
-		}
-		_ = crypto.HashBasic(ctx, emailBytes)
-		user.Email = ""
-	}
-
-	if user.Phone != "" {
-		phoneBytes := []byte(user.Phone)
-		_, err = crypto.EncryptData(ctx, phoneBytes, dek)
-		if err != nil {
-			return err
-		}
-		_ = crypto.HashBasic(ctx, phoneBytes)
-		user.Phone = ""
-	}
-
-	if user.FirstName != "" {
-		fnBytes := []byte(user.FirstName)
-		_, err = crypto.EncryptData(ctx, fnBytes, dek)
-		if err != nil {
-			return err
-		}
-		user.FirstName = ""
-	}
-
-	if user.LastName != "" {
-		lnBytes := []byte(user.LastName)
-		_, err = crypto.EncryptData(ctx, lnBytes, dek)
-		if err != nil {
-			return err
-		}
-		user.LastName = ""
-	}
-
-	if user.Address != "" {
-		addrBytes := []byte(user.Address)
-		_, err = crypto.EncryptData(ctx, addrBytes, dek)
-		if err != nil {
-			return err
-		}
-		user.Address = ""
-	}
-
-	if user.SSN != "" {
-		_, err = crypto.HashSecure(ctx, []byte(user.SSN))
-		if err != nil {
-			return err
-		}
-		user.SSN = ""
-	}
-
-	// Encrypt DEK
-	_, err = crypto.EncryptDEK(ctx, dek)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
 
 func main() {
 	ctx := context.Background()
@@ -429,51 +353,6 @@ func main() {
 		productEncx.PublicName, productEncx.Price)
 	fmt.Printf("  InternalNotesEncrypted: %d bytes\n", len(productEncx.InternalNotesEncrypted))
 	fmt.Printf("  ProductCodeHash: %s...\n", productEncx.ProductCodeHash[:16])
-
-	// Performance comparison demonstration
-	fmt.Println("\n=== Performance Comparison ===")
-	performanceComparison(ctx, crypto)
-}
-
-// Performance comparison between code generation and reflection
-func performanceComparison(ctx context.Context, crypto *encx.Crypto) {
-	user := &User{
-		Email:     "perf.test@example.com",
-		FirstName: "Performance",
-		LastName:  "Test",
-	}
-
-	iterations := 1000
-
-	// Benchmark simulated approach (representing code generation performance)
-	start := time.Now()
-	for i := 0; i < iterations; i++ {
-		userCopy := *user // Copy to avoid mutation
-		_, err := simulateUserEncryption(ctx, crypto, &userCopy)
-		if err != nil {
-			log.Fatal("Simulated encryption failed:", err)
-		}
-	}
-	codeGenDuration := time.Since(start)
-
-	// Benchmark manual approach (represents old reflection-based method)
-	start = time.Now()
-	for i := 0; i < iterations; i++ {
-		userCopy := *user // Copy to avoid mutation
-		err := simulateManualEncryption(ctx, crypto, &userCopy)
-		if err != nil {
-			log.Fatal("Manual encryption failed:", err)
-		}
-	}
-	reflectionDuration := time.Since(start)
-
-	fmt.Printf("Performance results (%d iterations):\n", iterations)
-	fmt.Printf("  Code Generation: %v (%.2f ns/op)\n",
-		codeGenDuration, float64(codeGenDuration.Nanoseconds())/float64(iterations))
-	fmt.Printf("  Reflection:      %v (%.2f ns/op)\n",
-		reflectionDuration, float64(reflectionDuration.Nanoseconds())/float64(iterations))
-	fmt.Printf("  Speedup:         %.1fx faster\n",
-		float64(reflectionDuration)/float64(codeGenDuration))
 }
 
 // Production patterns using code generation
@@ -589,7 +468,7 @@ func (r *UserRepository) FindByEmailHash(ctx context.Context, emailHash string) 
 /*
 Code Generation Benefits:
 
-1. **Performance**: 10x faster than reflection-based approach
+1. **Performance**: High-performance generated code
 2. **Type Safety**: Compile-time checking of all operations
 3. **IDE Support**: Full autocompletion and refactoring support
 4. **Maintainability**: Clear, readable generated code
@@ -600,36 +479,46 @@ Setup Instructions:
 1. Install CLI:
    make build-cli && make install-cli
 
-2. Add go:generate directives:
+2. Add go:generate directives to your source files:
    //go:generate encx-gen validate -v .
    //go:generate encx-gen generate -v .
 
 3. Generate code:
-   go generate
+   go generate ./...
 
 4. Use generated functions:
-   - ProcessUserEncx(ctx, crypto, user) instead of crypto.ProcessStruct()
-   - DecryptUserEncx(ctx, crypto, userEncx) instead of crypto.DecryptStruct()
+   - ProcessUserEncx(ctx, crypto, user) → (*UserEncx, error)
+   - DecryptUserEncx(ctx, crypto, userEncx) → (*User, error)
 
 Generated Functions Pattern:
 - Process{StructName}Encx(ctx, crypto, source) → (*{StructName}Encx, error)
 - Decrypt{StructName}Encx(ctx, crypto, source) → (*{StructName}, error)
 
-Migration from Reflection:
-OLD: crypto.ProcessStruct(ctx, &user)
-NEW: userEncx, err := ProcessUserEncx(ctx, crypto, &user)
+Usage Example:
+```go
+user := &User{Email: "user@example.com"}
+userEncx, err := ProcessUserEncx(ctx, crypto, user)
+if err != nil {
+    return err
+}
+// Store userEncx in database
+
+// Later, decrypt:
+decrypted, err := DecryptUserEncx(ctx, crypto, userEncx)
+```
 
 Configuration (encx.yaml):
+```yaml
 version: "1.0"
-generation:
-  output_suffix: "_encx"
-  function_prefix: "Process"
-  package_name: "main"
+codegen:
+  output_dir: "generated"
+  default_serializer: "json"  # Options: json, gob, basic
+```
 
-When to Use Code Generation:
+When to Use:
 - Production applications requiring high performance
 - Large-scale data processing
 - Systems with strict type safety requirements
 - Applications with complex encryption patterns
-- Any system where reflection overhead is a concern
+- All modern Go applications using encx
 */

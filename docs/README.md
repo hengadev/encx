@@ -59,8 +59,8 @@ Welcome to the comprehensive documentation for ENCX, a production-ready Go libra
 
 ### ✅ Validation & Testing
 - Compile-time struct tag validation
-- Runtime struct validation
-- Comprehensive testing utilities with mocks
+- Type-safe generated functions
+- Comprehensive testing utilities
 
 ### 🔄 Key Management
 - Automatic DEK/KEK architecture
@@ -71,43 +71,47 @@ Welcome to the comprehensive documentation for ENCX, a production-ready Go libra
 
 ### Basic User Management
 ```go
+//go:generate encx-gen generate .
+
+// Clean struct definition - no companion fields needed
 type User struct {
-    Name             string `encx:"encrypt"`
-    NameEncrypted    []byte
-    Email            string `encx:"hash_basic"`
-    EmailHash        string
-    Password         string `encx:"hash_secure"`
-    PasswordHash     string
-    
-    DEK              []byte
-    DEKEncrypted     []byte
-    KeyVersion       int
+    Name     string `encx:"encrypt"`
+    Email    string `encx:"hash_basic"`
+    Password string `encx:"hash_secure"`
 }
+
+// Usage
+user := &User{Name: "John", Email: "john@example.com"}
+userEncx, err := ProcessUserEncx(ctx, crypto, user)
+// userEncx.NameEncrypted, EmailHash, PasswordHash are auto-generated
 ```
 
 ### Advanced: Email with Lookup & Privacy
 ```go
+//go:generate encx-gen generate .
+
 type User struct {
     // Encrypt for privacy + hash for lookups
-    Email             string `encx:"encrypt,hash_basic"`
-    EmailEncrypted    []byte // Store securely
-    EmailHash         string // Fast user lookup
-    
-    DEK               []byte
-    DEKEncrypted      []byte
-    KeyVersion        int
+    Email string `encx:"encrypt,hash_basic"`
 }
+
+// Usage
+user := &User{Email: "user@example.com"}
+userEncx, err := ProcessUserEncx(ctx, crypto, user)
+// Generated: userEncx.EmailEncrypted (for storage)
+//           userEncx.EmailHash (for lookups)
 ```
 
 ### Testing Setup
 ```go
-func TestUserService(t *testing.T) {
-    // Option 1: Integration testing
+func TestUserEncryption(t *testing.T) {
     crypto, _ := encx.NewTestCrypto(t)
-    
-    // Option 2: Unit testing with mocks
-    mock := encx.NewCryptoServiceMock()
-    mock.On("ProcessStruct", mock.Anything, mock.Anything).Return(nil)
+
+    user := &User{Email: "test@example.com"}
+    userEncx, err := ProcessUserEncx(ctx, crypto, user)
+
+    assert.NoError(t, err)
+    assert.NotEmpty(t, userEncx.EmailEncrypted)
 }
 ```
 
@@ -115,27 +119,22 @@ func TestUserService(t *testing.T) {
 
 ### Compile-time Validation
 ```bash
-# Check all files
-go run github.com/hengadev/encx/cmd/validate-tags -v
+# Validate all files in current directory
+encx-gen validate -v .
 
-# Check specific patterns
-go run github.com/hengadev/encx/cmd/validate-tags -pattern="user*.go"
-```
+# Validate specific packages
+encx-gen validate -v ./models ./api
 
-### Runtime Validation
-```go
-// Validate struct definition
-if err := encx.ValidateStruct(&user); err != nil {
-    log.Fatalf("Invalid struct: %v", err)
-}
+# Validation runs automatically before generation
+encx-gen generate -v .
 ```
 
 ## Best Practices Summary
 
 1. **Structure Design**
-   - Always include required fields: `DEK`, `DEKEncrypted`, `KeyVersion`
+   - No companion fields needed - automatically generated
    - Use combined tags strategically: `encx:"encrypt,hash_basic"`
-   - Provide companion fields with correct types
+   - Run code generation: `go generate ./...`
 
 2. **Security**
    - Store pepper separately from database
@@ -143,12 +142,12 @@ if err := encx.ValidateStruct(&user); err != nil {
    - Implement regular key rotation
 
 3. **Testing**
-   - Use validation tools during development
-   - Mock for unit tests, real crypto for integration tests
+   - Use validation tools during development: `encx-gen validate`
+   - Test with generated functions for type safety
    - Test with various data types and edge cases
 
 4. **Performance**
-   - Process structs in batches for large datasets
+   - Use code generation for best performance
    - Tune Argon2 parameters based on your security/performance needs
    - Monitor KMS API calls and database performance
 
@@ -175,33 +174,34 @@ if err := encx.ValidateStruct(&user); err != nil {
 ### Quick Reference Card
 
 ```go
-// Required struct pattern
+//go:generate encx-gen generate .
+
+// Source struct - clean and simple (no companion fields!)
 type MyStruct struct {
-    Field          string `encx:"encrypt"`     // ← Your data
-    FieldEncrypted []byte                     // ← Companion field
-    
-    HashField      string `encx:"hash_basic"` // ← Hash operation
-    HashFieldHash  string                     // ← Hash companion
-    
-    ComboField     string `encx:"encrypt,hash_basic"` // ← Combined
-    ComboFieldEncrypted []byte                        // ← Both companions
-    ComboFieldHash      string                        // ← needed
-    
-    // Always required
-    DEK            []byte // ← Generated automatically
-    DEKEncrypted   []byte // ← Set automatically  
-    KeyVersion     int    // ← Set automatically
+    Field      string `encx:"encrypt"`                // Encrypted field
+    HashField  string `encx:"hash_basic"`             // Hashed field
+    ComboField string `encx:"encrypt,hash_basic"`     // Both operations
 }
 
+// Generated MyStructEncx struct (automatic):
+// type MyStructEncx struct {
+//     FieldEncrypted      []byte
+//     HashFieldHash       string
+//     ComboFieldEncrypted []byte
+//     ComboFieldHash      string
+//     DEKEncrypted        []byte
+//     KeyVersion          int
+//     Metadata            string
+// }
+
 // Usage pattern
-user := &MyStruct{Field: "sensitive data"}
-err := crypto.ProcessStruct(ctx, user)
-// user.Field is now cleared
-// user.FieldEncrypted contains encrypted data
+data := &MyStruct{Field: "sensitive data"}
+dataEncx, err := ProcessMyStructEncx(ctx, crypto, data)
+// dataEncx contains all encrypted/hashed fields
 
 // Later decrypt
-err = crypto.DecryptStruct(ctx, user) 
-// user.Field is restored
+decrypted, err := DecryptMyStructEncx(ctx, crypto, dataEncx)
+// decrypted.Field is restored
 ```
 
 ---

@@ -54,7 +54,7 @@ decryptedUser, err := DecryptUserEncx(ctx, crypto, userEncx)
 go get github.com/hengadev/encx
 ```
 
-### Basic Usage with Code Generation (Recommended)
+### Basic Usage
 
 ```go
 package main
@@ -108,32 +108,6 @@ func main() {
 }
 ```
 
-### Manual Approach (For Learning)
-
-For educational purposes or when code generation isn't available:
-
-```go
-// Define struct with companion fields manually
-type User struct {
-    Name          string `encx:"encrypt"`
-    NameEncrypted []byte
-
-    Email     string `encx:"hash_basic"`
-    EmailHash string
-
-    Password     string `encx:"hash_secure"`
-    PasswordHash string
-
-    // Required fields
-    DEK          []byte
-    DEKEncrypted []byte
-    KeyVersion   int
-}
-
-// Use reflection-based processing
-crypto.ProcessStruct(ctx, &user) // Modifies user in place
-```
-
 ## Struct Tags Reference
 
 ### Single Operation Tags
@@ -147,37 +121,28 @@ crypto.ProcessStruct(ctx, &user) // Modifies user in place
 - `encx:"encrypt,hash_basic"` - Both encrypts AND hashes the field (searchable encryption)
 - `encx:"hash_secure,encrypt"` - Secure hash for auth + encryption for recovery
 
-### Code Generation vs Manual Approach
+### How It Works
 
-**Code Generation (Recommended):**
+When you define a struct with encx tags and run code generation:
+
 ```go
-// Source struct - clean and simple
+// Your source struct - clean and simple
 type User struct {
     Email string `encx:"encrypt,hash_basic"`
 }
 
-// Generated *Encx struct (automatic)
+// encx-gen automatically generates a UserEncx struct
 type UserEncx struct {
-    EmailEncrypted []byte
-    EmailHash      string
-    DEKEncrypted   []byte
-    KeyVersion     int
-    Metadata       string
+    EmailEncrypted []byte   // Encrypted email data
+    EmailHash      string   // Searchable hash
+    DEKEncrypted   []byte   // Encrypted data encryption key
+    KeyVersion     int      // Key version for rotation
+    Metadata       string   // Serialization metadata
 }
-```
 
-**Manual Approach (Legacy):**
-```go
-// Requires companion fields in the same struct
-type User struct {
-    Email          string `encx:"encrypt,hash_basic"`
-    EmailEncrypted []byte  // Manual companion field
-    EmailHash      string  // Manual companion field
-
-    DEK          []byte
-    DEKEncrypted []byte
-    KeyVersion   int
-}
+// And generates these functions:
+// - ProcessUserEncx(ctx, crypto, user) (*UserEncx, error)
+// - DecryptUserEncx(ctx, crypto, userEncx) (*User, error)
 ```
 
 ## Advanced Examples
@@ -365,25 +330,17 @@ Choose based on your performance needs and interoperability requirements.
 
 ## Validation
 
-### Compile-time Validation
-
-Use the validation utility to check your structs:
+Validate your struct tags before generating code:
 
 ```bash
 # Validate all Go files in current directory
-go run github.com/hengadev/encx/cmd/validate-tags -v
+encx-gen validate -v .
 
-# Validate specific files
-go run github.com/hengadev/encx/cmd/validate-tags -pattern="user*.go"
-```
+# Validate specific packages
+encx-gen validate -v ./models ./api
 
-### Runtime Validation
-
-```go
-// Validate struct definition before processing
-if err := encx.ValidateStruct(&user); err != nil {
-    log.Fatalf("Invalid struct: %v", err)
-}
+# Validation is automatically run before generation
+encx-gen generate -v .
 ```
 
 ## Key Management
@@ -525,15 +482,14 @@ if err != nil {
 }
 ```
 
-### 3. Validate Structs Early
+### 3. Use Go Generate in Development
 
 ```go
-// Validate during development/testing
-func init() {
-    if err := encx.ValidateStruct(&User{}); err != nil {
-        panic(fmt.Sprintf("Invalid User struct: %v", err))
-    }
-}
+//go:generate encx-gen validate -v .
+//go:generate encx-gen generate -v .
+
+// Run validation and generation during development
+// go generate ./...
 ```
 
 ### 4. Handle Key Rotation Gracefully
@@ -572,25 +528,32 @@ go func() {
 The library includes comprehensive testing utilities:
 
 ```go
-// Unit testing with mocks
-func TestUserService(t *testing.T) {
-    mockCrypto := encx.NewCryptoServiceMock()
-    mockCrypto.On("ProcessStruct", mock.Anything, mock.Anything).Return(nil)
-    
-    service := NewUserService(mockCrypto)
-    err := service.CreateUser("test@example.com")
+// Unit testing with generated code
+func TestUserEncryption(t *testing.T) {
+    crypto, _ := encx.NewTestCrypto(t)
+
+    user := &User{
+        Email:    "test@example.com",
+        Password: "secret123",
+    }
+
+    userEncx, err := ProcessUserEncx(ctx, crypto, user)
     assert.NoError(t, err)
-    
-    mockCrypto.AssertExpectations(t)
+    assert.NotEmpty(t, userEncx.EmailEncrypted)
+    assert.NotEmpty(t, userEncx.EmailHash)
 }
 
-// Integration testing
-func TestUserServiceIntegration(t *testing.T) {
+// Integration testing with full cycle
+func TestUserEncryptDecryptCycle(t *testing.T) {
     crypto, _ := encx.NewTestCrypto(t)
-    service := NewUserService(crypto)
-    
-    err := service.CreateUser("test@example.com")
+
+    original := &User{Email: "integration@test.com"}
+    userEncx, err := ProcessUserEncx(ctx, crypto, original)
     assert.NoError(t, err)
+
+    decrypted, err := DecryptUserEncx(ctx, crypto, userEncx)
+    assert.NoError(t, err)
+    assert.Equal(t, original.Email, decrypted.Email)
 }
 ```
 

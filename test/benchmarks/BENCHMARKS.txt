@@ -1,0 +1,4 @@
+# ./test/benchmarks
+stat /home/henga/Documents/projects/encx/test/benchmarks/test/benchmarks: directory not found
+FAIL	./test/benchmarks [setup failed]
+FAIL
