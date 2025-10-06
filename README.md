@@ -227,13 +227,17 @@ type User struct {
 ```go
 // With AWS KMS
 pepper := []byte("your-32-byte-pepper-here!!!!")
-crypto, err := encx.New(ctx, awsKMS, "alias/myapp-kek", "",
+crypto, err := encx.NewCrypto(ctx,
+    encx.WithKMSService(awsKMS),
+    encx.WithKEKAlias("alias/myapp-kek"),
     encx.WithPepper(pepper),
 )
 
 // With HashiCorp Vault
 pepper := []byte("your-32-byte-pepper-here!!!!")
-crypto, err := encx.New(ctx, vaultKMS, "transit/keys/myapp-kek", "",
+crypto, err := encx.NewCrypto(ctx,
+    encx.WithKMSService(vaultKMS),
+    encx.WithKEKAlias("transit/keys/myapp-kek"),
     encx.WithPepper(pepper),
 )
 ```
@@ -377,7 +381,9 @@ if err != nil {
 }
 
 pepper := []byte("your-32-byte-pepper-here!!!!")
-crypto, err := encx.New(ctx, kmsService, "alias/my-encryption-key", "",
+crypto, err := encx.NewCrypto(ctx,
+    encx.WithKMSService(kmsService),
+    encx.WithKEKAlias("alias/my-encryption-key"),
     encx.WithPepper(pepper),
 )
 ```
@@ -402,7 +408,9 @@ if err != nil {
 }
 
 pepper := []byte("your-32-byte-pepper-here!!!!")
-crypto, err := encx.New(ctx, kmsService, "transit/keys/my-key", "",
+crypto, err := encx.NewCrypto(ctx,
+    encx.WithKMSService(kmsService),
+    encx.WithKEKAlias("transit/keys/my-key"),
     encx.WithPepper(pepper),
 )
 ```
