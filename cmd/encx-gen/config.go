@@ -11,32 +11,22 @@ import (
 
 // Config represents the configuration for the code generator
 type Config struct {
-	Version     string                      `yaml:"version"`
-	Generation  GenerationConfig            `yaml:"generation"`
-	Packages    map[string]PackageConfig    `yaml:"packages"`
-	Serializers map[string]SerializerConfig `yaml:"serializers"`
+	Version    string                   `yaml:"version"`
+	Generation GenerationConfig         `yaml:"generation"`
+	Packages   map[string]PackageConfig `yaml:"packages"`
 }
 
 // GenerationConfig holds general generation settings
 type GenerationConfig struct {
-	OutputSuffix      string `yaml:"output_suffix"`
-	FunctionPrefix    string `yaml:"function_prefix"`
-	PackageName       string `yaml:"package_name"`
-	DefaultSerializer string `yaml:"default_serializer"`
+	OutputSuffix   string `yaml:"output_suffix"`
+	FunctionPrefix string `yaml:"function_prefix"`
+	PackageName    string `yaml:"package_name"`
 }
 
 // PackageConfig holds per-package overrides
 type PackageConfig struct {
-	Serializer string `yaml:"serializer"`
-	OutputDir  string `yaml:"output_dir"`
-	Skip       bool   `yaml:"skip"`
-}
-
-// SerializerConfig defines available serializers
-type SerializerConfig struct {
-	Type    string `yaml:"type"`
-	Import  string `yaml:"import"`
-	Factory string `yaml:"factory"`
+	OutputDir string `yaml:"output_dir"`
+	Skip      bool   `yaml:"skip"`
 }
 
 // LoadConfig loads configuration from a YAML file
@@ -53,8 +43,7 @@ func LoadConfig(path string) (*Config, error) {
 
 	// Start with empty config, not defaults
 	config := &Config{
-		Packages:    make(map[string]PackageConfig),
-		Serializers: make(map[string]SerializerConfig),
+		Packages: make(map[string]PackageConfig),
 	}
 
 	if err := yaml.Unmarshal(data, config); err != nil {
@@ -83,26 +72,11 @@ func DefaultConfig() *Config {
 	return &Config{
 		Version: "1",
 		Generation: GenerationConfig{
-			OutputSuffix:      "_encx",
-			FunctionPrefix:    "Process",
-			PackageName:       "encx",
-			DefaultSerializer: "json",
+			OutputSuffix:   "_encx",
+			FunctionPrefix: "Process",
+			PackageName:    "encx",
 		},
 		Packages: make(map[string]PackageConfig),
-		Serializers: map[string]SerializerConfig{
-			"json": {
-				Type:   "json",
-				Import: "encoding/json",
-			},
-			"gob": {
-				Type:   "gob",
-				Import: "encoding/gob",
-			},
-			"basic": {
-				Type:   "basic",
-				Import: "github.com/hengadev/encx/internal/serialization",
-			},
-		},
 	}
 }
 
@@ -126,10 +100,6 @@ func (c *Config) Validate() error {
 		return fmt.Errorf("package_name cannot be empty")
 	}
 
-	if c.Generation.DefaultSerializer == "" {
-		return fmt.Errorf("default serializer is required")
-	}
-
 	// Validate identifiers
 	if !isValidGoIdentifier(c.Generation.FunctionPrefix) {
 		return fmt.Errorf("function_prefix must be a valid Go identifier")
@@ -142,30 +112,6 @@ func (c *Config) Validate() error {
 	// Validate output suffix format
 	if !isValidOutputSuffix(c.Generation.OutputSuffix) {
 		return fmt.Errorf("output_suffix must start with underscore or letter")
-	}
-
-	// Check if default serializer exists or is a known type
-	validSerializers := map[string]bool{"json": true, "protobuf": true}
-	if !validSerializers[c.Generation.DefaultSerializer] {
-		return fmt.Errorf("default_serializer must be one of: json, protobuf")
-	}
-
-	// Validate each package config
-	for pkg, pkgConfig := range c.Packages {
-		if pkgConfig.Serializer != "" {
-			// Check against known serializers or configured serializers
-			if len(c.Serializers) > 0 {
-				// If serializers are configured, check against those
-				if _, exists := c.Serializers[pkgConfig.Serializer]; !exists {
-					return fmt.Errorf("serializer '%s' for package '%s' not found in serializers config", pkgConfig.Serializer, pkg)
-				}
-			} else {
-				// If no serializers configured, check against known valid ones
-				if !validSerializers[pkgConfig.Serializer] {
-					return fmt.Errorf("invalid serializer for package %s", pkg)
-				}
-			}
-		}
 	}
 
 	return nil
@@ -212,4 +158,3 @@ func (gc GenerationConfig) ToCodegenConfig() (codegen.GenerationConfig, error) {
 		PackageName:    gc.PackageName,
 	}, nil
 }
-

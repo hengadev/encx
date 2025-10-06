@@ -3,18 +3,4 @@ generation:
     output_suffix: _encx
     function_prefix: ""
     package_name: auto
-    default_serializer: json
 packages: {}
-serializers:
-    basic:
-        type: basic
-        import: github.com/hengadev/encx/internal/serialization
-        factory: ""
-    gob:
-        type: gob
-        import: encoding/gob
-        factory: ""
-    json:
-        type: json
-        import: encoding/json
-        factory: ""
