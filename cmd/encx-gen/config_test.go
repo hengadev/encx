@@ -16,7 +16,6 @@ func TestLoadConfigValidFile(t *testing.T) {
 	configContent := `
 generation:
   output_suffix: "_encrypted"
-  function_prefix: "Transform"
   package_name: "mypackage"
 
 packages:
@@ -33,7 +32,6 @@ packages:
 	require.NoError(t, err)
 
 	assert.Equal(t, "_encrypted", config.Generation.OutputSuffix)
-	assert.Equal(t, "Transform", config.Generation.FunctionPrefix)
 	assert.Equal(t, "mypackage", config.Generation.PackageName)
 
 	assert.Len(t, config.Packages, 2)
@@ -73,7 +71,6 @@ func TestLoadConfigEmptyFile(t *testing.T) {
 
 	assert.NotNil(t, config)
 	assert.Empty(t, config.Generation.OutputSuffix)
-	assert.Empty(t, config.Generation.FunctionPrefix)
 	assert.Empty(t, config.Generation.PackageName)
 	assert.Empty(t, config.Packages)
 }
@@ -82,7 +79,6 @@ func TestDefaultConfig(t *testing.T) {
 	config := DefaultConfig()
 
 	assert.Equal(t, "_encx", config.Generation.OutputSuffix)
-	assert.Equal(t, "Process", config.Generation.FunctionPrefix)
 	assert.Equal(t, "encx", config.Generation.PackageName)
 	assert.Empty(t, config.Packages)
 }
@@ -98,9 +94,8 @@ func TestConfigValidation(t *testing.T) {
 			name: "Valid config",
 			config: Config{
 				Generation: GenerationConfig{
-					OutputSuffix:   "_encx",
-					FunctionPrefix: "Process",
-					PackageName:    "encx",
+					OutputSuffix: "_encx",
+					PackageName:  "encx",
 				},
 			},
 			expectError: false,
@@ -109,57 +104,30 @@ func TestConfigValidation(t *testing.T) {
 			name: "Empty output suffix",
 			config: Config{
 				Generation: GenerationConfig{
-					OutputSuffix:   "",
-					FunctionPrefix: "Process",
-					PackageName:    "encx",
+					OutputSuffix: "",
+					PackageName:  "encx",
 				},
 			},
 			expectError: true,
 			errorMsg:    "output_suffix cannot be empty",
 		},
 		{
-			name: "Empty function prefix",
-			config: Config{
-				Generation: GenerationConfig{
-					OutputSuffix:   "_encx",
-					FunctionPrefix: "",
-					PackageName:    "encx",
-				},
-			},
-			expectError: true,
-			errorMsg:    "function_prefix cannot be empty",
-		},
-		{
 			name: "Empty package name",
 			config: Config{
 				Generation: GenerationConfig{
-					OutputSuffix:   "_encx",
-					FunctionPrefix: "Process",
-					PackageName:    "",
+					OutputSuffix: "_encx",
+					PackageName:  "",
 				},
 			},
 			expectError: true,
 			errorMsg:    "package_name cannot be empty",
 		},
 		{
-			name: "Invalid function prefix with special characters",
-			config: Config{
-				Generation: GenerationConfig{
-					OutputSuffix:   "_encx",
-					FunctionPrefix: "Process-Func",
-					PackageName:    "encx",
-				},
-			},
-			expectError: true,
-			errorMsg:    "function_prefix must be a valid Go identifier",
-		},
-		{
 			name: "Invalid package name with special characters",
 			config: Config{
 				Generation: GenerationConfig{
-					OutputSuffix:   "_encx",
-					FunctionPrefix: "Process",
-					PackageName:    "my-package",
+					OutputSuffix: "_encx",
+					PackageName:  "my-package",
 				},
 			},
 			expectError: true,
@@ -169,9 +137,8 @@ func TestConfigValidation(t *testing.T) {
 			name: "Invalid output suffix starting with number",
 			config: Config{
 				Generation: GenerationConfig{
-					OutputSuffix:   "1encx",
-					FunctionPrefix: "Process",
-					PackageName:    "encx",
+					OutputSuffix: "1encx",
+					PackageName:  "encx",
 				},
 			},
 			expectError: true,
@@ -201,9 +168,8 @@ func TestSaveConfig(t *testing.T) {
 
 	config := Config{
 		Generation: GenerationConfig{
-			OutputSuffix:   "_test",
-			FunctionPrefix: "TestProcess",
-			PackageName:    "testpkg",
+			OutputSuffix: "_test",
+			PackageName:  "testpkg",
 		},
 		Packages: map[string]PackageConfig{
 			"./internal": {
@@ -222,7 +188,6 @@ func TestSaveConfig(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, config.Generation.OutputSuffix, loadedConfig.Generation.OutputSuffix)
-	assert.Equal(t, config.Generation.FunctionPrefix, loadedConfig.Generation.FunctionPrefix)
 	assert.Equal(t, config.Generation.PackageName, loadedConfig.Generation.PackageName)
 
 	assert.Len(t, loadedConfig.Packages, 1)
@@ -236,7 +201,6 @@ func TestConfigWithComplexPackageStructure(t *testing.T) {
 	configContent := `
 generation:
   output_suffix: "_secure"
-  function_prefix: "Secure"
   package_name: "security"
 
 packages:

@@ -18,9 +18,8 @@ type Config struct {
 
 // GenerationConfig holds general generation settings
 type GenerationConfig struct {
-	OutputSuffix   string `yaml:"output_suffix"`
-	FunctionPrefix string `yaml:"function_prefix"`
-	PackageName    string `yaml:"package_name"`
+	OutputSuffix string `yaml:"output_suffix"`
+	PackageName  string `yaml:"package_name"`
 }
 
 // PackageConfig holds per-package overrides
@@ -72,9 +71,8 @@ func DefaultConfig() *Config {
 	return &Config{
 		Version: "1",
 		Generation: GenerationConfig{
-			OutputSuffix:   "_encx",
-			FunctionPrefix: "Process",
-			PackageName:    "encx",
+			OutputSuffix: "_encx",
+			PackageName:  "encx",
 		},
 		Packages: make(map[string]PackageConfig),
 	}
@@ -92,19 +90,11 @@ func (c *Config) Validate() error {
 		return fmt.Errorf("output_suffix cannot be empty")
 	}
 
-	if c.Generation.FunctionPrefix == "" {
-		return fmt.Errorf("function_prefix cannot be empty")
-	}
-
 	if c.Generation.PackageName == "" {
 		return fmt.Errorf("package_name cannot be empty")
 	}
 
 	// Validate identifiers
-	if !isValidGoIdentifier(c.Generation.FunctionPrefix) {
-		return fmt.Errorf("function_prefix must be a valid Go identifier")
-	}
-
 	if c.Generation.PackageName != "auto" && !isValidGoIdentifier(c.Generation.PackageName) {
 		return fmt.Errorf("package_name must be a valid Go identifier")
 	}
@@ -153,8 +143,7 @@ func isValidOutputSuffix(s string) bool {
 // ToCodegenConfig converts the YAML config to the codegen GenerationConfig
 func (gc GenerationConfig) ToCodegenConfig() (codegen.GenerationConfig, error) {
 	return codegen.GenerationConfig{
-		OutputSuffix:   gc.OutputSuffix,
-		FunctionPrefix: gc.FunctionPrefix,
-		PackageName:    gc.PackageName,
+		OutputSuffix: gc.OutputSuffix,
+		PackageName:  gc.PackageName,
 	}, nil
 }

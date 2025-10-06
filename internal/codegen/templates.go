@@ -207,10 +207,8 @@ func (te *TemplateEngine) GenerateCode(data TemplateData) ([]byte, error) {
 
 // GenerationConfig holds general generation settings
 type GenerationConfig struct {
-	OutputSuffix   string
-	FunctionPrefix string
-	PackageName    string
-	// Future configuration options can be added here
+	OutputSuffix string
+	PackageName  string
 }
 
 // BuildTemplateData builds template data from struct info

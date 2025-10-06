@@ -1,6 +1,5 @@
 version: "1"
 generation:
     output_suffix: _encx
-    function_prefix: ""
     package_name: auto
 packages: {}
