@@ -21,64 +21,71 @@ import (
     "context"
     "fmt"
     "log"
-    
+
     "github.com/hengadev/encx"
 )
 
+//go:generate encx-gen generate .
+
+// User is the source struct with encx tags
 type User struct {
     // Basic encryption - for sensitive data that needs to be retrievable
-    Name             string `encx:"encrypt"`
-    NameEncrypted    []byte
-    
+    Name     string `encx:"encrypt"`
+
     // Basic hashing - for fast lookups, non-sensitive data
-    Email            string `encx:"hash_basic"`
-    EmailHash        string
-    
+    Email    string `encx:"hash_basic"`
+
     // Secure hashing - for passwords and sensitive identifiers
-    Password         string `encx:"hash_secure"`
-    PasswordHash     string
-    
-    // Required ENCX fields
-    DEK              []byte // Data Encryption Key
-    DEKEncrypted     []byte // Encrypted DEK
-    KeyVersion       int    // Key version for rotation
+    Password string `encx:"hash_secure"`
 }
+
+// UserEncx is generated automatically by encx-gen
+// It contains:
+// - NameEncrypted []byte
+// - EmailHash string
+// - PasswordHashSecure string
+// - DEKEncrypted []byte
+// - KeyVersion int
+// - Metadata metadata.EncryptionMetadata
 
 func main() {
     // Create test crypto instance
     crypto, _ := encx.NewTestCrypto(nil)
-    
+
     // Create user with plaintext data
     user := &User{
         Name:     "Alice Smith",
         Email:    "alice@example.com",
         Password: "securePassword123",
     }
-    
+
     fmt.Printf("Before processing:\n")
     fmt.Printf("  Name: %s\n", user.Name)
     fmt.Printf("  Email: %s\n", user.Email)
     fmt.Printf("  Password: %s\n", user.Password)
-    
-    // Process the struct
+
+    // Process the struct using generated function
+    // Note: Function name is Process<StructName>Encx
     ctx := context.Background()
-    if err := crypto.ProcessStruct(ctx, user); err != nil {
+    userEncx, err := ProcessUserEncx(ctx, crypto, user)
+    if err != nil {
         log.Fatal(err)
     }
-    
+
     fmt.Printf("\nAfter processing:\n")
-    fmt.Printf("  Name: '%s' (cleared)\n", user.Name)
-    fmt.Printf("  NameEncrypted: %d bytes\n", len(user.NameEncrypted))
-    fmt.Printf("  EmailHash: %s\n", user.EmailHash)
-    fmt.Printf("  PasswordHash: %s\n", user.PasswordHash[:50]+"...")
-    
-    // Decrypt when needed
-    if err := crypto.DecryptStruct(ctx, user); err != nil {
+    fmt.Printf("  NameEncrypted: %d bytes\n", len(userEncx.NameEncrypted))
+    fmt.Printf("  EmailHash: %s\n", userEncx.EmailHash)
+    fmt.Printf("  PasswordHashSecure: %s\n", userEncx.PasswordHashSecure[:50]+"...")
+
+    // Decrypt when needed using generated function
+    // Note: Function name is Decrypt<StructName>Encx
+    decryptedUser, err := DecryptUserEncx(ctx, crypto, userEncx)
+    if err != nil {
         log.Fatal(err)
     }
-    
+
     fmt.Printf("\nAfter decryption:\n")
-    fmt.Printf("  Name: %s (restored)\n", user.Name)
+    fmt.Printf("  Name: %s (restored)\n", decryptedUser.Name)
 }
 ```
 
@@ -89,35 +96,39 @@ func main() {
 Perfect for user management systems where you need both fast lookups and privacy protection:
 
 ```go
+//go:generate encx-gen generate .
+
+// Source struct
 type User struct {
-    // Email: encrypt for privacy + hash for lookups
-    Email             string `encx:"encrypt,hash_basic"`
-    EmailEncrypted    []byte // Stored in database
-    EmailHash         string // Used for user lookups
-    
-    DEK               []byte
-    DEKEncrypted      []byte
-    KeyVersion        int
+    Email string `encx:"encrypt,hash_basic"`
 }
+
+// Generated UserEncx struct contains:
+// - EmailEncrypted []byte // Stored in database
+// - EmailHash      string // Used for user lookups
+// - DEKEncrypted   []byte
+// - KeyVersion     int
+// - Metadata       metadata.EncryptionMetadata
 
 func ExampleEmailLookup() {
     crypto, _ := encx.NewTestCrypto(nil)
     ctx := context.Background()
-    
-    // Process user
+
+    // Process user with generated function
     user := &User{Email: "user@example.com"}
-    crypto.ProcessStruct(ctx, user)
-    
+    userEncx, _ := ProcessUserEncx(ctx, crypto, user)
+
     // Later: find user by email
     searchEmail := "user@example.com"
-    searchHash := crypto.HashBasic(ctx, []byte(searchEmail))
-    
-    if searchHash == user.EmailHash {
+    emailBytes, _ := serialization.Serialize(searchEmail)
+    searchHash := crypto.HashBasic(ctx, emailBytes)
+
+    if searchHash == userEncx.EmailHash {
         fmt.Println("User found!")
-        
-        // Decrypt email for display
-        crypto.DecryptStruct(ctx, user)
-        fmt.Printf("User email: %s\n", user.Email)
+
+        // Decrypt email for display using generated function
+        decrypted, _ := DecryptUserEncx(ctx, crypto, userEncx)
+        fmt.Printf("User email: %s\n", decrypted.Email)
     }
 }
 ```
@@ -127,36 +138,35 @@ func ExampleEmailLookup() {
 Secure password handling with both authentication and recovery capabilities:
 
 ```go
+//go:generate encx-gen generate .
+
+// Source struct
 type User struct {
-    // Password: secure hash for auth + encryption for recovery
-    Password          string `encx:"hash_secure,encrypt"`
-    PasswordHash      string // For login verification (Argon2id)
-    PasswordEncrypted []byte // For password recovery scenarios
-    
-    DEK               []byte
-    DEKEncrypted      []byte
-    KeyVersion        int
+    Password string `encx:"hash_secure,encrypt"`
 }
 
-func (u *User) CheckPassword(crypto *encx.Crypto, plaintext string) (bool, error) {
+// Generated UserEncx struct contains:
+// - PasswordHashSecure string // For login verification (Argon2id)
+// - PasswordEncrypted  []byte // For password recovery scenarios
+// - DEKEncrypted       []byte
+// - KeyVersion         int
+// - Metadata           metadata.EncryptionMetadata
+
+func CheckPassword(crypto *encx.Crypto, userEncx *UserEncx, plaintext string) (bool, error) {
     ctx := context.Background()
-    return crypto.CompareSecureHashAndValue(ctx, plaintext, u.PasswordHash)
+    return crypto.CompareSecureHashAndValue(ctx, plaintext, userEncx.PasswordHashSecure)
 }
 
-func (u *User) RecoverPassword(crypto *encx.Crypto) (string, error) {
+func RecoverPassword(crypto *encx.Crypto, userEncx *UserEncx) (string, error) {
     ctx := context.Background()
-    
-    // Temporarily decrypt to get original password
-    if err := crypto.DecryptStruct(ctx, u); err != nil {
+
+    // Decrypt to get original password using generated function
+    decrypted, err := DecryptUserEncx(ctx, crypto, userEncx)
+    if err != nil {
         return "", err
     }
-    
-    password := u.Password
-    
-    // Clear the plaintext immediately
-    u.Password = ""
-    
-    return password, nil
+
+    return decrypted.Password, nil
 }
 ```
 
@@ -165,39 +175,28 @@ func (u *User) RecoverPassword(crypto *encx.Crypto) (string, error) {
 ### E-commerce Customer Data
 
 ```go
+//go:generate encx-gen generate .
+
+// Source structs - clean and simple
 type Customer struct {
     // PII data - encrypt for privacy
-    FirstName            string `encx:"encrypt"`
-    FirstNameEncrypted   []byte
-    LastName             string `encx:"encrypt"`
-    LastNameEncrypted    []byte
-    
+    FirstName string `encx:"encrypt"`
+    LastName  string `encx:"encrypt"`
+
     // Contact info - both searchable and private
-    Email                string `encx:"encrypt,hash_basic"`
-    EmailEncrypted       []byte
-    EmailHash            string
-    
-    Phone                string `encx:"encrypt,hash_basic"`
-    PhoneEncrypted       []byte
-    PhoneHash            string
-    
+    Email string `encx:"encrypt,hash_basic"`
+    Phone string `encx:"encrypt,hash_basic"`
+
     // Address - encrypt for privacy
-    Address              Address `encx:"encrypt"`
-    AddressEncrypted     []byte
-    
+    Address Address `encx:"encrypt"`
+
     // Account info - hash only (for deduplication)
-    TaxID                string `encx:"hash_basic"`
-    TaxIDHash            string
-    
-    // Required fields
-    DEK                  []byte
-    DEKEncrypted         []byte
-    KeyVersion           int
+    TaxID string `encx:"hash_basic"`
 }
 
 type Address struct {
-    Street    string
-    City      string
+    Street string
+    City   string
     State     string
     ZipCode   string
     Country   string
