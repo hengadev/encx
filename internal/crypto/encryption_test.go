@@ -429,3 +429,164 @@ func TestDataEncryption_EncryptDecryptStream_LargeFile(t *testing.T) {
 	// Verify
 	assert.Equal(t, largeData, decryptedBuf.Bytes())
 }
+
+// TestDecryptStream_MaliciousChunkSize tests protection against memory exhaustion attacks
+func TestDecryptStream_MaliciousChunkSize(t *testing.T) {
+	de := NewDataEncryption()
+	ctx := context.Background()
+
+	// Generate a valid DEK
+	dek := make([]byte, 32)
+	_, err := rand.Read(dek)
+	require.NoError(t, err)
+
+	tests := []struct {
+		name        string
+		chunkSize   uint32
+		wantErr     bool
+		errContains string
+	}{
+		{
+			name:        "chunk size exceeds maximum (4GB)",
+			chunkSize:   0xFFFFFFFF, // 4GB - malicious
+			wantErr:     true,
+			errContains: "exceeds maximum allowed size",
+		},
+		{
+			name:        "chunk size exceeds maximum (100MB)",
+			chunkSize:   100 * 1024 * 1024, // 100MB - malicious
+			wantErr:     true,
+			errContains: "exceeds maximum allowed size",
+		},
+		{
+			name:        "chunk size at maximum boundary (10MB)",
+			chunkSize:   10*1024*1024 - 28, // Just under 10MB (accounting for GCM overhead)
+			wantErr:     false,
+			errContains: "",
+		},
+		{
+			name:        "zero chunk size",
+			chunkSize:   0,
+			wantErr:     true,
+			errContains: "invalid chunk size: 0",
+		},
+		{
+			name:        "normal chunk size (1KB)",
+			chunkSize:   1024,
+			wantErr:     false,
+			errContains: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Create malicious stream with crafted chunk length
+			var maliciousStream bytes.Buffer
+
+			// Write malicious chunk length header
+			lengthBytes := []byte{
+				byte(tt.chunkSize >> 24),
+				byte(tt.chunkSize >> 16),
+				byte(tt.chunkSize >> 8),
+				byte(tt.chunkSize),
+			}
+			maliciousStream.Write(lengthBytes)
+
+			// For valid chunk sizes, write actual encrypted data
+			if !tt.wantErr {
+				// Create properly encrypted chunk of the specified size
+				plaintext := make([]byte, tt.chunkSize-28) // Account for GCM overhead (12-byte nonce + 16-byte tag)
+				ciphertext, err := de.EncryptData(ctx, plaintext, dek)
+				require.NoError(t, err)
+				maliciousStream.Write(ciphertext)
+			} else {
+				// For invalid sizes, write garbage data (won't be read due to validation)
+				maliciousStream.Write([]byte("garbage data"))
+			}
+
+			// Attempt to decrypt the malicious stream
+			var output bytes.Buffer
+			err := de.DecryptStream(ctx, &maliciousStream, &output, dek)
+
+			if tt.wantErr {
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), tt.errContains)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+// TestDecryptStream_IncompleteChunk tests handling of incomplete chunks
+func TestDecryptStream_IncompleteChunk(t *testing.T) {
+	de := NewDataEncryption()
+	ctx := context.Background()
+
+	// Generate a valid DEK
+	dek := make([]byte, 32)
+	_, err := rand.Read(dek)
+	require.NoError(t, err)
+
+	tests := []struct {
+		name        string
+		setupStream func() *bytes.Buffer
+		wantErr     bool
+		errContains string
+	}{
+		{
+			name: "incomplete chunk length header",
+			setupStream: func() *bytes.Buffer {
+				buf := new(bytes.Buffer)
+				// Only write 2 bytes instead of 4
+				buf.Write([]byte{0x00, 0x01})
+				return buf
+			},
+			wantErr:     false, // Should treat as EOF
+			errContains: "",
+		},
+		{
+			name: "missing chunk data after length header",
+			setupStream: func() *bytes.Buffer {
+				buf := new(bytes.Buffer)
+				// Write valid chunk length header for 100 bytes
+				buf.Write([]byte{0x00, 0x00, 0x00, 0x64})
+				// But don't write the chunk data
+				return buf
+			},
+			wantErr:     true,
+			errContains: "failed to read encrypted chunk",
+		},
+		{
+			name: "partial chunk data",
+			setupStream: func() *bytes.Buffer {
+				buf := new(bytes.Buffer)
+				// Write chunk length header for 100 bytes
+				buf.Write([]byte{0x00, 0x00, 0x00, 0x64})
+				// But only write 50 bytes
+				buf.Write(make([]byte, 50))
+				return buf
+			},
+			wantErr:     true,
+			errContains: "failed to read encrypted chunk",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			stream := tt.setupStream()
+			var output bytes.Buffer
+
+			err := de.DecryptStream(ctx, stream, &output, dek)
+
+			if tt.wantErr {
+				assert.Error(t, err)
+				if tt.errContains != "" {
+					assert.Contains(t, err.Error(), tt.errContains)
+				}
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
