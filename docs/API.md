@@ -1,0 +1,654 @@
+# ENCX API Reference
+
+Complete API documentation for the ENCX library.
+
+## Table of Contents
+
+- [Core Types](#core-types)
+- [Main Functions](#main-functions)
+- [Crypto Methods](#crypto-methods)
+- [Validation Functions](#validation-functions)
+- [Testing Utilities](#testing-utilities)
+- [Error Types](#error-types)
+- [Configuration Options](#configuration-options)
+
+## Core Types
+
+### Crypto
+
+The main struct that provides all cryptographic operations.
+
+```go
+type Crypto struct {
+    // Internal fields - not directly accessible
+}
+```
+
+**Thread Safety**: The `Crypto` struct is safe for concurrent use.
+
+### CryptoService Interface
+
+Interface for all cryptographic operations, useful for dependency injection and testing.
+
+```go
+type CryptoService interface {
+    // Struct operations
+    ProcessStruct(ctx context.Context, object any) error
+    DecryptStruct(ctx context.Context, object any) error
+    
+    // Data operations
+    GenerateDEK() ([]byte, error)
+    EncryptData(ctx context.Context, plaintext []byte, dek []byte) ([]byte, error)
+    DecryptData(ctx context.Context, ciphertext []byte, dek []byte) ([]byte, error)
+    
+    // DEK operations
+    EncryptDEK(ctx context.Context, plaintextDEK []byte) ([]byte, error)
+    DecryptDEKWithVersion(ctx context.Context, ciphertextDEK []byte, kekVersion int) ([]byte, error)
+    
+    // Hashing operations
+    HashBasic(ctx context.Context, value []byte) string
+    HashSecure(ctx context.Context, value []byte) (string, error)
+    CompareSecureHashAndValue(ctx context.Context, value any, hashValue string) (bool, error)
+    CompareBasicHashAndValue(ctx context.Context, value any, hashValue string) (bool, error)
+    
+    // Key management
+    RotateKEK(ctx context.Context) error
+    
+    // Stream operations
+    EncryptStream(ctx context.Context, reader io.Reader, writer io.Writer, dek []byte) error
+    DecryptStream(ctx context.Context, reader io.Reader, writer io.Writer, dek []byte) error
+    
+    // Configuration
+    GetPepper() []byte
+    GetArgon2Params() *Argon2Params
+    GetAlias() string
+}
+```
+
+### KeyManagementService Interface
+
+Interface for KMS providers.
+
+```go
+type KeyManagementService interface {
+    CreateKey(ctx context.Context, alias string) (keyID string, err error)
+    GetKeyID(ctx context.Context, alias string) (keyID string, err error)
+    Encrypt(ctx context.Context, keyID string, plaintext []byte) (ciphertext []byte, err error)
+    Decrypt(ctx context.Context, keyID string, ciphertext []byte) (plaintext []byte, err error)
+}
+```
+
+### Argon2Params
+
+Configuration for Argon2id hashing.
+
+```go
+type Argon2Params struct {
+    Memory      uint32 // Memory in KB
+    Iterations  uint32 // Number of iterations
+    Parallelism uint8  // Degree of parallelism
+    SaltLength  uint32 // Salt length in bytes
+    KeyLength   uint32 // Generated key length in bytes
+}
+```
+
+**Default Values**:
+- Memory: 65536 KB (64 MB)
+- Iterations: 3
+- Parallelism: 4
+- SaltLength: 16 bytes
+- KeyLength: 32 bytes
+
+## Main Functions
+
+### New
+
+Creates a new Crypto instance with production configuration.
+
+```go
+func New(ctx context.Context, options ...Option) (*Crypto, error)
+```
+
+**Parameters**:
+- `ctx`: Context for initialization
+- `options`: Configuration options (see [Configuration Options](#configuration-options))
+
+**Returns**:
+- `*Crypto`: Configured crypto instance
+- `error`: Initialization error, if any
+
+**Example**:
+```go
+crypto, err := encx.New(ctx,
+    encx.WithKMSService(kmsService),
+    encx.WithDatabase(db),
+    encx.WithPepper(pepper),
+    encx.WithKEKAlias("my-app-kek"),
+)
+```
+
+### NewTestCrypto
+
+Creates a crypto instance optimized for testing.
+
+```go
+func NewTestCrypto(t testing.TB, options ...*TestCryptoOptions) (*Crypto, KeyManagementService)
+```
+
+**Parameters**:
+- `t`: Testing interface (can be nil for non-test usage)
+- `options`: Test-specific configuration options
+
+**Returns**:
+- `*Crypto`: Test crypto instance
+- `KeyManagementService`: The KMS service used (for cleanup if needed)
+
+**Example**:
+```go
+crypto, kms := encx.NewTestCrypto(t, &encx.TestCryptoOptions{
+    Pepper: []byte("test-pepper-exactly-32-bytes!!"),
+})
+```
+
+## Crypto Methods
+
+### Struct Operations
+
+#### ProcessStruct
+
+Processes a struct, encrypting and hashing tagged fields.
+
+```go
+func (c *Crypto) ProcessStruct(ctx context.Context, object any) error
+```
+
+**Parameters**:
+- `ctx`: Context for the operation
+- `object`: Pointer to struct with `encx` tags
+
+**Returns**:
+- `error`: Processing error, if any
+
+**Behavior**:
+- Validates struct and required fields
+- Generates DEK if not present
+- Processes each tagged field according to its tag
+- Sets DEKEncrypted and KeyVersion fields
+- Clears original plaintext values for encrypted fields
+
+**Example**:
+```go
+user := &User{Name: "John", Email: "john@example.com"}
+err := crypto.ProcessStruct(ctx, user)
+```
+
+#### DecryptStruct
+
+Decrypts encrypted fields in a struct.
+
+```go
+func (c *Crypto) DecryptStruct(ctx context.Context, object any) error
+```
+
+**Parameters**:
+- `ctx`: Context for the operation
+- `object`: Pointer to struct with encrypted fields
+
+**Returns**:
+- `error`: Decryption error, if any
+
+**Behavior**:
+- Retrieves and decrypts the DEK using KeyVersion
+- Decrypts all encrypted fields
+- Restores original plaintext values
+- Hash fields remain unchanged
+
+**Example**:
+```go
+err := crypto.DecryptStruct(ctx, user)
+// user.Name is now decrypted and available
+```
+
+### Data Operations
+
+#### GenerateDEK
+
+Generates a new 32-byte Data Encryption Key.
+
+```go
+func (c *Crypto) GenerateDEK() ([]byte, error)
+```
+
+**Returns**:
+- `[]byte`: 32-byte DEK
+- `error`: Generation error, if any
+
+#### EncryptData
+
+Encrypts data using AES-GCM with the provided DEK.
+
+```go
+func (c *Crypto) EncryptData(ctx context.Context, plaintext []byte, dek []byte) ([]byte, error)
+```
+
+**Parameters**:
+- `ctx`: Context for the operation
+- `plaintext`: Data to encrypt
+- `dek`: 32-byte Data Encryption Key
+
+**Returns**:
+- `[]byte`: Encrypted data (includes nonce)
+- `error`: Encryption error, if any
+
+#### DecryptData
+
+Decrypts data using AES-GCM with the provided DEK.
+
+```go
+func (c *Crypto) DecryptData(ctx context.Context, ciphertext []byte, dek []byte) ([]byte, error)
+```
+
+**Parameters**:
+- `ctx`: Context for the operation
+- `ciphertext`: Data to decrypt
+- `dek`: 32-byte Data Encryption Key
+
+**Returns**:
+- `[]byte`: Decrypted data
+- `error`: Decryption error, if any
+
+### DEK Operations
+
+#### EncryptDEK
+
+Encrypts a DEK using the current KEK.
+
+```go
+func (c *Crypto) EncryptDEK(ctx context.Context, plaintextDEK []byte) ([]byte, error)
+```
+
+**Parameters**:
+- `ctx`: Context for the operation
+- `plaintextDEK`: DEK to encrypt
+
+**Returns**:
+- `[]byte`: Encrypted DEK
+- `error`: Encryption error, if any
+
+#### DecryptDEKWithVersion
+
+Decrypts a DEK using a specific KEK version.
+
+```go
+func (c *Crypto) DecryptDEKWithVersion(ctx context.Context, ciphertextDEK []byte, kekVersion int) ([]byte, error)
+```
+
+**Parameters**:
+- `ctx`: Context for the operation
+- `ciphertextDEK`: Encrypted DEK
+- `kekVersion`: KEK version to use for decryption
+
+**Returns**:
+- `[]byte`: Decrypted DEK
+- `error`: Decryption error, if any
+
+### Hashing Operations
+
+#### HashBasic
+
+Creates a SHA-256 hash of the input.
+
+```go
+func (c *Crypto) HashBasic(ctx context.Context, value []byte) string
+```
+
+**Parameters**:
+- `ctx`: Context for the operation
+- `value`: Data to hash
+
+**Returns**:
+- `string`: Hex-encoded hash
+
+**Note**: This is a fast, deterministic hash suitable for lookups but not cryptographically secure for passwords.
+
+#### HashSecure
+
+Creates an Argon2id hash of the input with pepper.
+
+```go
+func (c *Crypto) HashSecure(ctx context.Context, value []byte) (string, error)
+```
+
+**Parameters**:
+- `ctx`: Context for the operation
+- `value`: Data to hash (typically passwords)
+
+**Returns**:
+- `string`: Encoded hash with parameters
+- `error`: Hashing error, if any
+
+**Note**: This is suitable for password storage and other security-critical hashing.
+
+#### CompareSecureHashAndValue
+
+Compares a value against an Argon2id hash.
+
+```go
+func (c *Crypto) CompareSecureHashAndValue(ctx context.Context, value any, hashValue string) (bool, error)
+```
+
+**Parameters**:
+- `ctx`: Context for the operation
+- `value`: Value to check (will be serialized)
+- `hashValue`: Encoded hash to compare against
+
+**Returns**:
+- `bool`: True if value matches hash
+- `error`: Comparison error, if any
+
+#### CompareBasicHashAndValue
+
+Compares a value against a SHA-256 hash.
+
+```go
+func (c *Crypto) CompareBasicHashAndValue(ctx context.Context, value any, hashValue string) (bool, error)
+```
+
+**Parameters**:
+- `ctx`: Context for the operation
+- `value`: Value to check (will be serialized)
+- `hashValue`: Hash to compare against
+
+**Returns**:
+- `bool`: True if value matches hash
+- `error`: Comparison error, if any
+
+### Key Management
+
+#### RotateKEK
+
+Rotates the Key Encryption Key, generating a new version.
+
+```go
+func (c *Crypto) RotateKEK(ctx context.Context) error
+```
+
+**Parameters**:
+- `ctx`: Context for the operation
+
+**Returns**:
+- `error`: Rotation error, if any
+
+**Behavior**:
+- Creates a new KEK version in KMS
+- Updates metadata database
+- Marks previous version as deprecated
+- New encryptions will use the new key version
+- Old data can still be decrypted with previous versions
+
+### Stream Operations
+
+#### EncryptStream
+
+Encrypts data from a reader to a writer using streaming AES-GCM.
+
+```go
+func (c *Crypto) EncryptStream(ctx context.Context, reader io.Reader, writer io.Writer, dek []byte) error
+```
+
+**Parameters**:
+- `ctx`: Context for the operation
+- `reader`: Source of plaintext data
+- `writer`: Destination for encrypted data
+- `dek`: 32-byte Data Encryption Key
+
+**Returns**:
+- `error`: Streaming error, if any
+
+#### DecryptStream
+
+Decrypts data from a reader to a writer using streaming AES-GCM.
+
+```go
+func (c *Crypto) DecryptStream(ctx context.Context, reader io.Reader, writer io.Writer, dek []byte) error
+```
+
+**Parameters**:
+- `ctx`: Context for the operation
+- `reader`: Source of encrypted data
+- `writer`: Destination for decrypted data
+- `dek`: 32-byte Data Encryption Key
+
+**Returns**:
+- `error`: Streaming error, if any
+
+## Validation Functions
+
+### ValidateStruct
+
+Validates a struct for proper encx usage at runtime.
+
+```go
+func ValidateStruct(object any) error
+```
+
+**Parameters**:
+- `object`: Pointer to struct to validate
+
+**Returns**:
+- `error`: Validation errors, if any
+
+**Checks**:
+- Required fields (DEK, DEKEncrypted, KeyVersion) exist
+- Tagged fields have proper companion fields
+- Companion fields have correct types
+- Tag syntax is valid
+
+**Example**:
+```go
+if err := encx.ValidateStruct(&user); err != nil {
+    log.Fatalf("Invalid struct: %v", err)
+}
+```
+
+### NewStructTagValidator
+
+Creates a compile-time struct tag validator.
+
+```go
+func NewStructTagValidator() *StructTagValidator
+```
+
+**Returns**:
+- `*StructTagValidator`: Validator instance
+
+**Usage**:
+```go
+validator := encx.NewStructTagValidator()
+err := validator.ValidateSourceFile("user.go")
+```
+
+## Testing Utilities
+
+### NewCryptoServiceMock
+
+Creates a mock implementation of CryptoService for testing.
+
+```go
+func NewCryptoServiceMock() *CryptoServiceMock
+```
+
+**Returns**:
+- `*CryptoServiceMock`: Mock instance using testify/mock
+
+**Example**:
+```go
+mock := encx.NewCryptoServiceMock()
+mock.On("ProcessStruct", mock.Anything, mock.Anything).Return(nil)
+
+// Use mock in tests
+service := NewUserService(mock)
+err := service.ProcessUser(user)
+
+mock.AssertExpectations(t)
+```
+
+### TestCryptoOptions
+
+Configuration options for test crypto instances.
+
+```go
+type TestCryptoOptions struct {
+    Pepper       []byte
+    KMSService   KeyManagementService
+    Argon2Params *Argon2Params
+}
+```
+
+**Fields**:
+- `Pepper`: Custom pepper for testing (must be 32 bytes)
+- `KMSService`: Custom KMS service for testing
+- `Argon2Params`: Custom Argon2 parameters for testing
+
+## Error Types
+
+### Base Errors
+
+```go
+var (
+    ErrUninitializedPepper = errors.New("pepper value appears to be uninitialized (all zeros)")
+    ErrMissingField       = errors.New("missing required field")
+    ErrMissingTargetField = errors.New("missing required target field")
+    ErrInvalidFieldType   = errors.New("invalid field type")
+    ErrUnsupportedType    = errors.New("unsupported type")
+    ErrTypeConversion     = errors.New("type conversion failed")
+    ErrNilPointer         = errors.New("nil pointer encountered")
+    ErrOperationFailed    = errors.New("operation failed")
+    ErrInvalidFormat      = errors.New("invalid format")
+)
+```
+
+### Error Helper Functions
+
+```go
+func NewMissingFieldError(fieldName string, action Action) error
+func NewMissingTargetFieldError(fieldName string, targetFieldName string, action Action) error
+func NewInvalidFieldTypeError(fieldName string, expectedType, actualType string, action Action) error
+func NewUnsupportedTypeError(fieldName string, typeName string, action Action) error
+func NewTypeConversionError(fieldName string, typeName string, action Action) error
+func NewNilPointerError(fieldName string, action Action) error
+func NewOperationFailedError(fieldName string, action Action, details string) error
+func NewInvalidFormatError(fieldName string, formatName string, action Action) error
+```
+
+## Configuration Options
+
+### Option Functions
+
+#### WithKMSService
+
+Sets the Key Management Service provider.
+
+```go
+func WithKMSService(kms KeyManagementService) Option
+```
+
+#### WithDatabase
+
+Sets the database connection for key metadata.
+
+```go
+func WithDatabase(db *sql.DB) Option
+```
+
+#### WithPepper
+
+Sets the pepper value for secure hashing.
+
+```go
+func WithPepper(pepper []byte) Option
+```
+
+**Requirements**:
+- Must be exactly 32 bytes
+- Should be generated securely and stored separately from database
+- Must not be all zeros
+
+#### WithKEKAlias
+
+Sets the Key Encryption Key alias.
+
+```go
+func WithKEKAlias(alias string) Option
+```
+
+#### WithArgon2Params
+
+Sets custom Argon2id parameters.
+
+```go
+func WithArgon2Params(params *Argon2Params) Option
+```
+
+#### WithSerializer
+
+Sets a custom serializer for field values.
+
+```go
+func WithSerializer(serializer Serializer) Option
+```
+
+## Constants
+
+### Struct Tags
+
+```go
+const (
+    StructTag       = "encx"         // The struct tag name
+    TagEncrypt      = "encrypt"      // Tag for encryption
+    TagHashSecure   = "hash_secure"  // Tag for Argon2id hashing
+    TagHashBasic    = "hash_basic"   // Tag for SHA-256 hashing
+)
+```
+
+### Field Names
+
+```go
+const (
+    FieldDEK          = "DEK"          // DEK field name
+    FieldDEKEncrypted = "DEKEncrypted" // Encrypted DEK field name
+    FieldKeyVersion   = "KeyVersion"   // Key version field name
+)
+```
+
+### Field Suffixes
+
+```go
+const (
+    SuffixEncrypted = "Encrypted"  // Suffix for encrypted companion fields
+    SuffixHashed    = "Hash"       // Suffix for hash companion fields
+)
+```
+
+## Thread Safety
+
+- The `Crypto` struct is safe for concurrent use across multiple goroutines
+- KMS operations are thread-safe (depends on provider implementation)
+- Database operations use proper locking and transactions
+- Hash operations are stateless and thread-safe
+
+## Performance Considerations
+
+- **DEK Generation**: Fast cryptographically secure random generation
+- **AES-GCM Encryption**: Hardware-accelerated on modern CPUs
+- **Argon2id Hashing**: CPU and memory intensive, tune parameters for your needs
+- **KMS Operations**: Network latency dependent, consider connection pooling
+- **Database Operations**: Use connection pooling for better performance
+- **Serialization**: JSON serialization overhead for complex types
+
+## Memory Management
+
+- Sensitive data is cleared from memory when possible
+- DEKs are not cached by default
+- Use `defer` to clear sensitive variables when appropriate
+- The library does not prevent memory dumps or swap to disk
