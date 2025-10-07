@@ -97,9 +97,8 @@ type Complex struct {
 		}
 
 		codegenConfig := codegen.GenerationConfig{
-			OutputSuffix:   "_encx",
-			FunctionPrefix: "Process",
-			PackageName:    "test",
+			OutputSuffix: "_encx",
+			PackageName:  "test",
 		}
 
 		b.ResetTimer()
@@ -143,9 +142,8 @@ type Complex struct {
 			}
 
 			codegenConfig := codegen.GenerationConfig{
-				OutputSuffix:   "_encx",
-				FunctionPrefix: "Process",
-				PackageName:    "test",
+				OutputSuffix: "_encx",
+				PackageName:  "test",
 			}
 
 			for _, structInfo := range structs {
@@ -219,9 +217,8 @@ type BenchmarkStruct struct {
 
 	structInfo := structs[0]
 	codegenConfig := codegen.GenerationConfig{
-		OutputSuffix:   "_encx",
-		FunctionPrefix: "Process",
-		PackageName:    "test",
+		OutputSuffix: "_encx",
+		PackageName:  "test",
 	}
 
 	b.ResetTimer()
@@ -320,9 +317,8 @@ type Related%d struct {
 		}
 
 		codegenConfig := codegen.GenerationConfig{
-			OutputSuffix:   "_encx",
-			FunctionPrefix: "Process",
-			PackageName:    "test",
+			OutputSuffix: "_encx",
+			PackageName:  "test",
 		}
 
 		for _, structInfo := range structs {

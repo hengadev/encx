@@ -26,9 +26,8 @@ func generateCodeForDirectory(dir string) error {
 	}
 
 	codegenConfig := codegen.GenerationConfig{
-		OutputSuffix:   "_encx",
-		FunctionPrefix: "Process",
-		PackageName:    "encx",
+		OutputSuffix: "_encx",
+		PackageName:  "encx",
 	}
 
 	for _, structInfo := range structs {
