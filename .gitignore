@@ -1,7 +1,7 @@
 *.md
 !README.md
-!IMPROVEMENT_ROADMAP.md
 !CLAUDE.md
+!docs/**/*.md
 
 notes/
 .env
