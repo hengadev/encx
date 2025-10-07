@@ -225,13 +225,11 @@ encx-gen init -force
 
 **Generated Config:**
 ```yaml
-version: "1.0"
+version: "1"
 
 generation:
   output_suffix: "_encx"
-  function_prefix: "Process"
   package_name: "encx"
-  default_serializer: "json"
 
 packages: {}
 ```
@@ -259,7 +257,6 @@ Features:
 
 Supported tags: encrypt, hash_basic, hash_secure
 Supported databases: PostgreSQL, SQLite, MySQL
-Supported serializers: json
 ```
 
 ## Configuration API
@@ -268,23 +265,19 @@ Supported serializers: json
 
 ```go
 type Config struct {
-    Version    string                       `yaml:"version"`
-    Generation GenerationConfig             `yaml:"generation"`
-    Packages   map[string]PackageConfig     `yaml:"packages"`
-    Serializers map[string]SerializerConfig `yaml:"serializers"`
+    Version    string                   `yaml:"version"`
+    Generation GenerationConfig         `yaml:"generation"`
+    Packages   map[string]PackageConfig `yaml:"packages"`
 }
 
 type GenerationConfig struct {
-    OutputSuffix      string `yaml:"output_suffix"`
-    FunctionPrefix    string `yaml:"function_prefix"`
-    PackageName       string `yaml:"package_name"`
-    DefaultSerializer string `yaml:"default_serializer"`
+    OutputSuffix string `yaml:"output_suffix"`
+    PackageName  string `yaml:"package_name"`
 }
 
 type PackageConfig struct {
-    Serializer string `yaml:"serializer"`
-    OutputDir  string `yaml:"output_dir"`
-    Skip       bool   `yaml:"skip"`
+    OutputDir string `yaml:"output_dir"`
+    Skip      bool   `yaml:"skip"`
 }
 ```
 
@@ -347,9 +340,7 @@ func (c *Config) Validate() error
 
 **Validation Rules:**
 - `output_suffix`: Must not be empty, must start with underscore or letter
-- `function_prefix`: Must be valid Go identifier
-- `package_name`: Must be valid Go identifier
-- `default_serializer`: Must be supported serializer type
+- `package_name`: Must be valid Go identifier (or "auto" for automatic detection)
 
 ## Metadata API
 
@@ -359,7 +350,6 @@ Stores metadata about encrypted data.
 
 ```go
 type EncryptionMetadata struct {
-    SerializerType   string `json:"serializer_type"`
     PepperVersion    int    `json:"pepper_version"`
     KEKAlias         string `json:"kek_alias"`
     EncryptionTime   int64  `json:"encryption_time"`
@@ -371,7 +361,7 @@ type EncryptionMetadata struct {
 
 #### NewEncryptionMetadata
 ```go
-func NewEncryptionMetadata(serializerType, kekAlias, generatorVersion string, pepperVersion int) *EncryptionMetadata
+func NewEncryptionMetadata(kekAlias, generatorVersion string, pepperVersion int) *EncryptionMetadata
 ```
 
 #### ToJSON
@@ -391,7 +381,7 @@ func (em *EncryptionMetadata) Validate() error
 
 **Example:**
 ```go
-metadata := NewEncryptionMetadata("json", "primary", "1.0.0", 1)
+metadata := NewEncryptionMetadata("primary", "1.0.0", 1)
 jsonData, err := metadata.ToJSON()
 if err != nil {
     log.Fatal(err)
@@ -442,7 +432,7 @@ func (mc *MetadataColumn) GetInt(key string) (int, bool)
 **Example:**
 ```go
 metadata := NewMetadataColumn()
-metadata.Set("serializer_type", "json")
+metadata.Set("kek_alias", "primary")
 metadata.Set("encryption_time", time.Now().Unix())
 
 // Use in database struct
@@ -672,17 +662,15 @@ Data passed to code generation templates.
 
 ```go
 type TemplateData struct {
-    PackageName            string
-    StructName             string
-    SourceFile             string
-    GeneratedTime          string
-    SerializerType         string
-    SerializerFromMetadata string
-    GeneratorVersion       string
-    Imports                []string
-    EncryptedFields        []TemplateField
-    ProcessingSteps        []string
-    DecryptionSteps        []string
+    PackageName      string
+    StructName       string
+    SourceFile       string
+    GeneratedTime    string
+    GeneratorVersion string
+    Imports          []string
+    EncryptedFields  []TemplateField
+    ProcessingSteps  []string
+    DecryptionSteps  []string
 }
 ```
 
