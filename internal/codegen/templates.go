@@ -9,15 +9,18 @@ import (
 
 // TemplateData contains all data needed for code generation
 type TemplateData struct {
-	PackageName       string
-	StructName        string
-	SourceFile        string
-	GeneratedTime     string
-	GeneratorVersion  string
-	Imports           []string
-	EncryptedFields   []TemplateField
-	ProcessingSteps   []string
-	DecryptionSteps   []string
+	PackageName        string
+	StructName         string
+	SourceFile         string
+	GeneratedTime      string
+	GeneratorVersion   string
+	Imports            []string
+	EncryptedFields    []TemplateField
+	PlainFields        []TemplateField // Non-encx fields copied as-is
+	PlainFieldCopies   []string        // Copy statements for plain fields in Process function
+	PlainFieldRestores []string        // Copy statements for plain fields in Decrypt function
+	ProcessingSteps    []string
+	DecryptionSteps    []string
 }
 
 // TemplateField represents a field in the generated struct
@@ -50,6 +53,9 @@ import (
 
 // {{.StructName}}Encx represents the encrypted version of {{.StructName}}
 type {{.StructName}}Encx struct {
+	{{range .PlainFields}}
+	{{.Name}} {{.Type}} ` + "`" + `db:"{{.DBColumn}}" json:"{{.JSONField}}"` + "`" + `
+	{{end}}
 	{{range .EncryptedFields}}
 	{{.Name}} {{.Type}} ` + "`" + `db:"{{.DBColumn}}" json:"{{.JSONField}}"` + "`" + `
 	{{end}}
@@ -74,6 +80,11 @@ func Process{{.StructName}}Encx(ctx context.Context, crypto *encx.Crypto, source
 			GeneratorVersion: "{{.GeneratorVersion}}",
 		},
 	}
+
+	// Copy plain fields (non-encx fields)
+	{{range .PlainFieldCopies}}
+	{{.}}
+	{{end}}
 
 	// Generate DEK
 	dek, err := crypto.GenerateDEK()
@@ -107,6 +118,11 @@ func Decrypt{{.StructName}}Encx(ctx context.Context, crypto *encx.Crypto, source
 
 	// Initialize result struct
 	result := &{{.StructName}}{}
+
+	// Copy plain fields (non-encx fields)
+	{{range .PlainFieldRestores}}
+	{{.}}
+	{{end}}
 
 	// Decrypt DEK
 	dek, err := crypto.DecryptDEKWithVersion(ctx, source.DEKEncrypted, source.KeyVersion)
@@ -214,25 +230,65 @@ type GenerationConfig struct {
 // BuildTemplateData builds template data from struct info
 func BuildTemplateData(structInfo StructInfo, config GenerationConfig) TemplateData {
 	data := TemplateData{
-		PackageName:       structInfo.PackageName,
-		StructName:        structInfo.StructName,
-		SourceFile:        structInfo.SourceFile,
-		GeneratedTime:     time.Now().Format(time.RFC3339),
-		GeneratorVersion:  "1.0.0",
-		Imports:           []string{},
-		EncryptedFields:   []TemplateField{},
-		ProcessingSteps:   []string{},
-		DecryptionSteps:   []string{},
+		PackageName:        structInfo.PackageName,
+		StructName:         structInfo.StructName,
+		SourceFile:         structInfo.SourceFile,
+		GeneratedTime:      time.Now().Format(time.RFC3339),
+		GeneratorVersion:   "1.0.0",
+		Imports:            []string{},
+		EncryptedFields:    []TemplateField{},
+		PlainFields:        []TemplateField{},
+		PlainFieldCopies:   []string{},
+		PlainFieldRestores: []string{},
+		ProcessingSteps:    []string{},
+		DecryptionSteps:    []string{},
 	}
 
-	// Process each field with encx tags
+	// Process ALL fields (both with and without encx tags)
 	for _, field := range structInfo.Fields {
 		if len(field.EncxTags) > 0 {
+			// Field has encx tags - apply encryption/hashing transformations
 			processFieldForTemplate(&data, field)
+		} else {
+			// Field has no encx tags - copy as-is
+			processPlainFieldForTemplate(&data, field)
 		}
 	}
 
 	return data
+}
+
+// processPlainFieldForTemplate processes a field without encx tags
+func processPlainFieldForTemplate(data *TemplateData, field FieldInfo) {
+	// Skip companion fields (these are generated fields, not source fields)
+	// Companion fields end with: Encrypted, Hash, HashSecure
+	if isCompanionField(field.Name) {
+		return
+	}
+
+	// Add field to PlainFields (will be included in generated struct as-is)
+	plainField := TemplateField{
+		Name:      field.Name,
+		Type:      field.Type,
+		DBColumn:  strings.ToLower(field.Name),
+		JSONField: strings.ToLower(field.Name),
+	}
+	data.PlainFields = append(data.PlainFields, plainField)
+
+	// Add copy statement for Process function (source -> result)
+	copyStmt := "result." + field.Name + " = source." + field.Name
+	data.PlainFieldCopies = append(data.PlainFieldCopies, copyStmt)
+
+	// Add restore statement for Decrypt function (source -> result)
+	restoreStmt := "result." + field.Name + " = source." + field.Name
+	data.PlainFieldRestores = append(data.PlainFieldRestores, restoreStmt)
+}
+
+// isCompanionField checks if a field name looks like a generated companion field
+func isCompanionField(fieldName string) bool {
+	return strings.HasSuffix(fieldName, "Encrypted") ||
+		strings.HasSuffix(fieldName, "Hash") ||
+		strings.HasSuffix(fieldName, "HashSecure")
 }
 
 // processFieldForTemplate processes a field and adds template data
