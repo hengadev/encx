@@ -88,6 +88,8 @@ user := &User{
 }
 
 // Process (encrypt/hash) the user data
+// Note: Function name follows pattern Process<StructName>Encx
+// For a User struct, the generator creates ProcessUserEncx
 userEncx, err := ProcessUserEncx(ctx, crypto, user)
 if err != nil {
     log.Fatal(err)
@@ -107,20 +109,13 @@ if err != nil {
 ### Basic Configuration (encx.yaml)
 
 ```yaml
-version: "1.0"
+version: "1"
 
 generation:
   output_suffix: "_encx"
-  function_prefix: "Process"
   package_name: "encx"
-  default_serializer: "json"
 
-packages:
-  "./internal/models":
-    skip: false
-    serializer: "json"
-  "./test":
-    skip: true
+packages: {}
 ```
 
 ### Configuration Options
@@ -128,9 +123,7 @@ packages:
 | Option | Description | Default |
 |--------|-------------|---------|
 | `output_suffix` | Suffix for generated files | `_encx` |
-| `function_prefix` | Prefix for generated functions | `Process` |
 | `package_name` | Package name for generated code | `encx` |
-| `default_serializer` | Default serializer to use | `json` |
 
 ### Package-Specific Configuration
 
@@ -138,12 +131,13 @@ packages:
 packages:
   "./models":
     skip: false              # Generate code for this package
-    serializer: "json"       # Use JSON serializer
     output_dir: "./generated" # Custom output directory (optional)
 
   "./test":
     skip: true               # Skip code generation
 ```
+
+**Note:** ENCX uses a custom compact binary serializer automatically. No serializer configuration is needed.
 
 ## Struct Tags
 
@@ -206,16 +200,19 @@ For a `User` struct, the generator creates:
 
 ```go
 // ProcessUserEncx encrypts and hashes user data
+// Note: Function name follows pattern Process<StructName>Encx
 func ProcessUserEncx(ctx context.Context, crypto *encx.Crypto, source *User) (*UserEncx, error) {
     // Generated implementation with proper error handling
 }
 
 // DecryptUserEncx decrypts user data back to original form
+// Note: Function name follows pattern Decrypt<StructName>Encx
 func DecryptUserEncx(ctx context.Context, crypto *encx.Crypto, source *UserEncx) (*User, error) {
     // Generated implementation with proper error handling
 }
 
 // UserEncx contains only encrypted/hashed fields
+// Note: Struct name follows pattern <StructName>Encx
 type UserEncx struct {
     EmailEncrypted []byte `db:"email_encrypted" json:"email_encrypted"`
     EmailHash      string `db:"email_hash" json:"email_hash"`
@@ -223,9 +220,9 @@ type UserEncx struct {
     SSNHashSecure  string `db:"ssn_hash_secure" json:"ssn_hash_secure"`
 
     // Essential encryption fields
-    DEKEncrypted []byte `db:"dek_encrypted" json:"dek_encrypted"`
-    KeyVersion   int    `db:"key_version" json:"key_version"`
-    Metadata     string `db:"metadata" json:"metadata"`
+    DEKEncrypted []byte                      `db:"dek_encrypted" json:"dek_encrypted"`
+    KeyVersion   int                         `db:"key_version" json:"key_version"`
+    Metadata     metadata.EncryptionMetadata `db:"metadata" json:"metadata"`
 }
 ```
 
@@ -239,15 +236,16 @@ func ProcessUserEncx(ctx context.Context, crypto *encx.Crypto, source *User) (*U
     errs := errsx.Map{}
 
     // DEK generation
-    dek, err := crypto.GenerateDEK(ctx)
+    dek, err := crypto.GenerateDEK()
     if err != nil {
         errs.Set("DEK generation", err)
         return nil, errs.AsError()
     }
 
     // Field processing with individual error tracking
+    // Uses internal compact binary serializer automatically
     if source.Email != "" {
-        emailBytes, err := serializer.Serialize(source.Email)
+        emailBytes, err := serialization.Serialize(source.Email)
         if err != nil {
             errs.Set("Email serialization", err)
         } else {
@@ -408,7 +406,7 @@ CREATE TABLE users_encx (
 
 -- Indexes for performance
 CREATE INDEX idx_users_encx_email_hash ON users_encx (email_hash);
-CREATE INDEX idx_users_encx_metadata_serializer ON users_encx USING GIN ((metadata->>'serializer_type'));
+CREATE INDEX idx_users_encx_key_version ON users_encx (key_version);
 ```
 
 ### Cross-Database Support
