@@ -3,10 +3,19 @@ package security
 import (
 	"crypto/subtle"
 	"runtime"
-	"unsafe"
 )
 
-// SecureMemory provides utilities for secure memory handling in cryptographic operations
+// SecureMemory provides utilities for secure memory handling in cryptographic operations.
+//
+// IMPORTANT: Sensitive data (passwords, keys, secrets) MUST be stored as []byte, never string.
+// Go strings are immutable and cannot be securely erased from memory.
+// Always use []byte for sensitive data and call ZeroBytes when done.
+//
+// Example:
+//
+//	password := []byte("secret123")
+//	defer security.ZeroBytes(password)
+//	// Use password...
 type SecureMemory struct{}
 
 // NewSecureMemory creates a new SecureMemory instance
@@ -40,23 +49,6 @@ func (s *SecureMemory) ZeroBytes(data []byte) {
 
 	// Memory barrier to ensure writes complete
 	runtime.KeepAlive(data)
-}
-
-// ZeroString securely zeros a string by accessing its underlying byte array.
-// Note: This is unsafe and should only be used when absolutely necessary.
-// Prefer using byte slices for sensitive data instead of strings.
-func (s *SecureMemory) ZeroString(str string) {
-	if len(str) == 0 {
-		return
-	}
-
-	// Convert string to byte slice using unsafe pointer manipulation
-	// WARNING: This breaks Go's immutability guarantees for strings
-	// and should only be used for security-critical cleanup
-	strHeader := (*[2]uintptr)(unsafe.Pointer(&str))
-	data := unsafe.Slice((*byte)(unsafe.Pointer(strHeader[0])), len(str))
-
-	s.ZeroBytes(data)
 }
 
 // SecureAllocate allocates memory that will be securely zeroed when freed.
@@ -280,11 +272,6 @@ var globalSecureMemory = NewSecureMemory()
 // ZeroBytes is a convenience function for securely zeroing bytes
 func ZeroBytes(data []byte) {
 	globalSecureMemory.ZeroBytes(data)
-}
-
-// ZeroString is a convenience function for securely zeroing strings
-func ZeroString(str string) {
-	globalSecureMemory.ZeroString(str)
 }
 
 // ConstantTimeCompare is a convenience function for constant-time comparison
