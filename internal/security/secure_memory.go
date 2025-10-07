@@ -2,6 +2,7 @@ package security
 
 import (
 	"crypto/subtle"
+	"fmt"
 	"runtime"
 )
 
@@ -111,12 +112,14 @@ func (s *SecureMemory) ConstantTimeSelect(condition int, a, b []byte) []byte {
 }
 
 // ConstantTimeCopy copies data in constant time to prevent timing-based information leakage
-func (s *SecureMemory) ConstantTimeCopy(dst, src []byte) {
+// Returns an error if dst and src have different lengths
+func (s *SecureMemory) ConstantTimeCopy(dst, src []byte) error {
 	if len(dst) != len(src) {
-		panic("secure_memory: dst and src must have same length for constant time copy")
+		return fmt.Errorf("secure_memory: dst and src must have same length for constant time copy (dst: %d, src: %d)", len(dst), len(src))
 	}
 
 	subtle.ConstantTimeCopy(1, dst, src)
+	return nil
 }
 
 // SecureRandom generates cryptographically secure random bytes

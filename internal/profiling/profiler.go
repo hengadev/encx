@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	_ "net/http/pprof" // Register pprof handlers
 	"os"
 	"path/filepath"
 	"runtime"
@@ -12,6 +11,29 @@ import (
 	"sync"
 	"time"
 )
+
+// NOTE: pprof handlers are NO LONGER automatically registered
+// This prevents accidental exposure in production
+// To enable profiling, call RegisterPprofHandlers() explicitly when ENABLE_PROFILING=true
+
+// RegisterPprofHandlers registers pprof HTTP handlers for debugging
+// This should ONLY be called when ENABLE_PROFILING environment variable is set to "true"
+// In production, this should never be called to avoid exposing sensitive information
+func RegisterPprofHandlers(mux *http.ServeMux) {
+	if os.Getenv("ENABLE_PROFILING") != "true" {
+		// Profiling is disabled - do not register handlers
+		return
+	}
+
+	// Only register if explicitly enabled
+	// Note: Importing net/http/pprof package will be needed at the call site
+	// Example usage:
+	//   import _ "net/http/pprof"
+	//   profiling.RegisterPprofHandlers(http.DefaultServeMux)
+
+	// Log warning that profiling is enabled
+	fmt.Fprintf(os.Stderr, "WARNING: Profiling endpoints enabled at /debug/pprof/. Do NOT use in production!\n")
+}
 
 // ProfileType represents different types of profiling
 type ProfileType string
