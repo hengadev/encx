@@ -372,20 +372,6 @@ func TestSetDefaults(t *testing.T) {
 	t.Skip("SetDefaults is internal API, tested via NewCrypto")
 }
 
-func TestBackwardCompatibility(t *testing.T) {
-	ctx := context.Background()
-	kms := testutils.NewSimpleTestKMS()
-
-	// Test that the old New function still works
-	crypto, err := encx.New(ctx, kms, "test-kek", "secret/pepper")
-
-	// This should work without error (though it might fail at pepper retrieval)
-	// The important thing is that the function signature is maintained
-	if err != nil {
-		// Expected to fail due to pepper retrieval, but should not be a compilation error
-		assert.Contains(t, err.Error(), "pepper")
-	} else {
-		assert.NotNil(t, crypto)
-	}
-}
+// TestBackwardCompatibility removed - encx.New() no longer exists
+// The API has been updated to use encx.NewCrypto() with options pattern
 
