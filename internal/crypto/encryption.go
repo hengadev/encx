@@ -9,6 +9,12 @@ import (
 	"io"
 )
 
+const (
+	// maxChunkSize defines the maximum allowed chunk size for stream decryption
+	// to prevent memory exhaustion attacks
+	maxChunkSize = 10 * 1024 * 1024 // 10MB maximum chunk size
+)
+
 // DataEncryption handles data encryption and decryption operations
 type DataEncryption struct{}
 
@@ -96,41 +102,42 @@ func (e *DataEncryption) EncryptStream(ctx context.Context, reader io.Reader, wr
 func (e *DataEncryption) DecryptStream(ctx context.Context, reader io.Reader, writer io.Writer, dek []byte) error {
 	lengthBytes := make([]byte, 4)
 	for {
-		// Read chunk length
-		n, err := reader.Read(lengthBytes)
+		// Read chunk length with guaranteed full read
+		_, err := io.ReadFull(reader, lengthBytes)
 		if err != nil {
-			if err == io.EOF {
-				break
+			if err == io.EOF || err == io.ErrUnexpectedEOF {
+				break // Normal end of stream
 			}
 			return fmt.Errorf("failed to read chunk length: %w", err)
-		}
-		if n != 4 {
-			if n == 0 {
-				break // End of stream
-			}
-			return fmt.Errorf("incomplete chunk length header")
 		}
 
 		// Parse chunk length
 		length := uint32(lengthBytes[0])<<24 | uint32(lengthBytes[1])<<16 |
 			uint32(lengthBytes[2])<<8 | uint32(lengthBytes[3])
 
-		// Read the encrypted chunk
+		// CRITICAL: Validate chunk size to prevent memory exhaustion attacks
+		if length == 0 {
+			return fmt.Errorf("invalid chunk size: 0")
+		}
+		if length > maxChunkSize {
+			return fmt.Errorf("chunk size %d exceeds maximum allowed size %d", length, maxChunkSize)
+		}
+
+		// Read encrypted chunk with guaranteed full read
 		ciphertext := make([]byte, length)
-		n, err = reader.Read(ciphertext)
+		_, err = io.ReadFull(reader, ciphertext)
 		if err != nil {
 			return fmt.Errorf("failed to read encrypted chunk: %w", err)
 		}
-		if uint32(n) != length {
-			return fmt.Errorf("incomplete encrypted chunk: expected %d bytes, got %d", length, n)
-		}
 
+		// Decrypt chunk
 		plaintext, err := e.DecryptData(ctx, ciphertext, dek)
 		if err != nil {
 			return fmt.Errorf("failed to decrypt chunk: %w", err)
 		}
-		_, err = writer.Write(plaintext)
-		if err != nil {
+
+		// Write decrypted data
+		if _, err := writer.Write(plaintext); err != nil {
 			return fmt.Errorf("failed to write to output stream: %w", err)
 		}
 	}
