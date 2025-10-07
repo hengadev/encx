@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/sha256"
+	"crypto/subtle"
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
@@ -168,16 +169,11 @@ func (h *HashingOperations) CompareSecureHashAndValue(ctx context.Context, value
 		uint32(len(storedHash)),
 	)
 
-	// Compare hashes
-	if len(computedHash) != len(storedHash) {
-		return false, nil
+	// CRITICAL: Use constant-time comparison to prevent timing attacks
+	if subtle.ConstantTimeCompare(computedHash, storedHash) == 1 {
+		return true, nil
 	}
-	for i := range len(computedHash) {
-		if computedHash[i] != storedHash[i] {
-			return false, nil
-		}
-	}
-	return true, nil
+	return false, nil
 }
 
 // CompareBasicHashAndValue compares a basic hash with a value
