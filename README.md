@@ -23,13 +23,16 @@ crypto, _ := encx.NewTestCrypto(nil)
 user := &User{Email: "user@example.com", Password: "secret123"}
 
 // Process returns separate struct with encrypted/hashed fields
+// Note: Function name follows pattern Process<YourStructName>Encx
+// For a User struct, it generates ProcessUserEncx
 userEncx, err := ProcessUserEncx(ctx, crypto, user)
 
 // userEncx.EmailEncrypted contains encrypted email
 // userEncx.EmailHash contains searchable hash
-// userEncx.PasswordHash contains secure hash
+// userEncx.PasswordHashSecure contains secure hash
 
 // Decrypt when needed
+// Note: Function name follows pattern Decrypt<YourStructName>Encx
 decryptedUser, err := DecryptUserEncx(ctx, crypto, userEncx)
 ```
 
@@ -88,6 +91,8 @@ func main() {
     }
 
     // Process returns encrypted struct (generated function)
+    // Note: For your struct, replace "User" with your actual struct name
+    // Example: ProcessCustomerEncx, ProcessOrderEncx, etc.
     userEncx, err := ProcessUserEncx(ctx, crypto, user)
     if err != nil {
         log.Fatal(err)
@@ -96,7 +101,7 @@ func main() {
     // Store encrypted data in database
     fmt.Printf("NameEncrypted: %d bytes\n", len(userEncx.NameEncrypted))
     fmt.Printf("EmailHash: %s\n", userEncx.EmailHash[:16]+"...")
-    fmt.Printf("PasswordHash: %s...\n", userEncx.PasswordHash[:20]+"...")
+    fmt.Printf("PasswordHashSecure: %s...\n", userEncx.PasswordHashSecure[:20]+"...")
 
     // Decrypt when needed (generated function)
     decryptedUser, err := DecryptUserEncx(ctx, crypto, userEncx)
@@ -143,6 +148,9 @@ type UserEncx struct {
 // And generates these functions:
 // - ProcessUserEncx(ctx, crypto, user) (*UserEncx, error)
 // - DecryptUserEncx(ctx, crypto, userEncx) (*User, error)
+//
+// Note: Function names follow the pattern Process<StructName>Encx
+// Replace "User" with your actual struct name
 ```
 
 ## Advanced Examples
@@ -186,16 +194,17 @@ type User struct {
     Password string `encx:"hash_secure,encrypt"`
 }
 
-// Registration
+// Example: Registration
+// (Replace "User" with your actual struct name)
 user := &User{Password: "secret123"}
 userEncx, _ := ProcessUserEncx(ctx, crypto, user)
 
 // Generated UserEncx has:
-// - PasswordHash      string // For authentication (Argon2id)
-// - PasswordEncrypted []byte // For recovery scenarios
+// - PasswordHashSecure string // For authentication (Argon2id)
+// - PasswordEncrypted  []byte // For recovery scenarios
 
 // Login verification
-isValid := crypto.CompareSecureHashAndValue(ctx, inputPassword, userEncx.PasswordHash)
+isValid := crypto.CompareSecureHashAndValue(ctx, inputPassword, userEncx.PasswordHashSecure)
 
 // Password recovery (admin function)
 recovered, _ := DecryptUserEncx(ctx, crypto, userEncx)
@@ -219,7 +228,8 @@ type User struct {
     Address Address // Embedded struct, automatically processed
 }
 
-// Usage
+// Example: Usage
+// (Replace "User" with your actual struct name)
 user := &User{
     Name: "John Doe",
     Address: Address{
@@ -285,48 +295,9 @@ func TestUserEncryptionIntegration(t *testing.T) {
 }
 ```
 
-### Serializer Configuration
+### How It Works
 
-ENCX supports multiple serialization methods with both global and per-struct configuration:
-
-#### Global Configuration (encx.yaml)
-
-```yaml
-codegen:
-  output_dir: "generated"
-  default_serializer: json  # Options: json, gob, basic
-```
-
-#### Per-Struct Override
-
-Use comment-based configuration to override the global serializer for specific structs:
-
-```go
-//encx:options serializer=gob
-type HighPerformanceData struct {
-    Data     []byte `encx:"encrypt"`
-    Metadata string `encx:"hash_basic"`
-}
-
-//encx:options serializer=basic
-type SimpleConfig struct {
-    APIKey  string `encx:"hash_secure"`
-    Timeout int    `encx:"encrypt"`
-}
-
-// Uses default serializer from encx.yaml
-type RegularUser struct {
-    Email string `encx:"encrypt,hash_basic"`
-}
-```
-
-#### Serializer Types
-
-- **JSON** (`json`) - Standard JSON serialization, good compatibility and human-readable
-- **GOB** (`gob`) - Go-specific binary format, faster and more compact for Go-to-Go communication
-- **Basic** (`basic`) - Direct conversion for primitives with JSON fallback, minimal overhead
-
-Choose based on your performance needs and interoperability requirements.
+ENCX uses a custom compact binary serializer that provides deterministic encryption with minimal overhead. The serialization is handled automatically by the generated code - you don't need to configure anything.
 
 ## Validation
 
