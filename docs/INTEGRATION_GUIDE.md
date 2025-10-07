@@ -53,17 +53,16 @@ encx-gen init
 
 ### Core Functions
 
-**For manual processing (reflection-based):**
+**Generated code (recommended approach):**
 ```go
-crypto.ProcessStruct(ctx context.Context, structPtr interface{}) error
-crypto.DecryptStruct(ctx context.Context, structPtr interface{}) error
-```
-
-**For generated code (high performance):**
-```go
+// Pattern: Process<YourStructName>Encx
 ProcessStructNameEncx(ctx context.Context, crypto *encx.Crypto, source *StructName) (*StructNameEncx, error)
+
+// Pattern: Decrypt<YourStructName>Encx
 DecryptStructNameEncx(ctx context.Context, crypto *encx.Crypto, source *StructNameEncx) (*StructName, error)
 ```
+
+**Note:** ENCX uses code generation to create type-safe encryption functions. Replace `StructName` with your actual struct name (e.g., `ProcessUserEncx`, `ProcessOrderEncx`).
 
 ### Configuration Functions
 
