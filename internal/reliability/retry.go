@@ -4,6 +4,7 @@ import (
 	"context"
 	"math"
 	"math/rand"
+	"sync"
 	"time"
 )
 
@@ -333,6 +334,7 @@ type RetryStats struct {
 // RetryExecutorWithStats extends RetryExecutor with statistics collection
 type RetryExecutorWithStats struct {
 	*RetryExecutor
+	mu    sync.Mutex
 	stats RetryStats
 }
 
@@ -345,6 +347,8 @@ func NewRetryExecutorWithStats(policy RetryPolicy) *RetryExecutorWithStats {
 
 	// Set callback to collect statistics
 	executor.SetOnRetryCallback(func(attempt int, delay time.Duration, err error) {
+		statsExecutor.mu.Lock()
+		defer statsExecutor.mu.Unlock()
 		statsExecutor.stats.TotalAttempts = attempt
 		statsExecutor.stats.TotalDelay += delay
 		if err != nil {
@@ -357,9 +361,14 @@ func NewRetryExecutorWithStats(policy RetryPolicy) *RetryExecutorWithStats {
 
 // ExecuteWithStats executes the operation and updates statistics
 func (r *RetryExecutorWithStats) ExecuteWithStats(ctx context.Context, operation func(context.Context) error) error {
+	r.mu.Lock()
 	r.stats = RetryStats{} // Reset stats
+	r.mu.Unlock()
 
 	err := r.Execute(ctx, operation)
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	if err == nil && r.stats.TotalAttempts > 0 {
 		r.stats.SuccessfulRetries++
 	} else if err != nil {
@@ -372,11 +381,15 @@ func (r *RetryExecutorWithStats) ExecuteWithStats(ctx context.Context, operation
 
 // GetStats returns the current retry statistics
 func (r *RetryExecutorWithStats) GetStats() RetryStats {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	return r.stats
 }
 
 // ResetStats resets the statistics
 func (r *RetryExecutorWithStats) ResetStats() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	r.stats = RetryStats{}
 }
 
