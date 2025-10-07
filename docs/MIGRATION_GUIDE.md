@@ -87,8 +87,6 @@ encx-gen init
 
 ### Step 3: Update Struct Definitions
 
-#### 3.1 Add Companion Fields
-
 **Before (Reflection-based):**
 ```go
 type User struct {
@@ -101,26 +99,34 @@ type User struct {
 
 **After (Code Generation):**
 ```go
+//go:generate encx-gen generate .
+
+// Source struct - keep it clean with just encx tags
 type User struct {
     ID    int    `json:"id"`
     Email string `json:"email" encx:"encrypt,hash_basic"`
     Phone string `json:"phone" encx:"encrypt"`
     SSN   string `json:"ssn" encx:"hash_secure"`
+}
 
-    // Add companion fields for each encx tag
-    EmailEncrypted []byte `json:"email_encrypted" db:"email_encrypted"`
-    EmailHash      string `json:"email_hash" db:"email_hash"`
-    PhoneEncrypted []byte `json:"phone_encrypted" db:"phone_encrypted"`
-    SSNHashSecure  string `json:"ssn_hash_secure" db:"ssn_hash_secure"`
+// Generated UserEncx struct (created automatically by encx-gen)
+// You don't write this - it's generated in user_encx.go
+type UserEncx struct {
+    EmailEncrypted []byte `db:"email_encrypted" json:"email_encrypted"`
+    EmailHash      string `db:"email_hash" json:"email_hash"`
+    PhoneEncrypted []byte `db:"phone_encrypted" json:"phone_encrypted"`
+    SSNHashSecure  string `db:"ssn_hash_secure" json:"ssn_hash_secure"`
 
-    // Add essential encryption fields
-    DEKEncrypted []byte `json:"dek_encrypted" db:"dek_encrypted"`
-    KeyVersion   int    `json:"key_version" db:"key_version"`
-    Metadata     string `json:"metadata" db:"metadata"`
+    // Essential encryption fields
+    DEKEncrypted []byte                      `db:"dek_encrypted" json:"dek_encrypted"`
+    KeyVersion   int                         `db:"key_version" json:"key_version"`
+    Metadata     metadata.EncryptionMetadata `db:"metadata" json:"metadata"`
 }
 ```
 
-#### 3.2 Validate Struct Definitions
+**Key Change:** Code generation creates a **separate** `UserEncx` struct. You don't add companion fields to your source struct anymore!
+
+#### 3.1 Validate Struct Definitions
 
 ```bash
 # Validate your struct tags
@@ -158,10 +164,14 @@ userProcessed := processed.(*UserProcessed)
 **After:**
 ```go
 // New code generation approach
+// Note: Returns separate UserEncx struct with encrypted fields
 userEncx, err := ProcessUserEncx(ctx, crypto, user)
 if err != nil {
     return err
 }
+
+// Store userEncx (not user) in database
+// userEncx contains all encrypted/hashed fields
 ```
 
 #### 5.2 Update Decryption Code
@@ -181,10 +191,13 @@ user := decrypted.(*User)
 **After:**
 ```go
 // New code generation approach
+// Note: Takes UserEncx and returns original User with decrypted data
 user, err := DecryptUserEncx(ctx, crypto, userEncx)
 if err != nil {
     return err
 }
+
+// user now has decrypted Email, Phone, SSN fields
 ```
 
 #### 5.3 Remove Old Dependencies
@@ -199,7 +212,36 @@ import (
 
 ### Step 6: Update Database Schema
 
-#### 6.1 Add New Columns
+**Important:** With code generation, you store the `UserEncx` struct (not `User`) in the database. Consider creating a separate table or renaming your existing table.
+
+#### 6.1 Option A: Create New Table
+
+```sql
+-- PostgreSQL example
+CREATE TABLE users_encx (
+    id SERIAL PRIMARY KEY,
+
+    -- Encrypted/hashed fields
+    email_encrypted BYTEA,
+    email_hash VARCHAR(64),
+    phone_encrypted BYTEA,
+    ssn_hash_secure TEXT,
+
+    -- Essential encryption fields
+    dek_encrypted BYTEA NOT NULL,
+    key_version INTEGER NOT NULL DEFAULT 1,
+    metadata JSONB NOT NULL DEFAULT '{}',
+
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Add indexes for performance
+CREATE INDEX idx_users_encx_email_hash ON users_encx (email_hash);
+CREATE INDEX idx_users_encx_key_version ON users_encx (key_version);
+```
+
+#### 6.2 Option B: Migrate Existing Table
 
 ```sql
 -- PostgreSQL example
@@ -211,12 +253,12 @@ ALTER TABLE users ADD COLUMN dek_encrypted BYTEA;
 ALTER TABLE users ADD COLUMN key_version INTEGER DEFAULT 1;
 ALTER TABLE users ADD COLUMN metadata JSONB DEFAULT '{}';
 
--- Add indexes for performance
+-- Add indexes
 CREATE INDEX idx_users_email_hash ON users (email_hash);
 CREATE INDEX idx_users_key_version ON users (key_version);
 ```
 
-#### 6.2 Data Migration Script
+#### 6.3 Data Migration Script
 
 ```go
 func migrateUserData(db *sql.DB, crypto *encx.Crypto) error {
