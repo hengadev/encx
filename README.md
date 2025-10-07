@@ -601,6 +601,7 @@ When using the `encx` package, add the following to your `.gitignore`:
 ## 📚 Documentation
 
 ### Complete Guides
+- **[Integration Guide](./docs/INTEGRATION_GUIDE.md)** - Step-by-step integration into your codebase
 - **[Context7 Integration Guide](./docs/CONTEXT7_GUIDE.md)** - Quick reference for Context7 users
 - **[Code Generation Guide](./docs/CODE_GENERATION_GUIDE.md)** - High-performance code generation
 - **[Examples Documentation](./docs/EXAMPLES.md)** - Real-world use cases
