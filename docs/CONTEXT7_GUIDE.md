@@ -16,22 +16,24 @@ Encx is a production-ready Go library that provides **field-level encryption** a
 go get github.com/hengadev/encx
 
 // 2. Define struct with encx tags
-type User struct {
-    Email             string `encx:"encrypt,hash_basic"`
-    EmailEncrypted    []byte // Generated automatically
-    EmailHash         string // For fast lookups
+//go:generate encx-gen generate .
 
-    // Required fields
-    DEK               []byte
-    DEKEncrypted      []byte
-    KeyVersion        int
+type User struct {
+    Email string `encx:"encrypt,hash_basic"`
 }
 
-// 3. Process data
+// Generated UserEncx struct (automatic):
+// - EmailEncrypted []byte
+// - EmailHash      string
+// - DEKEncrypted   []byte
+// - KeyVersion     int
+// - Metadata       metadata.EncryptionMetadata
+
+// 3. Process data using generated functions
 crypto, _ := encx.NewTestCrypto(nil)
 user := &User{Email: "user@example.com"}
-err := crypto.ProcessStruct(ctx, user)
-// user.Email is now encrypted and hashed
+userEncx, err := ProcessUserEncx(ctx, crypto, user)
+// userEncx contains encrypted email and searchable hash
 ```
 
 ## Use Case Categories
@@ -63,54 +65,65 @@ err := crypto.ProcessStruct(ctx, user)
 **When to use**: Simple data protection, no search needed
 
 ```go
-type Document struct {
-    Content           string `encx:"encrypt"`
-    ContentEncrypted  []byte
+//go:generate encx-gen generate .
 
-    DEK               []byte
-    DEKEncrypted      []byte
-    KeyVersion        int
+type Document struct {
+    Content string `encx:"encrypt"`
 }
+
+// Generated DocumentEncx struct contains:
+// - ContentEncrypted []byte
+// - DEKEncrypted     []byte
+// - KeyVersion       int
+// - Metadata         metadata.EncryptionMetadata
 ```
 
 ### Pattern 2: Searchable Fields
 **When to use**: Need to find records by encrypted field
 
 ```go
-type User struct {
-    Email             string `encx:"encrypt,hash_basic"`
-    EmailEncrypted    []byte // Store securely
-    EmailHash         string // Search index
+//go:generate encx-gen generate .
 
-    DEK               []byte
-    DEKEncrypted      []byte
-    KeyVersion        int
+type User struct {
+    Email string `encx:"encrypt,hash_basic"`
 }
 
-// Search by hash
-users := db.Where("email_hash = ?", user.EmailHash).Find(&users)
+// Generated UserEncx struct contains:
+// - EmailEncrypted []byte // Store securely
+// - EmailHash      string // Search index
+// - DEKEncrypted   []byte
+// - KeyVersion     int
+// - Metadata       metadata.EncryptionMetadata
+
+// Usage: Process and search
+userEncx, _ := ProcessUserEncx(ctx, crypto, user)
+users := db.Where("email_hash = ?", userEncx.EmailHash).Find(&users)
 ```
 
 ### Pattern 3: Password Management
 **When to use**: Authentication with recovery capability
 
 ```go
-type Account struct {
-    Password          string `encx:"hash_secure,encrypt"`
-    PasswordHash      string // For login verification
-    PasswordEncrypted []byte // For recovery scenarios
+//go:generate encx-gen generate .
 
-    DEK               []byte
-    DEKEncrypted      []byte
-    KeyVersion        int
+type Account struct {
+    Password string `encx:"hash_secure,encrypt"`
 }
 
-// Verify password
-isValid := crypto.CompareSecureHashAndValue(ctx, inputPassword, account.PasswordHash)
+// Generated AccountEncx struct contains:
+// - PasswordHashSecure string // For login verification
+// - PasswordEncrypted  []byte // For recovery scenarios
+// - DEKEncrypted       []byte
+// - KeyVersion         int
+// - Metadata           metadata.EncryptionMetadata
+
+// Usage: Verify password
+accountEncx, _ := ProcessAccountEncx(ctx, crypto, account)
+isValid := crypto.CompareSecureHashAndValue(ctx, inputPassword, accountEncx.PasswordHashSecure)
 
 // Recover password (admin function)
-crypto.DecryptStruct(ctx, account)
-recoveredPassword := account.Password
+recovered, _ := DecryptAccountEncx(ctx, crypto, accountEncx)
+recoveredPassword := recovered.Password
 ```
 
 ## Code Generation (Recommended)
