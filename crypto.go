@@ -54,6 +54,8 @@ type CryptoService interface {
 	CompareBasicHashAndValue(ctx context.Context, value any, hashValue string) (bool, error)
 	EncryptStream(ctx context.Context, reader io.Reader, writer io.Writer, dek []byte) error
 	DecryptStream(ctx context.Context, reader io.Reader, writer io.Writer, dek []byte) error
+	GetCurrentKEKVersion(ctx context.Context, alias string) (int, error)
+	GetKMSKeyIDForVersion(ctx context.Context, alias string, version int) (string, error)
 }
 
 type Crypto struct {
