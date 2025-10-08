@@ -44,8 +44,6 @@ import (
 
 	"github.com/hengadev/errsx"
 	"github.com/hengadev/encx"
-	"github.com/hengadev/encx/internal/metadata"
-	"github.com/hengadev/encx/internal/serialization"
 	{{range .Imports}}
 	"{{.}}"
 	{{end}}
@@ -65,7 +63,7 @@ type {{.StructName}}Encx struct {
 	KeyVersion    int    ` + "`" + `db:"key_version" json:"key_version"` + "`" + `
 
 	// Metadata
-	Metadata      metadata.EncryptionMetadata ` + "`" + `db:"metadata" json:"metadata"` + "`" + `
+	Metadata      encx.EncryptionMetadata ` + "`" + `db:"metadata" json:"metadata"` + "`" + `
 }
 
 // Process{{.StructName}}Encx encrypts and hashes fields based on encx tags
@@ -74,7 +72,7 @@ func Process{{.StructName}}Encx(ctx context.Context, crypto encx.CryptoService, 
 
 	// Initialize result struct
 	result := &{{.StructName}}Encx{
-		Metadata: metadata.EncryptionMetadata{
+		Metadata: encx.EncryptionMetadata{
 			KEKAlias:         crypto.GetAlias(),
 			EncryptionTime:   time.Now().Unix(),
 			GeneratorVersion: "{{.GeneratorVersion}}",
@@ -143,7 +141,7 @@ func Decrypt{{.StructName}}Encx(ctx context.Context, crypto encx.CryptoService, 
 const encryptStepTemplate = `
 	// Process {{.FieldName}} (encrypt)
 	if source.{{.FieldName}} != {{.ZeroValue}} {
-		{{.FieldName}}Bytes, err := serialization.Serialize(source.{{.FieldName}})
+		{{.FieldName}}Bytes, err := encx.SerializeValue(source.{{.FieldName}})
 		if err != nil {
 			errs.Set("{{.FieldName}} serialization", err)
 		} else {
@@ -157,7 +155,7 @@ const encryptStepTemplate = `
 const hashBasicStepTemplate = `
 	// Process {{.FieldName}} (hash_basic)
 	if source.{{.FieldName}} != {{.ZeroValue}} {
-		{{.FieldName}}Bytes, err := serialization.Serialize(source.{{.FieldName}})
+		{{.FieldName}}Bytes, err := encx.SerializeValue(source.{{.FieldName}})
 		if err != nil {
 			errs.Set("{{.FieldName}} serialization", err)
 		} else {
@@ -168,7 +166,7 @@ const hashBasicStepTemplate = `
 const hashSecureStepTemplate = `
 	// Process {{.FieldName}} (hash_secure)
 	if source.{{.FieldName}} != {{.ZeroValue}} {
-		{{.FieldName}}Bytes, err := serialization.Serialize(source.{{.FieldName}})
+		{{.FieldName}}Bytes, err := encx.SerializeValue(source.{{.FieldName}})
 		if err != nil {
 			errs.Set("{{.FieldName}} serialization", err)
 		} else {
@@ -187,7 +185,7 @@ const decryptStepTemplate = `
 		if err != nil {
 			errs.Set("{{.FieldName}} decryption", err)
 		} else {
-			err = serialization.Deserialize({{.FieldName}}Bytes, &result.{{.FieldName}})
+			err = encx.DeserializeValue({{.FieldName}}Bytes, &result.{{.FieldName}})
 			if err != nil {
 				errs.Set("{{.FieldName}} deserialization", err)
 			}
@@ -383,4 +381,3 @@ func getZeroValue(typeName string) string {
 		return "nil"
 	}
 }
-
