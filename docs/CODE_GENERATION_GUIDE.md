@@ -262,25 +262,60 @@ func ProcessUserEncx(ctx context.Context, crypto encx.CryptoService, source *Use
 
 ## CLI Commands
 
+### Running the Tool
+
+You have 3 options to run encx-gen:
+
+#### Option 1: Direct Commands (RECOMMENDED)
+```bash
+# Build the tool once
+go build -o bin/encx-gen ./cmd/encx-gen
+
+# Use the built tool
+./bin/encx-gen generate .
+./bin/encx-gen validate -v .
+```
+
+#### Option 2: Go Run (RELIABLE)
+```bash
+# Run directly from source (no building needed)
+go run ./cmd/encx-gen generate .
+go run ./cmd/encx-gen validate -v .
+```
+
+#### Option 3: Go Generate with Go Run (ADVANCED)
+Add to your source file (path must be relative to your file):
+```go
+//go:generate go run ../../cmd/encx-gen generate .
+//go:generate go run ../../cmd/encx-gen validate -v .
+```
+
+Then run:
+```bash
+go generate ./...
+```
+
 ### generate
 
 Generate encx code for structs:
 
 ```bash
+# Using any of the 3 options above:
+
 # Generate for current directory
-encx-gen generate .
+go run ./cmd/encx-gen generate .
 
 # Generate for specific packages
-encx-gen generate ./models ./api
+go run ./cmd/encx-gen generate ./models ./api
 
 # Generate with custom config
-encx-gen generate -config=my-config.yaml .
+go run ./cmd/encx-gen generate -config=my-config.yaml .
 
 # Verbose output
-encx-gen generate -v .
+go run ./cmd/encx-gen generate -v .
 
 # Dry run (show what would be generated)
-encx-gen generate -dry-run .
+go run ./cmd/encx-gen generate -dry-run .
 ```
 
 ### validate
@@ -289,13 +324,13 @@ Validate configuration and struct tags:
 
 ```bash
 # Validate current directory
-encx-gen validate .
+go run ./cmd/encx-gen validate .
 
 # Validate with verbose output
-encx-gen validate -v .
+go run ./cmd/encx-gen validate -v .
 
 # Validate specific packages
-encx-gen validate ./models ./api
+go run ./cmd/encx-gen validate ./models ./api
 ```
 
 ### init
@@ -304,10 +339,10 @@ Initialize configuration file:
 
 ```bash
 # Create default configuration
-encx-gen init
+go run ./cmd/encx-gen init
 
 # Force overwrite existing file
-encx-gen init -force
+go run ./cmd/encx-gen init -force
 ```
 
 ### version
@@ -315,37 +350,55 @@ encx-gen init -force
 Show version information:
 
 ```bash
-encx-gen version
+go run ./cmd/encx-gen version
 ```
 
 ## Build Integration
 
-### Two Approaches for Code Generation
+### Three Working Approaches for Code Generation
 
-#### 1. Direct Commands (Recommended)
+#### 1. Direct Commands (RECOMMENDED)
 
-Run encx-gen commands directly:
+Build once and use the binary:
+
+```bash
+# Build the tool once
+go build -o bin/encx-gen ./cmd/encx-gen
+
+# Validate structs
+./bin/encx-gen validate -v ./models
+
+# Generate code
+./bin/encx-gen generate -v ./models
+
+# Generate for multiple packages
+./bin/encx-gen generate -v ./models ./api ./internal
+```
+
+#### 2. Go Run (RELIABLE)
+
+Run directly from source without building:
 
 ```bash
 # Validate structs
-encx-gen validate -v ./models
+go run ./cmd/encx-gen validate -v ./models
 
 # Generate code
-encx-gen generate -v ./models
+go run ./cmd/encx-gen generate -v ./models
 
 # Generate for multiple packages
-encx-gen generate -v ./models ./api ./internal
+go run ./cmd/encx-gen generate -v ./models ./api ./internal
 ```
 
-#### 2. Go Generate (Optional)
+#### 3. Go Generate with Go Run (ADVANCED)
 
 If you prefer the Go generate workflow, add directives to your Go files:
 
 ```go
 package models
 
-//go:generate encx-gen validate -v .
-//go:generate encx-gen generate -v .
+//go:generate go run ../../cmd/encx-gen validate -v .
+//go:generate go run ../../cmd/encx-gen generate -v .
 
 type User struct {
     // Your struct definition
@@ -361,7 +414,10 @@ go generate ./...
 go generate ./models
 ```
 
-**Note:** `//go:generate` is completely optional. The direct commands above are the recommended approach and do not require any special directives in your code.
+**⚠️ Important Note:**
+- Option 3 requires the correct relative path to `cmd/encx-gen` (e.g., `../../cmd/encx-gen`)
+- Options 1 & 2 work consistently in all environments
+- `//go:generate` is completely optional but can be useful for CI/CD automation
 
 ### Makefile Integration
 
