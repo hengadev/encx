@@ -13,10 +13,11 @@ import (
 // Supported types: string, int, int32, int64, uint, uint32, uint64, bool, time.Time, []byte, float32, float64
 //
 // Example:
-//   data, err := encx.SerializeValue("hello world")
-//   if err != nil {
-//       // handle error
-//   }
+//
+//	data, err := encx.SerializeValue("hello world")
+//	if err != nil {
+//	    // handle error
+//	}
 func SerializeValue(value any) ([]byte, error) {
 	if value == nil {
 		return nil, ErrNilPointer
@@ -34,11 +35,12 @@ func SerializeValue(value any) ([]byte, error) {
 // The target parameter must be a pointer to the type you want to deserialize into.
 //
 // Example:
-//   var result string
-//   err := encx.DeserializeValue(data, &result)
-//   if err != nil {
-//       // handle error
-//   }
+//
+//	var result string
+//	err := encx.DeserializeValue(data, &result)
+//	if err != nil {
+//	    // handle error
+//	}
 func DeserializeValue(data []byte, target any) error {
 	if target == nil {
 		return ErrNilPointer
