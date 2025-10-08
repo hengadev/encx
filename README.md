@@ -15,8 +15,10 @@ type User struct {
     Password string `encx:"hash_secure"`        // Secure password hash
 }
 
-// Generate code: encx-gen generate .
-// (Optional: Add //go:generate encx-gen generate . to use with go generate)
+// Generate code using one of 3 options:
+// 1. go run ./cmd/encx-gen generate .
+// 2. Build first: go build -o bin/encx-gen ./cmd/encx-gen && ./bin/encx-gen generate .
+// 3. Add: //go:generate go run ../../cmd/encx-gen generate .  (path must be relative)
 
 // Use generated functions for type-safe encryption
 crypto, _ := encx.NewTestCrypto(nil)
@@ -77,8 +79,10 @@ type User struct {
     Password string `encx:"hash_secure"`
 }
 
-// Run code generation: encx-gen generate .
-// (Or add //go:generate encx-gen generate . and use go generate)
+// Run code generation using one of 3 options:
+// 1. go run ./cmd/encx-gen generate .
+// 2. Build first: go build -o bin/encx-gen ./cmd/encx-gen && ./bin/encx-gen generate .
+// 3. Add: //go:generate go run ../../cmd/encx-gen generate .  (path must be relative)
 
 func main() {
     ctx := context.Background()
@@ -133,17 +137,35 @@ encx-gen discovers structs automatically by parsing Go source files. No special 
 
 **Code Generation Methods:**
 
-1. **Direct command (recommended):**
-   ```bash
-   encx-gen generate .  # Discover structs with encx tags in current directory
-   ```
+## Code Generation: 3 Working Options
 
-2. **With go generate (optional):**
-   ```go
-   // Add this line if you want to use go generate workflow
-   //go:generate encx-gen generate .
-   ```
-   Then run: `go generate ./...`
+### Option 1: Direct Commands (RECOMMENDED)
+```bash
+# Build the tool once
+go build -o bin/encx-gen ./cmd/encx-gen
+
+# Generate code anywhere
+./bin/encx-gen generate ./path/to/package
+```
+
+### Option 2: Go Run (RELIABLE)
+```bash
+# No building needed - runs directly from source
+go run ./cmd/encx-gen generate ./path/to/package
+
+# Works from any directory with correct relative path
+go run ../../cmd/encx-gen generate .
+```
+
+### Option 3: Go Generate with Go Run (ADVANCED)
+Add this to your Go source file (path must be relative to your file):
+```go
+//go:generate go run ../../cmd/encx-gen generate .
+```
+
+Then run: `go generate ./...`
+
+**⚠️ Note:** Option 3 requires the correct relative path to `cmd/encx-gen`. Options 1 & 2 work consistently in all environments.
 
 When you define a struct with encx tags:
 
@@ -182,7 +204,7 @@ type User struct {
     Email string `encx:"encrypt,hash_basic"`
 }
 
-// Run: encx-gen generate .
+// Run: go run ./cmd/encx-gen generate .
 
 // Usage
 user := &User{Email: "user@example.com"}
@@ -209,7 +231,7 @@ type User struct {
     Password string `encx:"hash_secure,encrypt"`
 }
 
-// Run: encx-gen generate .
+// Run: go run ./cmd/encx-gen generate .
 
 // Example: Registration
 // (Replace "User" with your actual struct name)
@@ -233,7 +255,7 @@ fmt.Println(recovered.Password) // Original password temporarily available
 Code generation handles embedded structs automatically:
 
 ```go
-//go:generate encx-gen generate .
+//go:generate go run ../../cmd/encx-gen generate .
 
 type Address struct {
     Street string `encx:"encrypt"`
@@ -328,7 +350,7 @@ encx-gen validate -v .
 encx-gen validate -v ./models ./api
 
 # Validation is automatically run before generation
-encx-gen generate -v .
+go run ./cmd/encx-gen generate -v .
 ```
 
 ## Key Management
@@ -474,10 +496,10 @@ if err != nil {
 
 ```go
 //go:generate encx-gen validate -v .
-//go:generate encx-gen generate -v .
+//go:generate go run ./cmd/encx-gen generate -v .
 
 // Run validation and generation during development
-// go generate ./...
+// Run: go generate ./...
 ```
 
 ### 4. Handle Key Rotation Gracefully
