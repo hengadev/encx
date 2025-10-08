@@ -15,6 +15,10 @@ import (
 	"github.com/hengadev/encx"
 )
 
+// Code generation methods:
+//   1. Direct commands (recommended): encx-gen validate -v . && encx-gen generate -v .
+//   2. Go generate (optional): go generate . (requires //go:generate directives below)
+//
 //go:generate encx-gen validate -v .
 //go:generate encx-gen generate -v .
 

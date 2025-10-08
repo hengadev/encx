@@ -1,11 +1,15 @@
-// Package go_generate_demo demonstrates encx-gen integration with go generate
+// Package go_generate_demo demonstrates encx-gen integration
+//
+// Alternative generation methods:
+//   1. Direct commands (recommended): encx-gen validate -v . && encx-gen generate -v .
+//   2. Go generate (optional): go generate . (requires //go:generate directives below)
 //
 //go:generate encx-gen validate -v .
 //go:generate encx-gen generate -v .
 package go_generate_demo
 
 // ExampleUser demonstrates a user struct with encrypted fields
-// The go:generate directives above will validate and generate code for this struct
+// This struct will be automatically discovered by encx-gen regardless of go:generate directives
 type ExampleUser struct {
 	ID    int    `json:"id"`
 	Email string `json:"email" encx:"encrypt,hash_basic"`
@@ -28,10 +32,9 @@ type ExampleUser struct {
 	UpdatedAt string `json:"updated_at" db:"updated_at"`
 }
 
-// To run code generation manually:
-//   go generate ./examples
-//
-// To run generation for entire project:
-//   go generate ./...
+// Code generation options:
+//   1. Direct commands (recommended): encx-gen generate ./examples
+//   2. Go generate: go generate ./examples
+//   3. Entire project: go generate ./...
 //
 // The generated file will be: examples/go_generate_example_encx.go
