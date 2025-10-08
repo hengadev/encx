@@ -1012,7 +1012,7 @@ type HealthStatus struct {
     Checks    map[string]string `json:"checks"`
 }
 
-func healthCheckHandler(crypto *encx.Crypto, db *sql.DB) http.HandlerFunc {
+func healthCheckHandler(crypto encx.CryptoService, db *sql.DB) http.HandlerFunc {
     return func(w http.ResponseWriter, r *http.Request) {
         ctx := r.Context()
         status := HealthStatus{

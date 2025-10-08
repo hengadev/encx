@@ -201,13 +201,13 @@ For a `User` struct, the generator creates:
 ```go
 // ProcessUserEncx encrypts and hashes user data
 // Note: Function name follows pattern Process<StructName>Encx
-func ProcessUserEncx(ctx context.Context, crypto *encx.Crypto, source *User) (*UserEncx, error) {
+func ProcessUserEncx(ctx context.Context, crypto encx.CryptoService, source *User) (*UserEncx, error) {
     // Generated implementation with proper error handling
 }
 
 // DecryptUserEncx decrypts user data back to original form
 // Note: Function name follows pattern Decrypt<StructName>Encx
-func DecryptUserEncx(ctx context.Context, crypto *encx.Crypto, source *UserEncx) (*User, error) {
+func DecryptUserEncx(ctx context.Context, crypto encx.CryptoService, source *UserEncx) (*User, error) {
     // Generated implementation with proper error handling
 }
 
@@ -232,7 +232,7 @@ Generated functions use structured error handling:
 
 ```go
 // Generated code includes comprehensive error handling
-func ProcessUserEncx(ctx context.Context, crypto *encx.Crypto, source *User) (*UserEncx, error) {
+func ProcessUserEncx(ctx context.Context, crypto encx.CryptoService, source *User) (*UserEncx, error) {
     errs := errsx.Map{}
 
     // DEK generation

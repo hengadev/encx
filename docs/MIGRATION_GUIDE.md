@@ -261,7 +261,7 @@ CREATE INDEX idx_users_key_version ON users (key_version);
 #### 6.3 Data Migration Script
 
 ```go
-func migrateUserData(db *sql.DB, crypto *encx.Crypto) error {
+func migrateUserData(db *sql.DB, crypto encx.CryptoService) error {
     // Read existing users
     rows, err := db.Query("SELECT id, email, phone, ssn FROM users WHERE email_encrypted IS NULL")
     if err != nil {

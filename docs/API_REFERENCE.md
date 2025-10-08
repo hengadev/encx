@@ -22,12 +22,12 @@ Encrypts and hashes struct fields according to their encx tags.
 
 **Signature:**
 ```go
-func ProcessStructEncx(ctx context.Context, crypto *encx.Crypto, source *Struct) (*StructEncx, error)
+func ProcessStructEncx(ctx context.Context, crypto encx.CryptoService, source *Struct) (*StructEncx, error)
 ```
 
 **Parameters:**
 - `ctx`: Context for cancellation and deadlines
-- `crypto`: Configured encx.Crypto instance
+- `crypto`: encx.CryptoService instance (interface)
 - `source`: Original struct with plaintext data
 
 **Returns:**
@@ -72,12 +72,12 @@ Decrypts struct fields back to their original form.
 
 **Signature:**
 ```go
-func DecryptStructEncx(ctx context.Context, crypto *encx.Crypto, source *StructEncx) (*Struct, error)
+func DecryptStructEncx(ctx context.Context, crypto encx.CryptoService, source *StructEncx) (*Struct, error)
 ```
 
 **Parameters:**
 - `ctx`: Context for cancellation and deadlines
-- `crypto`: Configured encx.Crypto instance
+- `crypto`: encx.CryptoService instance (interface)
 - `source`: Struct with encrypted/hashed fields
 
 **Returns:**

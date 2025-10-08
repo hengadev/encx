@@ -56,10 +56,10 @@ encx-gen init
 **Generated code (recommended approach):**
 ```go
 // Pattern: Process<YourStructName>Encx
-ProcessStructNameEncx(ctx context.Context, crypto *encx.Crypto, source *StructName) (*StructNameEncx, error)
+ProcessStructNameEncx(ctx context.Context, crypto encx.CryptoService, source *StructName) (*StructNameEncx, error)
 
 // Pattern: Decrypt<YourStructName>Encx
-DecryptStructNameEncx(ctx context.Context, crypto *encx.Crypto, source *StructNameEncx) (*StructName, error)
+DecryptStructNameEncx(ctx context.Context, crypto encx.CryptoService, source *StructNameEncx) (*StructName, error)
 ```
 
 **Note:** ENCX uses code generation to create type-safe encryption functions. Replace `StructName` with your actual struct name (e.g., `ProcessUserEncx`, `ProcessOrderEncx`).
@@ -445,7 +445,7 @@ func (r *Repository) Create(ctx context.Context, user *User) error {
 
 ```go
 // Scheduled key rotation
-func StartKeyRotation(crypto *encx.Crypto) {
+func StartKeyRotation(crypto encx.CryptoService) {
     ticker := time.NewTicker(30 * 24 * time.Hour) // Rotate every 30 days
     defer ticker.Stop()
 

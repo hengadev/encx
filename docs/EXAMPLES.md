@@ -152,12 +152,12 @@ type User struct {
 // - KeyVersion         int
 // - Metadata           metadata.EncryptionMetadata
 
-func CheckPassword(crypto *encx.Crypto, userEncx *UserEncx, plaintext string) (bool, error) {
+func CheckPassword(crypto encx.CryptoService, userEncx *UserEncx, plaintext string) (bool, error) {
     ctx := context.Background()
     return crypto.CompareSecureHashAndValue(ctx, plaintext, userEncx.PasswordHashSecure)
 }
 
-func RecoverPassword(crypto *encx.Crypto, userEncx *UserEncx) (string, error) {
+func RecoverPassword(crypto encx.CryptoService, userEncx *UserEncx) (string, error) {
     ctx := context.Background()
 
     // Decrypt to get original password using generated function
@@ -368,7 +368,7 @@ func TestPasswordValidation(t *testing.T) {
 ### Batch Processing
 
 ```go
-func ProcessUsersBatch(crypto *encx.Crypto, users []*User) error {
+func ProcessUsersBatch(crypto encx.CryptoService, users []*User) error {
     ctx := context.Background()
     
     for i, user := range users {
@@ -399,7 +399,7 @@ type Document struct {
     KeyVersion           int
 }
 
-func ProcessDocument(crypto *encx.Crypto, doc *Document) error {
+func ProcessDocument(crypto encx.CryptoService, doc *Document) error {
     ctx := context.Background()
     
     if doc.IsConfidential {
@@ -415,7 +415,7 @@ func ProcessDocument(crypto *encx.Crypto, doc *Document) error {
 ### Error Recovery
 
 ```go
-func ProcessUserSafely(crypto *encx.Crypto, user *User) error {
+func ProcessUserSafely(crypto encx.CryptoService, user *User) error {
     ctx := context.Background()
     
     // Save original values for rollback
@@ -439,7 +439,7 @@ func ProcessUserSafely(crypto *encx.Crypto, user *User) error {
 ### Custom Validation
 
 ```go
-func ValidateAndProcessUser(crypto *encx.Crypto, user *User) error {
+func ValidateAndProcessUser(crypto encx.CryptoService, user *User) error {
     // Pre-validation
     if user.Email == "" {
         return fmt.Errorf("email is required")
@@ -472,7 +472,7 @@ func ValidateAndProcessUser(crypto *encx.Crypto, user *User) error {
 ### Performance Monitoring
 
 ```go
-func ProcessUserWithMetrics(crypto *encx.Crypto, user *User) error {
+func ProcessUserWithMetrics(crypto encx.CryptoService, user *User) error {
     start := time.Now()
     defer func() {
         duration := time.Since(start)

@@ -288,16 +288,16 @@ The generator creates:
 
 ```go
 // Process{StructName}Encx encrypts and hashes tagged fields
-func ProcessUserEncx(ctx context.Context, crypto *encx.Crypto, source *User) (*UserEncx, error)
+func ProcessUserEncx(ctx context.Context, crypto encx.CryptoService, source *User) (*UserEncx, error)
 
 // Decrypt{StructName}Encx decrypts the encrypted struct
-func DecryptUserEncx(ctx context.Context, crypto *encx.Crypto, source *UserEncx) (*User, error)
+func DecryptUserEncx(ctx context.Context, crypto encx.CryptoService, source *UserEncx) (*User, error)
 ```
 
 **Contract Guarantees**:
 - Function naming pattern: `Process{StructName}Encx` and `Decrypt{StructName}Encx`
 - Always takes `context.Context` as first parameter
-- Always takes `*encx.Crypto` as second parameter
+- Always takes `encx.CryptoService` (interface) as second parameter
 - Thread-safe generated code
 - Uses `errsx.Map` for collecting multiple errors
 
