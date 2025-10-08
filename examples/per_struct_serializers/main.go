@@ -9,7 +9,7 @@ import (
 //   1. Direct commands (recommended): encx-gen generate .
 //   2. Go generate (optional): go generate . (requires //go:generate directive below)
 //
-//go:generate go run ../cmd/encx-gen
+//go:generate go run ../../cmd/encx-gen generate .
 
 // Example demonstrating per-struct serializer options using comments
 
