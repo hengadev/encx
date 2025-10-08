@@ -69,7 +69,7 @@ type {{.StructName}}Encx struct {
 }
 
 // Process{{.StructName}}Encx encrypts and hashes fields based on encx tags
-func Process{{.StructName}}Encx(ctx context.Context, crypto *encx.Crypto, source *{{.StructName}}) (*{{.StructName}}Encx, error) {
+func Process{{.StructName}}Encx(ctx context.Context, crypto encx.CryptoService, source *{{.StructName}}) (*{{.StructName}}Encx, error) {
 	var errs errsx.Map
 
 	// Initialize result struct
@@ -113,7 +113,7 @@ func Process{{.StructName}}Encx(ctx context.Context, crypto *encx.Crypto, source
 }
 
 // Decrypt{{.StructName}}Encx decrypts the encrypted struct back to original
-func Decrypt{{.StructName}}Encx(ctx context.Context, crypto *encx.Crypto, source *{{.StructName}}Encx) (*{{.StructName}}, error) {
+func Decrypt{{.StructName}}Encx(ctx context.Context, crypto encx.CryptoService, source *{{.StructName}}Encx) (*{{.StructName}}, error) {
 	var errs errsx.Map
 
 	// Initialize result struct
@@ -383,3 +383,4 @@ func getZeroValue(typeName string) string {
 		return "nil"
 	}
 }
+

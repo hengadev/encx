@@ -20,11 +20,11 @@ func TestGenerateCodeSimpleStruct(t *testing.T) {
 
 	// Create template data for a simple struct with one encrypted field
 	data := TemplateData{
-		PackageName:            "test",
-		StructName:             "User",
-		SourceFile:             "user.go",
-		GeneratedTime:          time.Now().Format(time.RFC3339),
-		GeneratorVersion:       "1.0.0",
+		PackageName:      "test",
+		StructName:       "User",
+		SourceFile:       "user.go",
+		GeneratedTime:    time.Now().Format(time.RFC3339),
+		GeneratorVersion: "1.0.0",
 		EncryptedFields: []TemplateField{
 			{
 				Name:      "EmailEncrypted",
@@ -72,8 +72,8 @@ func TestGenerateCodeSimpleStruct(t *testing.T) {
 	assert.Contains(t, codeStr, "package test")
 	assert.Contains(t, codeStr, "type UserEncx struct")
 	assert.Contains(t, codeStr, "EmailEncrypted []byte")
-	assert.Contains(t, codeStr, "func ProcessUserEncx(ctx context.Context, crypto *encx.Crypto, source *User) (*UserEncx, error)")
-	assert.Contains(t, codeStr, "func DecryptUserEncx(ctx context.Context, crypto *encx.Crypto, source *UserEncx) (*User, error)")
+	assert.Contains(t, codeStr, "func ProcessUserEncx(ctx context.Context, crypto encx.CryptoService, source *User) (*UserEncx, error)")
+	assert.Contains(t, codeStr, "func DecryptUserEncx(ctx context.Context, crypto encx.CryptoService, source *UserEncx) (*User, error)")
 
 	// Verify encryption logic
 	assert.Contains(t, codeStr, "crypto.EncryptData(ctx, EmailBytes, dek)")
@@ -96,11 +96,11 @@ func TestGenerateCodeWithMultipleFields(t *testing.T) {
 
 	// Create template data with multiple encrypted fields
 	data := TemplateData{
-		PackageName:            "test",
-		StructName:             "User",
-		SourceFile:             "user.go",
-		GeneratedTime:          time.Now().Format(time.RFC3339),
-		GeneratorVersion:       "1.0.0",
+		PackageName:      "test",
+		StructName:       "User",
+		SourceFile:       "user.go",
+		GeneratedTime:    time.Now().Format(time.RFC3339),
+		GeneratorVersion: "1.0.0",
 		EncryptedFields: []TemplateField{
 			{
 				Name:      "EmailEncrypted",
@@ -141,14 +141,14 @@ func TestGenerateCodeEmpty(t *testing.T) {
 
 	// Create template data with no fields
 	data := TemplateData{
-		PackageName:            "test",
-		StructName:             "Empty",
-		SourceFile:             "empty.go",
-		GeneratedTime:          time.Now().Format(time.RFC3339),
-		GeneratorVersion:       "1.0.0",
-		EncryptedFields:        []TemplateField{},
-		ProcessingSteps:        []string{},
-		DecryptionSteps:        []string{},
+		PackageName:      "test",
+		StructName:       "Empty",
+		SourceFile:       "empty.go",
+		GeneratedTime:    time.Now().Format(time.RFC3339),
+		GeneratorVersion: "1.0.0",
+		EncryptedFields:  []TemplateField{},
+		ProcessingSteps:  []string{},
+		DecryptionSteps:  []string{},
 	}
 
 	code, err := engine.GenerateCode(data)
@@ -162,4 +162,3 @@ func TestGenerateCodeEmpty(t *testing.T) {
 	assert.Contains(t, codeStr, "func ProcessEmptyEncx")
 	assert.Contains(t, codeStr, "func DecryptEmptyEncx")
 }
-
