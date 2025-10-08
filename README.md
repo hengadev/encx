@@ -15,8 +15,8 @@ type User struct {
     Password string `encx:"hash_secure"`        // Secure password hash
 }
 
-// Generate code (one-time setup)
-//go:generate encx-gen generate .
+// Generate code: encx-gen generate .
+// (Optional: Add //go:generate encx-gen generate . to use with go generate)
 
 // Use generated functions for type-safe encryption
 crypto, _ := encx.NewTestCrypto(nil)
@@ -70,14 +70,15 @@ import (
     "github.com/hengadev/encx"
 )
 
-//go:generate encx-gen generate .
-
 // Define your struct with encx tags (no companion fields needed)
 type User struct {
     Name     string `encx:"encrypt"`
     Email    string `encx:"hash_basic"`
     Password string `encx:"hash_secure"`
 }
+
+// Run code generation: encx-gen generate .
+// (Or add //go:generate encx-gen generate . and use go generate)
 
 func main() {
     ctx := context.Background()
@@ -128,7 +129,23 @@ func main() {
 
 ### How It Works
 
-When you define a struct with encx tags and run code generation:
+encx-gen discovers structs automatically by parsing Go source files. No special directives required.
+
+**Code Generation Methods:**
+
+1. **Direct command (recommended):**
+   ```bash
+   encx-gen generate .  # Discover structs with encx tags in current directory
+   ```
+
+2. **With go generate (optional):**
+   ```go
+   // Add this line if you want to use go generate workflow
+   //go:generate encx-gen generate .
+   ```
+   Then run: `go generate ./...`
+
+When you define a struct with encx tags:
 
 ```go
 // Your source struct - clean and simple
@@ -160,12 +177,12 @@ type UserEncx struct {
 Perfect for user lookup + privacy using code generation:
 
 ```go
-//go:generate encx-gen generate .
-
 // Source struct - clean definition
 type User struct {
     Email string `encx:"encrypt,hash_basic"`
 }
+
+// Run: encx-gen generate .
 
 // Usage
 user := &User{Email: "user@example.com"}
@@ -188,11 +205,11 @@ fmt.Println(decrypted.Email) // "user@example.com"
 Secure authentication + recovery capability:
 
 ```go
-//go:generate encx-gen generate .
-
 type User struct {
     Password string `encx:"hash_secure,encrypt"`
 }
+
+// Run: encx-gen generate .
 
 // Example: Registration
 // (Replace "User" with your actual struct name)

@@ -320,9 +320,26 @@ encx-gen version
 
 ## Build Integration
 
-### Go Generate
+### Two Approaches for Code Generation
 
-Add generation directives to your Go files:
+#### 1. Direct Commands (Recommended)
+
+Run encx-gen commands directly:
+
+```bash
+# Validate structs
+encx-gen validate -v ./models
+
+# Generate code
+encx-gen generate -v ./models
+
+# Generate for multiple packages
+encx-gen generate -v ./models ./api ./internal
+```
+
+#### 2. Go Generate (Optional)
+
+If you prefer the Go generate workflow, add directives to your Go files:
 
 ```go
 package models
@@ -335,8 +352,7 @@ type User struct {
 }
 ```
 
-Run generation:
-
+Then run:
 ```bash
 # Generate for all packages
 go generate ./...
@@ -344,6 +360,8 @@ go generate ./...
 # Generate for specific package
 go generate ./models
 ```
+
+**Note:** `//go:generate` is completely optional. The direct commands above are the recommended approach and do not require any special directives in your code.
 
 ### Makefile Integration
 

@@ -100,8 +100,6 @@ See [API_REFERENCE.md](./API_REFERENCE.md) for complete API documentation.
 ```go
 package models
 
-//go:generate encx-gen generate .
-
 type User struct {
     ID        int    `json:"id" db:"id"`
     Email     string `json:"email" encx:"encrypt,hash_basic"`
@@ -112,7 +110,17 @@ type User struct {
 
 **Step 2: Generate Code**
 
+**Method A: Direct command (recommended)**
 ```bash
+encx-gen generate ./models
+```
+
+**Method B: Using go generate (optional)**
+```bash
+# First add the generate directive to your file:
+//go:generate encx-gen generate .
+
+# Then run:
 go generate ./models
 ```
 
@@ -180,7 +188,7 @@ type Account struct {
     Password string `json:"-" encx:"hash_secure,encrypt"`
 }
 
-//go:generate encx-gen generate .
+// Generate code: encx-gen generate .
 ```
 
 **Usage:**
@@ -234,7 +242,7 @@ type Customer struct {
     Address Address `json:"address"` // Automatically processed
 }
 
-//go:generate encx-gen generate .
+// Generate code: encx-gen generate .
 ```
 
 ## Database Schema Design
