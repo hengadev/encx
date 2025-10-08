@@ -33,6 +33,10 @@ var (
 	// Operation errors
 	ErrOperationFailed = errors.New("operation failed")
 	ErrInvalidFormat   = errors.New("invalid format")
+
+	// Metadata validation errors
+	ErrMissingKEKAlias         = errors.New("KEK alias is required")
+	ErrMissingGeneratorVersion = errors.New("generator version is required")
 )
 
 func NewUninitalizedPepperError() error {

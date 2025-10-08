@@ -1,4 +1,4 @@
-package metadata
+package encx
 
 import (
 	"encoding/json"
@@ -43,4 +43,3 @@ func (em *EncryptionMetadata) Validate() error {
 	}
 	return nil
 }
-

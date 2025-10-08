@@ -1,4 +1,4 @@
-package metadata
+package encx
 
 import (
 	"encoding/json"
@@ -163,6 +163,4 @@ func TestErrorConstants(t *testing.T) {
 	// Verify error constants are defined and have meaningful messages
 	assert.Equal(t, "KEK alias is required", ErrMissingKEKAlias.Error())
 	assert.Equal(t, "generator version is required", ErrMissingGeneratorVersion.Error())
-	assert.Equal(t, "invalid metadata format", ErrInvalidMetadataFormat.Error())
 }
-
