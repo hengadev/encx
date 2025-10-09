@@ -415,7 +415,7 @@ params := &encx.Argon2Params{
     Parallelism: 4,     // Adjust based on CPU cores
 }
 
-crypto, err := encx.New(ctx, encx.WithArgon2Params(params))
+crypto, err := encx.NewCrypto(ctx, encx.WithArgon2Params(params))
 ```
 
 3. **Optimize struct design**:

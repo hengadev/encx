@@ -101,12 +101,12 @@ type Argon2Params struct {
 
 ## Main Functions
 
-### New
+### NewCrypto
 
 Creates a new Crypto instance with production configuration.
 
 ```go
-func New(ctx context.Context, options ...Option) (*Crypto, error)
+func NewCrypto(ctx context.Context, options ...Option) (*Crypto, error)
 ```
 
 **Parameters**:
@@ -119,9 +119,9 @@ func New(ctx context.Context, options ...Option) (*Crypto, error)
 
 **Example**:
 ```go
-crypto, err := encx.New(ctx,
+crypto, err := encx.NewCrypto(ctx,
     encx.WithKMSService(kmsService),
-    encx.WithDatabase(db),
+    encx.WithKeyMetadataDB(db),
     encx.WithPepper(pepper),
     encx.WithKEKAlias("my-app-kek"),
 )
@@ -540,12 +540,12 @@ Sets the Key Management Service provider.
 func WithKMSService(kms KeyManagementService) Option
 ```
 
-#### WithDatabase
+#### WithKeyMetadataDB
 
 Sets the database connection for key metadata.
 
 ```go
-func WithDatabase(db *sql.DB) Option
+func WithKeyMetadataDB(db *sql.DB) Option
 ```
 
 #### WithPepper

@@ -156,9 +156,9 @@ crypto, _ := encx.NewTestCrypto(nil)
 
 ### Production with AWS KMS
 ```go
-crypto, err := encx.New(ctx,
+crypto, err := encx.NewCrypto(ctx,
     encx.WithKMSService(awsKMS),
-    encx.WithDatabase(db),
+    encx.WithKeyMetadataDB(db),
     encx.WithPepper(pepper),
     encx.WithKEKAlias("myapp-kek"),
 )
@@ -169,7 +169,7 @@ crypto, err := encx.New(ctx,
 import "github.com/hengadev/encx/providers/vault"
 
 kms, err := vault.NewKMSService(client)
-crypto, err := encx.New(ctx, encx.WithKMSService(kms))
+crypto, err := encx.NewCrypto(ctx, encx.WithKMSService(kms))
 ```
 
 ## Database Integration
