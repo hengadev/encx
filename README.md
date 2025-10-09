@@ -144,7 +144,10 @@ encx-gen discovers structs automatically by parsing Go source files. No special 
 # Build the tool once
 go build -o bin/encx-gen ./cmd/encx-gen
 
-# Generate code anywhere
+# Generate code for current directory and all subdirectories recursively
+./bin/encx-gen generate .
+
+# Generate code for specific packages
 ./bin/encx-gen generate ./path/to/package
 ```
 
@@ -152,6 +155,9 @@ go build -o bin/encx-gen ./cmd/encx-gen
 ```bash
 # No building needed - runs directly from source
 go run ./cmd/encx-gen generate ./path/to/package
+
+# Generate code for current directory and all subdirectories recursively
+go run ./cmd/encx-gen generate .
 
 # Works from any directory with correct relative path
 go run ../../cmd/encx-gen generate .
@@ -164,6 +170,8 @@ Add this to your Go source file (path must be relative to your file):
 ```
 
 Then run: `go generate ./...`
+
+**Note**: When using `encx-gen generate .`, the tool automatically discovers all Go packages in subdirectories recursively, making it ideal for processing entire projects from the root directory.
 
 **⚠️ Note:** Option 3 requires the correct relative path to `cmd/encx-gen`. Options 1 & 2 work consistently in all environments.
 
