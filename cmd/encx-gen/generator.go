@@ -60,6 +60,70 @@ func NewGenerator(configPath, outputDir string, verbose bool) *Generator {
 	}
 }
 
+// discoverGoPackages recursively discovers all Go packages in subdirectories
+func (g *Generator) discoverGoPackages(rootPath string) ([]string, error) {
+	var packages []string
+
+	// Check if the root path itself is a Go package
+	if g.isGoPackage(rootPath) {
+		packages = append(packages, rootPath)
+	}
+
+	// Walk through subdirectories
+	err := filepath.Walk(rootPath, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
+		// Skip the root directory (already processed)
+		if path == rootPath {
+			return nil
+		}
+
+		// Only process directories
+		if !info.IsDir() {
+			return nil
+		}
+
+		// Skip hidden directories and common skip directories
+		baseName := filepath.Base(path)
+		if strings.HasPrefix(baseName, ".") || baseName == "vendor" || baseName == "node_modules" {
+			return filepath.SkipDir
+		}
+
+		// Check if this directory is a Go package
+		if g.isGoPackage(path) {
+			packages = append(packages, path)
+			if g.verbose {
+				fmt.Printf("Found Go package: %s\n", path)
+			}
+		}
+
+		return nil
+	})
+
+	return packages, err
+}
+
+// isGoPackage checks if a directory contains Go source files
+func (g *Generator) isGoPackage(dirPath string) bool {
+	entries, err := os.ReadDir(dirPath)
+	if err != nil {
+		return false
+	}
+
+	// Check if there are any .go files (excluding test files for package detection)
+	hasGoFiles := false
+	for _, entry := range entries {
+		if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".go") && !strings.HasSuffix(entry.Name(), "_test.go") {
+			hasGoFiles = true
+			break
+		}
+	}
+
+	return hasGoFiles
+}
+
 // Generate performs code generation for the specified packages
 func (g *Generator) Generate(packages []string, dryRun bool) error {
 	if g.verbose {
@@ -78,6 +142,21 @@ func (g *Generator) Generate(packages []string, dryRun bool) error {
 	templateEngine, err := codegen.NewTemplateEngine()
 	if err != nil {
 		return fmt.Errorf("failed to create template engine: %w", err)
+	}
+
+	// If only "." is specified, recursively discover all Go packages
+	if len(packages) == 1 && packages[0] == "." {
+		if g.verbose {
+			fmt.Println("Discovering Go packages recursively...")
+		}
+		discoveredPackages, err := g.discoverGoPackages(".")
+		if err != nil {
+			return fmt.Errorf("failed to discover Go packages: %w", err)
+		}
+		packages = discoveredPackages
+		if g.verbose {
+			fmt.Printf("Found %d Go packages to process\n", len(packages))
+		}
 	}
 
 	// Process each package
