@@ -302,21 +302,32 @@ Generate encx code for structs:
 ```bash
 # Using any of the 3 options above:
 
-# Generate for current directory
+# Generate for current directory and all subdirectories recursively
+# This discovers ALL Go packages in subdirectories automatically
 go run ./cmd/encx-gen generate .
 
-# Generate for specific packages
+# Generate for specific packages only (no recursion)
 go run ./cmd/encx-gen generate ./models ./api
 
 # Generate with custom config
 go run ./cmd/encx-gen generate -config=my-config.yaml .
 
-# Verbose output
+# Verbose output (shows discovered packages)
 go run ./cmd/encx-gen generate -v .
 
 # Dry run (show what would be generated)
 go run ./cmd/encx-gen generate -dry-run .
 ```
+
+**Recursive Package Discovery**:
+When you use `encx-gen generate .`, the tool automatically:
+- Scans the current directory for Go packages
+- Recursively discovers all Go packages in subdirectories
+- Skips hidden directories, `vendor/`, and `node_modules/`
+- Processes all discovered packages that contain Go source files
+- Reports the number of packages found in verbose mode
+
+This makes it ideal for processing entire projects from the root directory with a single command.
 
 ### validate
 
@@ -368,10 +379,10 @@ go build -o bin/encx-gen ./cmd/encx-gen
 # Validate structs
 ./bin/encx-gen validate -v ./models
 
-# Generate code
-./bin/encx-gen generate -v ./models
+# Generate code for entire project recursively
+./bin/encx-gen generate -v .
 
-# Generate for multiple packages
+# Generate for specific packages only
 ./bin/encx-gen generate -v ./models ./api ./internal
 ```
 
@@ -383,10 +394,10 @@ Run directly from source without building:
 # Validate structs
 go run ./cmd/encx-gen validate -v ./models
 
-# Generate code
-go run ./cmd/encx-gen generate -v ./models
+# Generate code for entire project recursively
+go run ./cmd/encx-gen generate -v .
 
-# Generate for multiple packages
+# Generate for specific packages only
 go run ./cmd/encx-gen generate -v ./models ./api ./internal
 ```
 
@@ -418,6 +429,7 @@ go generate ./models
 - Option 3 requires the correct relative path to `cmd/encx-gen` (e.g., `../../cmd/encx-gen`)
 - Options 1 & 2 work consistently in all environments
 - `//go:generate` is completely optional but can be useful for CI/CD automation
+- When using `generate .`, the tool automatically discovers all Go packages in subdirectories recursively
 
 ### Makefile Integration
 

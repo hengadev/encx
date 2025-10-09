@@ -191,6 +191,9 @@ decrypted, err := DecryptUserEncx(ctx, crypto, userEncx)
 // decrypted.Name is now available
 ```
 
+**Recursive Package Discovery**:
+When using `encx-gen generate .`, the tool automatically discovers all Go packages in subdirectories recursively, making it ideal for processing entire projects from a single command.
+
 **See**: [Code Generation Guide](./CODE_GENERATION_GUIDE.md) for complete documentation.
 
 ### Data Operations
