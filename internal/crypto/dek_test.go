@@ -44,16 +44,28 @@ func TestNewDEKOperations(t *testing.T) {
 	mockKMS := &MockKMSService{}
 	kekAlias := "test-alias"
 
-	dekOps := NewDEKOperations(mockKMS, kekAlias)
+	dekOps, err := NewDEKOperations(mockKMS, kekAlias)
 
+	require.NoError(t, err)
 	assert.NotNil(t, dekOps)
 	assert.Equal(t, mockKMS, dekOps.kmsService)
 	assert.Equal(t, kekAlias, dekOps.kekAlias)
 }
 
+func TestNewDEKOperations_NilKMSService(t *testing.T) {
+	kekAlias := "test-alias"
+
+	dekOps, err := NewDEKOperations(nil, kekAlias)
+
+	assert.Error(t, err)
+	assert.Nil(t, dekOps)
+	assert.Contains(t, err.Error(), "KMS service cannot be nil")
+}
+
 func TestDEKOperations_GenerateDEK(t *testing.T) {
 	mockKMS := &MockKMSService{}
-	dekOps := NewDEKOperations(mockKMS, "test-alias")
+	dekOps, err := NewDEKOperations(mockKMS, "test-alias")
+	require.NoError(t, err)
 
 	dek, err := dekOps.GenerateDEK()
 
@@ -69,7 +81,8 @@ func TestDEKOperations_GenerateDEK(t *testing.T) {
 func TestDEKOperations_EncryptDEK_Success(t *testing.T) {
 	mockKMS := &MockKMSService{}
 	mockVersionManager := &MockVersionManager{}
-	dekOps := NewDEKOperations(mockKMS, "test-alias")
+	dekOps, err := NewDEKOperations(mockKMS, "test-alias")
+	require.NoError(t, err)
 
 	ctx := context.Background()
 	plaintextDEK := []byte("test-dek-32-bytes-for-encryption!")
@@ -95,7 +108,8 @@ func TestDEKOperations_EncryptDEK_Success(t *testing.T) {
 func TestDEKOperations_EncryptDEK_GetVersionError(t *testing.T) {
 	mockKMS := &MockKMSService{}
 	mockVersionManager := &MockVersionManager{}
-	dekOps := NewDEKOperations(mockKMS, "test-alias")
+	dekOps, err := NewDEKOperations(mockKMS, "test-alias")
+	require.NoError(t, err)
 
 	ctx := context.Background()
 	plaintextDEK := []byte("test-dek-32-bytes-for-encryption!")
@@ -117,7 +131,8 @@ func TestDEKOperations_EncryptDEK_GetVersionError(t *testing.T) {
 func TestDEKOperations_EncryptDEK_GetKeyIDError(t *testing.T) {
 	mockKMS := &MockKMSService{}
 	mockVersionManager := &MockVersionManager{}
-	dekOps := NewDEKOperations(mockKMS, "test-alias")
+	dekOps, err := NewDEKOperations(mockKMS, "test-alias")
+	require.NoError(t, err)
 
 	ctx := context.Background()
 	plaintextDEK := []byte("test-dek-32-bytes-for-encryption!")
@@ -140,7 +155,8 @@ func TestDEKOperations_EncryptDEK_GetKeyIDError(t *testing.T) {
 func TestDEKOperations_EncryptDEK_KMSError(t *testing.T) {
 	mockKMS := &MockKMSService{}
 	mockVersionManager := &MockVersionManager{}
-	dekOps := NewDEKOperations(mockKMS, "test-alias")
+	dekOps, err := NewDEKOperations(mockKMS, "test-alias")
+	require.NoError(t, err)
 
 	ctx := context.Background()
 	plaintextDEK := []byte("test-dek-32-bytes-for-encryption!")
@@ -168,7 +184,8 @@ func TestDEKOperations_EncryptDEK_KMSError(t *testing.T) {
 func TestDEKOperations_DecryptDEKWithVersion_Success(t *testing.T) {
 	mockKMS := &MockKMSService{}
 	mockVersionManager := &MockVersionManager{}
-	dekOps := NewDEKOperations(mockKMS, "test-alias")
+	dekOps, err := NewDEKOperations(mockKMS, "test-alias")
+	require.NoError(t, err)
 
 	ctx := context.Background()
 	ciphertextDEK := []byte("encrypted-dek-data")
@@ -194,7 +211,8 @@ func TestDEKOperations_DecryptDEKWithVersion_Success(t *testing.T) {
 func TestDEKOperations_DecryptDEKWithVersion_GetKeyIDError(t *testing.T) {
 	mockKMS := &MockKMSService{}
 	mockVersionManager := &MockVersionManager{}
-	dekOps := NewDEKOperations(mockKMS, "test-alias")
+	dekOps, err := NewDEKOperations(mockKMS, "test-alias")
+	require.NoError(t, err)
 
 	ctx := context.Background()
 	ciphertextDEK := []byte("encrypted-dek-data")
@@ -217,7 +235,8 @@ func TestDEKOperations_DecryptDEKWithVersion_GetKeyIDError(t *testing.T) {
 func TestDEKOperations_DecryptDEKWithVersion_KMSError(t *testing.T) {
 	mockKMS := &MockKMSService{}
 	mockVersionManager := &MockVersionManager{}
-	dekOps := NewDEKOperations(mockKMS, "test-alias")
+	dekOps, err := NewDEKOperations(mockKMS, "test-alias")
+	require.NoError(t, err)
 
 	ctx := context.Background()
 	ciphertextDEK := []byte("encrypted-dek-data")
