@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"io"
+	"path/filepath"
 
 	"github.com/hengadev/encx/internal/config"
 	"github.com/hengadev/encx/internal/crypto"
@@ -83,6 +84,16 @@ func NewCrypto(ctx context.Context, options ...Option) (*Crypto, error) {
 		return nil, fmt.Errorf("failed to apply options: %w", err)
 	}
 
+	// Initialize KeyMetadataDB if not provided via options
+	if cfg.KeyMetadataDB == nil {
+		dbPath := filepath.Join(cfg.DBPath, cfg.DBFilename)
+		db, err := sql.Open("sqlite3", dbPath)
+		if err != nil {
+			return nil, fmt.Errorf("failed to open key metadata database at '%s': %w", dbPath, err)
+		}
+		cfg.KeyMetadataDB = db
+	}
+
 	// Validate configuration
 	validator := config.NewValidator()
 	if err := validator.ValidateConfig(cfg); err != nil {
@@ -109,10 +120,25 @@ func NewCrypto(ctx context.Context, options ...Option) (*Crypto, error) {
 	}
 
 	// Initialize internal components
-	cryptoInstance.dekOps = crypto.NewDEKOperations(cfg.KMSService, cfg.KEKAlias)
+	dekOps, err := crypto.NewDEKOperations(cfg.KMSService, cfg.KEKAlias)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create DEK operations: %w", err)
+	}
+	cryptoInstance.dekOps = dekOps
+
 	cryptoInstance.dataEncryption = crypto.NewDataEncryption()
-	cryptoInstance.hashingOps = crypto.NewHashingOperations(cfg.Pepper, cryptoInstance.argon2Params)
-	cryptoInstance.keyRotationOps = crypto.NewKeyRotationOperations(cfg.KMSService, cfg.KEKAlias, cfg.KeyMetadataDB, cfg.ObservabilityHook)
+
+	hashingOps, err := crypto.NewHashingOperations(cfg.Pepper, cryptoInstance.argon2Params)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create hashing operations: %w", err)
+	}
+	cryptoInstance.hashingOps = hashingOps
+
+	keyRotationOps, err := crypto.NewKeyRotationOperations(cfg.KMSService, cfg.KEKAlias, cfg.KeyMetadataDB, cfg.ObservabilityHook)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create key rotation operations: %w", err)
+	}
+	cryptoInstance.keyRotationOps = keyRotationOps
 
 	return cryptoInstance, nil
 }

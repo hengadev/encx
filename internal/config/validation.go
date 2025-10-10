@@ -8,8 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/hengadev/errsx"
 	"github.com/hengadev/encx/internal/monitoring"
+	"github.com/hengadev/errsx"
 )
 
 // Config holds the complete configuration for a Crypto instance
@@ -44,11 +44,11 @@ type Argon2Params struct {
 }
 
 // Interface methods for crypto package compatibility
-func (a *Argon2Params) GetMemory() uint32      { return a.Memory }
-func (a *Argon2Params) GetIterations() uint32  { return a.Iterations }
-func (a *Argon2Params) GetParallelism() uint8  { return a.Parallelism }
-func (a *Argon2Params) GetSaltLength() uint32  { return a.SaltLength }
-func (a *Argon2Params) GetKeyLength() uint32   { return a.KeyLength }
+func (a *Argon2Params) GetMemory() uint32     { return a.Memory }
+func (a *Argon2Params) GetIterations() uint32 { return a.Iterations }
+func (a *Argon2Params) GetParallelism() uint8 { return a.Parallelism }
+func (a *Argon2Params) GetSaltLength() uint32 { return a.SaltLength }
+func (a *Argon2Params) GetKeyLength() uint32  { return a.KeyLength }
 
 // Validate checks if the Argon2 parameters are within acceptable ranges
 func (a *Argon2Params) Validate() error {
