@@ -32,13 +32,16 @@ type ObservabilityHook interface {
 }
 
 // NewKeyRotationOperations creates a new KeyRotationOperations instance
-func NewKeyRotationOperations(kmsService KeyRotationService, kekAlias string, keyMetadataDB *sql.DB, observability ObservabilityHook) *KeyRotationOperations {
+func NewKeyRotationOperations(kmsService KeyRotationService, kekAlias string, keyMetadataDB *sql.DB, observability ObservabilityHook) (*KeyRotationOperations, error) {
+	if kmsService == nil {
+		return nil, fmt.Errorf("KMS service cannot be nil")
+	}
 	return &KeyRotationOperations{
 		kmsService:    kmsService,
 		kekAlias:      kekAlias,
 		keyMetadataDB: keyMetadataDB,
 		observability: observability,
-	}
+	}, nil
 }
 
 // RotateKEK generates a new KEK and updates the metadata database.
@@ -49,12 +52,16 @@ func (kr *KeyRotationOperations) RotateKEK(ctx context.Context, versionManager K
 		"key_alias":      kr.kekAlias,
 		"operation_type": "key_rotation",
 	}
-	kr.observability.OnProcessStart(ctx, "RotateKEK", metadata)
+	if kr.observability != nil {
+		kr.observability.OnProcessStart(ctx, "RotateKEK", metadata)
+	}
 
 	currentVersion, err := versionManager.GetCurrentKEKVersion(ctx, kr.kekAlias)
 	if err != nil {
-		kr.observability.OnError(ctx, "RotateKEK", err, metadata)
-		kr.observability.OnProcessComplete(ctx, "RotateKEK", time.Since(start), err, metadata)
+		if kr.observability != nil {
+			kr.observability.OnError(ctx, "RotateKEK", err, metadata)
+			kr.observability.OnProcessComplete(ctx, "RotateKEK", time.Since(start), err, metadata)
+		}
 		return err
 	}
 
@@ -65,8 +72,10 @@ func (kr *KeyRotationOperations) RotateKEK(ctx context.Context, versionManager K
 	kmsKeyID, err := kr.kmsService.CreateKey(ctx, kr.kekAlias) // KMS might handle rotation internally based on alias
 	if err != nil {
 		err = fmt.Errorf("failed to create new KEK version in KMS: %w", err)
-		kr.observability.OnError(ctx, "RotateKEK", err, metadata)
-		kr.observability.OnProcessComplete(ctx, "RotateKEK", time.Since(start), err, metadata)
+		if kr.observability != nil {
+			kr.observability.OnError(ctx, "RotateKEK", err, metadata)
+			kr.observability.OnProcessComplete(ctx, "RotateKEK", time.Since(start), err, metadata)
+		}
 		return err
 	}
 
@@ -77,8 +86,10 @@ func (kr *KeyRotationOperations) RotateKEK(ctx context.Context, versionManager K
 	`, kr.kekAlias, currentVersion)
 	if err != nil {
 		err = fmt.Errorf("failed to deprecate old KEK version: %w", err)
-		kr.observability.OnError(ctx, "RotateKEK", err, metadata)
-		kr.observability.OnProcessComplete(ctx, "RotateKEK", time.Since(start), err, metadata)
+		if kr.observability != nil {
+			kr.observability.OnError(ctx, "RotateKEK", err, metadata)
+			kr.observability.OnProcessComplete(ctx, "RotateKEK", time.Since(start), err, metadata)
+		}
 		return err
 	}
 
@@ -88,14 +99,18 @@ func (kr *KeyRotationOperations) RotateKEK(ctx context.Context, versionManager K
 	`, kr.kekAlias, newVersion, kmsKeyID)
 	if err != nil {
 		err = fmt.Errorf("failed to record new KEK version in metadata DB: %w", err)
-		kr.observability.OnError(ctx, "RotateKEK", err, metadata)
-		kr.observability.OnProcessComplete(ctx, "RotateKEK", time.Since(start), err, metadata)
+		if kr.observability != nil {
+			kr.observability.OnError(ctx, "RotateKEK", err, metadata)
+			kr.observability.OnProcessComplete(ctx, "RotateKEK", time.Since(start), err, metadata)
+		}
 		return err
 	}
 
 	// Monitoring: Record successful key operation
-	kr.observability.OnKeyOperation(ctx, "rotate", kr.kekAlias, newVersion, metadata)
-	kr.observability.OnProcessComplete(ctx, "RotateKEK", time.Since(start), nil, metadata)
+	if kr.observability != nil {
+		kr.observability.OnKeyOperation(ctx, "rotate", kr.kekAlias, newVersion, metadata)
+		kr.observability.OnProcessComplete(ctx, "RotateKEK", time.Since(start), nil, metadata)
+	}
 
 	log.Printf("KEK rotated for alias '%s'. New version: %d, KMS ID: '%s'", kr.kekAlias, newVersion, kmsKeyID)
 	return nil

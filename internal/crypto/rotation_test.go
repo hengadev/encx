@@ -117,10 +117,23 @@ func TestNewKeyRotationOperations(t *testing.T) {
 	db := setupTestDB(t)
 	defer db.Close()
 
-	kr := NewKeyRotationOperations(kms, "test-alias", db, obs)
+	kr, err := NewKeyRotationOperations(kms, "test-alias", db, obs)
+	require.NoError(t, err)
 
 	assert.NotNil(t, kr)
 	assert.Equal(t, "test-alias", kr.kekAlias)
+}
+
+func TestNewKeyRotationOperations_NilKMSService(t *testing.T) {
+	obs := &mockObservabilityHook{}
+	db := setupTestDB(t)
+	defer db.Close()
+
+	kr, err := NewKeyRotationOperations(nil, "test-alias", db, obs)
+
+	assert.Error(t, err)
+	assert.Nil(t, kr)
+	assert.Contains(t, err.Error(), "KMS service cannot be nil")
 }
 
 func TestRotateKEK_Success(t *testing.T) {
@@ -143,7 +156,8 @@ func TestRotateKEK_Success(t *testing.T) {
 	obs := &mockObservabilityHook{}
 	versionMgr := &mockVersionManager{currentVersion: 1}
 
-	kr := NewKeyRotationOperations(kms, "test-alias", db, obs)
+	kr, err := NewKeyRotationOperations(kms, "test-alias", db, obs)
+	require.NoError(t, err)
 	err = kr.RotateKEK(ctx, versionMgr)
 
 	assert.NoError(t, err)
@@ -181,8 +195,9 @@ func TestRotateKEK_GetVersionError(t *testing.T) {
 		getVersionErr: errors.New("version fetch failed"),
 	}
 
-	kr := NewKeyRotationOperations(kms, "test-alias", db, obs)
-	err := kr.RotateKEK(ctx, versionMgr)
+	kr, err := NewKeyRotationOperations(kms, "test-alias", db, obs)
+	require.NoError(t, err)
+	err = kr.RotateKEK(ctx, versionMgr)
 
 	assert.Error(t, err)
 	assert.Contains(t, obs.errors, "RotateKEK")
@@ -202,8 +217,9 @@ func TestRotateKEK_CreateKeyError(t *testing.T) {
 	obs := &mockObservabilityHook{}
 	versionMgr := &mockVersionManager{currentVersion: 1}
 
-	kr := NewKeyRotationOperations(kms, "test-alias", db, obs)
-	err := kr.RotateKEK(ctx, versionMgr)
+	kr, err := NewKeyRotationOperations(kms, "test-alias", db, obs)
+	require.NoError(t, err)
+	err = kr.RotateKEK(ctx, versionMgr)
 
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to create new KEK version in KMS")
@@ -226,8 +242,9 @@ func TestRotateKEK_DeprecateOldVersionError(t *testing.T) {
 	obs := &mockObservabilityHook{}
 	versionMgr := &mockVersionManager{currentVersion: 1}
 
-	kr := NewKeyRotationOperations(kms, "test-alias", db, obs)
-	err := kr.RotateKEK(ctx, versionMgr)
+	kr, err := NewKeyRotationOperations(kms, "test-alias", db, obs)
+	require.NoError(t, err)
+	err = kr.RotateKEK(ctx, versionMgr)
 
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to deprecate old KEK version")
@@ -260,7 +277,8 @@ func TestRotateKEK_RecordNewVersionError(t *testing.T) {
 	obs := &mockObservabilityHook{}
 	versionMgr := &mockVersionManager{currentVersion: 1}
 
-	kr := NewKeyRotationOperations(kms, "test-alias", db, obs)
+	kr, err := NewKeyRotationOperations(kms, "test-alias", db, obs)
+	require.NoError(t, err)
 	err = kr.RotateKEK(ctx, versionMgr)
 
 	assert.Error(t, err)
@@ -283,8 +301,9 @@ func TestEnsureInitialKEK_CreateNew(t *testing.T) {
 	obs := &mockObservabilityHook{}
 	versionMgr := &mockVersionManager{currentVersion: 0}
 
-	kr := NewKeyRotationOperations(kms, "test-alias", db, obs)
-	err := kr.EnsureInitialKEK(ctx, versionMgr)
+	kr, err := NewKeyRotationOperations(kms, "test-alias", db, obs)
+	require.NoError(t, err)
+	err = kr.EnsureInitialKEK(ctx, versionMgr)
 
 	assert.NoError(t, err)
 
@@ -318,7 +337,8 @@ func TestEnsureInitialKEK_KeyExistsInKMS(t *testing.T) {
 	obs := &mockObservabilityHook{}
 	versionMgr := &mockVersionManager{currentVersion: 1}
 
-	kr := NewKeyRotationOperations(kms, "test-alias", db, obs)
+	kr, err := NewKeyRotationOperations(kms, "test-alias", db, obs)
+	require.NoError(t, err)
 	err = kr.EnsureInitialKEK(ctx, versionMgr)
 
 	assert.NoError(t, err)
@@ -346,8 +366,9 @@ func TestEnsureInitialKEK_KeyExistsInKMSButNotDB(t *testing.T) {
 	obs := &mockObservabilityHook{}
 	versionMgr := &mockVersionManager{currentVersion: 0}
 
-	kr := NewKeyRotationOperations(kms, "test-alias", db, obs)
-	err := kr.EnsureInitialKEK(ctx, versionMgr)
+	kr, err := NewKeyRotationOperations(kms, "test-alias", db, obs)
+	require.NoError(t, err)
+	err = kr.EnsureInitialKEK(ctx, versionMgr)
 
 	assert.NoError(t, err)
 
@@ -377,8 +398,9 @@ func TestEnsureInitialKEK_CreateKeyError(t *testing.T) {
 	obs := &mockObservabilityHook{}
 	versionMgr := &mockVersionManager{currentVersion: 0}
 
-	kr := NewKeyRotationOperations(kms, "test-alias", db, obs)
-	err := kr.EnsureInitialKEK(ctx, versionMgr)
+	kr, err := NewKeyRotationOperations(kms, "test-alias", db, obs)
+	require.NoError(t, err)
+	err = kr.EnsureInitialKEK(ctx, versionMgr)
 
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to create initial KEK in KMS")
@@ -403,8 +425,9 @@ func TestEnsureInitialKEK_RecordInitialError(t *testing.T) {
 	obs := &mockObservabilityHook{}
 	versionMgr := &mockVersionManager{currentVersion: 0}
 
-	kr := NewKeyRotationOperations(kms, "test-alias", db, obs)
-	err := kr.EnsureInitialKEK(ctx, versionMgr)
+	kr, err := NewKeyRotationOperations(kms, "test-alias", db, obs)
+	require.NoError(t, err)
+	err = kr.EnsureInitialKEK(ctx, versionMgr)
 
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to record initial KEK in metadata DB")
@@ -426,8 +449,9 @@ func TestEnsureInitialKEK_GetVersionError(t *testing.T) {
 		getVersionErr:  errors.New("version fetch failed"),
 	}
 
-	kr := NewKeyRotationOperations(kms, "test-alias", db, obs)
-	err := kr.EnsureInitialKEK(ctx, versionMgr)
+	kr, err := NewKeyRotationOperations(kms, "test-alias", db, obs)
+	require.NoError(t, err)
+	err = kr.EnsureInitialKEK(ctx, versionMgr)
 
 	assert.Error(t, err)
 	assert.Equal(t, "version fetch failed", err.Error())
