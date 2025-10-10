@@ -32,11 +32,14 @@ type HashingOperations struct {
 }
 
 // NewHashingOperations creates a new HashingOperations instance
-func NewHashingOperations(pepper []byte, argon2Params Argon2ParamsInterface) *HashingOperations {
+func NewHashingOperations(pepper []byte, argon2Params Argon2ParamsInterface) (*HashingOperations, error) {
+	if argon2Params == nil {
+		return nil, fmt.Errorf("argon2 parameters cannot be nil")
+	}
 	return &HashingOperations{
 		pepper:       pepper,
 		argon2Params: argon2Params,
-	}
+	}, nil
 }
 
 // HashBasic performs a basic SHA256 hash on the byte representation of the input.
@@ -156,8 +159,14 @@ func (h *HashingOperations) CompareSecureHashAndValue(ctx context.Context, value
 		return false, fmt.Errorf("failed to decode hash: %w", err)
 	}
 
+	// Convert value to bytes safely
+	valueBytes, ok := value.([]byte)
+	if !ok {
+		return false, fmt.Errorf("value must be of type []byte for secure hash comparison")
+	}
+
 	// Combine value with pepper
-	peppered := append(value.([]byte), h.pepper[:]...)
+	peppered := append(valueBytes, h.pepper[:]...)
 
 	// Generate hash using the extracted salt and parameters
 	computedHash := argon2.IDKey(

@@ -19,11 +19,22 @@ func TestNewHashingOperations(t *testing.T) {
 		KeyLength:   32,
 	}
 
-	ho := NewHashingOperations(pepper, argon2Params)
+	ho, err := NewHashingOperations(pepper, argon2Params)
+	require.NoError(t, err)
 
 	assert.NotNil(t, ho)
 	assert.Equal(t, pepper, ho.pepper)
 	assert.Equal(t, argon2Params, ho.argon2Params)
+}
+
+func TestNewHashingOperations_NilArgon2Params(t *testing.T) {
+	pepper := []byte("test-pepper-16-bytes")
+
+	ho, err := NewHashingOperations(pepper, nil)
+
+	assert.Error(t, err)
+	assert.Nil(t, ho)
+	assert.Contains(t, err.Error(), "argon2 parameters cannot be nil")
 }
 
 func TestHashingOperations_HashBasic(t *testing.T) {
@@ -36,7 +47,8 @@ func TestHashingOperations_HashBasic(t *testing.T) {
 		KeyLength:   32,
 	}
 
-	ho := NewHashingOperations(pepper, argon2Params)
+	ho, err := NewHashingOperations(pepper, argon2Params)
+	require.NoError(t, err)
 	ctx := context.Background()
 
 	tests := []struct {
@@ -89,7 +101,8 @@ func TestHashingOperations_HashBasic_Consistency(t *testing.T) {
 		KeyLength:   32,
 	}
 
-	ho := NewHashingOperations(pepper, argon2Params)
+	ho, err := NewHashingOperations(pepper, argon2Params)
+	require.NoError(t, err)
 	ctx := context.Background()
 
 	testData := []byte("test data for consistency")
@@ -116,7 +129,8 @@ func TestHashingOperations_HashBasic_DifferentInputs(t *testing.T) {
 		KeyLength:   32,
 	}
 
-	ho := NewHashingOperations(pepper, argon2Params)
+	ho, err := NewHashingOperations(pepper, argon2Params)
+	require.NoError(t, err)
 	ctx := context.Background()
 
 	// Test different inputs produce different hashes
@@ -143,7 +157,8 @@ func TestHashingOperations_HashSecure(t *testing.T) {
 		KeyLength:   32,
 	}
 
-	ho := NewHashingOperations(pepper, argon2Params)
+	ho, err := NewHashingOperations(pepper, argon2Params)
+	require.NoError(t, err)
 	ctx := context.Background()
 
 	tests := []struct {
@@ -194,7 +209,8 @@ func TestHashingOperations_HashSecure_VerifyUniqueness(t *testing.T) {
 		KeyLength:   32,
 	}
 
-	ho := NewHashingOperations(pepper, argon2Params)
+	ho, err := NewHashingOperations(pepper, argon2Params)
+	require.NoError(t, err)
 	ctx := context.Background()
 
 	input := []byte("test password")
@@ -228,8 +244,10 @@ func TestHashingOperations_DifferentPeppers(t *testing.T) {
 	pepper1 := []byte("pepper-one-16-bytes!")
 	pepper2 := []byte("different-pepper-16b")
 
-	ho1 := NewHashingOperations(pepper1, argon2Params)
-	ho2 := NewHashingOperations(pepper2, argon2Params)
+	ho1, err := NewHashingOperations(pepper1, argon2Params)
+	require.NoError(t, err)
+	ho2, err := NewHashingOperations(pepper2, argon2Params)
+	require.NoError(t, err)
 	ctx := context.Background()
 
 	input := []byte("same input data")
@@ -265,8 +283,10 @@ func TestHashingOperations_DifferentArgon2Params(t *testing.T) {
 		KeyLength:   32,
 	}
 
-	ho1 := NewHashingOperations(pepper, params1)
-	ho2 := NewHashingOperations(pepper, params2)
+	ho1, err := NewHashingOperations(pepper, params1)
+	require.NoError(t, err)
+	ho2, err := NewHashingOperations(pepper, params2)
+	require.NoError(t, err)
 	ctx := context.Background()
 
 	input := []byte("test input")
@@ -291,7 +311,8 @@ func TestHashingOperations_EdgeCases(t *testing.T) {
 		KeyLength:   32,
 	}
 
-	ho := NewHashingOperations(pepper, argon2Params)
+	ho, err := NewHashingOperations(pepper, argon2Params)
+	require.NoError(t, err)
 	ctx := context.Background()
 
 	// Test with nil input
@@ -327,7 +348,8 @@ func TestHashingOperations_CompareSecureHashAndValue(t *testing.T) {
 		KeyLength:   32,
 	}
 
-	ho := NewHashingOperations(pepper, argon2Params)
+	ho, err := NewHashingOperations(pepper, argon2Params)
+	require.NoError(t, err)
 	ctx := context.Background()
 
 	testCases := []struct {
@@ -400,7 +422,8 @@ func TestHashingOperations_CompareEdgeCases(t *testing.T) {
 		KeyLength:   32,
 	}
 
-	ho := NewHashingOperations(pepper, argon2Params)
+	ho, err := NewHashingOperations(pepper, argon2Params)
+	require.NoError(t, err)
 	ctx := context.Background()
 
 	t.Run("invalid hash format for secure compare", func(t *testing.T) {
