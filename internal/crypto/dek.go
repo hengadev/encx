@@ -26,11 +26,14 @@ type KMSVersionManager interface {
 }
 
 // NewDEKOperations creates a new DEKOperations instance
-func NewDEKOperations(kmsService KeyManagementService, kekAlias string) *DEKOperations {
+func NewDEKOperations(kmsService KeyManagementService, kekAlias string) (*DEKOperations, error) {
+	if kmsService == nil {
+		return nil, fmt.Errorf("KMS service cannot be nil")
+	}
 	return &DEKOperations{
 		kmsService: kmsService,
 		kekAlias:   kekAlias,
-	}
+	}, nil
 }
 
 // GenerateDEK generates a new Data Encryption Key.
