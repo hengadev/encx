@@ -18,12 +18,14 @@
 
 - [ ] Install library: `go get github.com/hengadev/encx`
 - [ ] Define structs with encx tags
-- [ ] Set up database schema with encrypted columns
-- [ ] Configure crypto instance (KMS + pepper)
+- [ ] Set up database schema with encrypted columns (automatic in v0.5.2+)
+- [ ] Configure crypto instance (KMS + pepper) - automatic KEK initialization in v0.5.3+
 - [ ] Generate code (optional, for performance)
 - [ ] Implement encryption in your data layer
 - [ ] Add tests for encrypt/decrypt cycles
 - [ ] Configure production KMS
+
+> **🆕 v0.5.2+**: Database schema creation and KEK initialization are now automatic! No manual setup required.
 
 ## Installation & Setup
 
@@ -48,6 +50,51 @@ make build-cli && make install-cli
 # Create encx.yaml in your project root
 encx-gen init
 ```
+
+### 4. Quick Start with Automatic Initialization (v0.5.2+)
+
+**ENCX now automatically handles database and KEK setup!** Just create your crypto instance and it's ready to use:
+
+```go
+package main
+
+import (
+    "context"
+    "github.com/hengadev/encx"
+    "github.com/hengadev/encx/providers/awskms"
+)
+
+func main() {
+    ctx := context.Background()
+
+    // Create KMS service (your choice of provider)
+    kms, err := awskms.New(ctx, awskms.Config{
+        Region: "us-east-1",
+    })
+
+    // Create crypto instance - everything else is automatic!
+    crypto, err := encx.NewCrypto(ctx,
+        encx.WithKMSService(kms),
+        encx.WithKEKAlias("my-app-key"),
+        encx.WithPepper([]byte("your-32-byte-secret-pepper-key!")),
+    )
+    if err != nil {
+        panic(err)
+    }
+
+    // That's it! Ready to encrypt/decrypt
+    // No manual database setup required
+    // No KEK initialization required
+}
+```
+
+**What happens automatically:**
+1. ✅ Database schema created (kek_versions table + index)
+2. ✅ Initial KEK created and stored in database
+3. ✅ Configuration validated before any operations
+4. ✅ Ready for immediate encryption operations
+
+**Migration from older versions:** See [Migration Guide](./MIGRATION_GUIDE.md) for details.
 
 ## API Reference Quick Links
 
@@ -470,6 +517,28 @@ func StartKeyRotation(crypto encx.CryptoService) {
 
 ## Common Integration Issues
 
+### ✅ RESOLVED: Database Schema Issues (v0.5.2+)
+**Previous Error:** `no such table: kek_versions`
+
+**Status:** **RESOLVED** - Database schema is now created automatically in v0.5.2+
+
+**Previous Solution:** (No longer needed)
+```sql
+-- This manual table creation is no longer required
+CREATE TABLE kek_versions (...);
+```
+
+### ✅ RESOLVED: KEK Initialization Issues (v0.5.3+)
+**Previous Error:** `failed to get KMS Key ID for alias 'xxx' version 0`
+
+**Status:** **RESOLVED** - KEK initialization is now automatic in v0.5.3+
+
+**Previous Solution:** (No longer needed)
+```go
+// This manual KEK initialization is no longer needed
+crypto.keyRotationOps.EnsureInitialKEK(ctx, crypto)
+```
+
 ### Issue 1: Missing Companion Fields
 **Error:** `missing companion field EmailEncrypted for encrypt tag`
 
@@ -502,6 +571,37 @@ type UserEncx struct {
   ],
   "Resource": "arn:aws:kms:region:account:key/*"
 }
+```
+
+### Issue 4: Pepper Validation Errors (New)
+**Error:** `pepper is uninitialized`
+
+**Solution:** Ensure pepper is properly provided as 32-byte array:
+```go
+// ✅ Correct - 32 bytes
+encx.WithPepper([]byte("your-32-byte-secret-pepper-key!"))
+
+// ❌ Wrong - string instead of bytes
+encx.WithPepper("your-32-byte-secret-pepper-key!")
+
+// ❌ Wrong - all zeros
+encx.WithPepper(make([]byte, 32))
+```
+
+### Issue 5: Configuration Validation Errors (New)
+**Error:** `database cannot be configured both via connection and path`
+
+**Solution:** Use either database connection OR path, not both:
+```go
+// ✅ Option 1: Use database connection
+encx.WithKeyMetadataDB(db)
+
+// ✅ Option 2: Use database path
+encx.WithKeyMetadataDBPath("/path/to/database.db")
+
+// ❌ Wrong: Both at the same time
+encx.WithKeyMetadataDB(db)
+encx.WithKeyMetadataDBPath("/path/to/database.db")
 ```
 
 ## Additional Resources
