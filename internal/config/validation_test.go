@@ -299,7 +299,7 @@ func TestValidator_ValidateConfig(t *testing.T) {
 			errMsg:  "pepper",
 		},
 		{
-			name: "pepper secret path provided instead of pepper bytes",
+			name: "pepper secret path provided instead of pepper bytes - deprecated pattern",
 			config: &Config{
 				KMSService:       mockKMS,
 				KEKAlias:         "test-key",
@@ -309,7 +309,10 @@ func TestValidator_ValidateConfig(t *testing.T) {
 				DBPath:           tempDir,
 				DBFilename:       "test.db",
 			},
-			wantErr: false,
+			// In v0.6.0+, pepper is auto-generated, so this should error
+			// as Pepper field cannot be nil in validated config
+			wantErr: true,
+			errMsg:  "pepper",
 		},
 	}
 

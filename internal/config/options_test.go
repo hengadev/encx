@@ -2,10 +2,8 @@ package config
 
 import (
 	"context"
-	"database/sql"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 	"time"
 
@@ -39,264 +37,33 @@ func (m *MockKeyManagementService) DecryptDEK(ctx context.Context, keyID string,
 	return args.Get(0).([]byte), args.Error(1)
 }
 
+// TestWithKMSService removed - WithKMSService option removed in v0.6.0
+// KMS service is now a required parameter in NewCrypto() function
 func TestWithKMSService(t *testing.T) {
-	tests := []struct {
-		name    string
-		kms     KeyManagementService
-		wantErr bool
-		errMsg  string
-	}{
-		{
-			name:    "valid KMS service",
-			kms:     &MockKeyManagementService{},
-			wantErr: false,
-		},
-		{
-			name:    "nil KMS service",
-			kms:     nil,
-			wantErr: true,
-			errMsg:  "KMS service cannot be nil",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			config := &Config{}
-			option := WithKMSService(tt.kms)
-			err := option(config)
-
-			if tt.wantErr {
-				assert.Error(t, err)
-				assert.Contains(t, err.Error(), tt.errMsg)
-			} else {
-				assert.NoError(t, err)
-				assert.Equal(t, tt.kms, config.KMSService)
-			}
-		})
-	}
+	t.Skip("WithKMSService option removed in v0.6.0 - KMS is now a required parameter")
 }
 
+// TestWithKEKAlias removed - WithKEKAlias option removed in v0.6.0
+// KEK alias is now set via ENCX_KEK_ALIAS environment variable
 func TestWithKEKAlias(t *testing.T) {
-	tests := []struct {
-		name    string
-		alias   string
-		wantErr bool
-		errMsg  string
-	}{
-		{
-			name:    "valid alias",
-			alias:   "test-alias",
-			wantErr: false,
-		},
-		{
-			name:    "empty alias",
-			alias:   "",
-			wantErr: true,
-			errMsg:  "KEK alias cannot be empty",
-		},
-		{
-			name:    "whitespace only alias",
-			alias:   "   ",
-			wantErr: true,
-			errMsg:  "KEK alias cannot be empty",
-		},
-		{
-			name:    "alias too long",
-			alias:   strings.Repeat("a", 257), // 257 characters
-			wantErr: true,
-			errMsg:  "KEK alias too long",
-		},
-		{
-			name:    "alias at max length",
-			alias:   strings.Repeat("a", 256), // 256 characters
-			wantErr: false,
-		},
-		{
-			name:    "alias with invalid character",
-			alias:   "test@alias",
-			wantErr: true,
-			errMsg:  "invalid character",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			config := &Config{}
-			option := WithKEKAlias(tt.alias)
-			err := option(config)
-
-			if tt.wantErr {
-				assert.Error(t, err)
-				assert.Contains(t, err.Error(), tt.errMsg)
-			} else {
-				assert.NoError(t, err)
-				assert.Equal(t, tt.alias, config.KEKAlias)
-			}
-		})
-	}
+	t.Skip("WithKEKAlias option removed in v0.6.0 - use ENCX_KEK_ALIAS environment variable")
 }
 
+// TestWithPepper removed - WithPepper option removed in v0.6.0
+// Pepper is now automatically generated and persisted
 func TestWithPepper(t *testing.T) {
-	// Helper to create a valid 32-byte pepper with non-zero values
-	validPepper := []byte("test-pepper-exactly-32-bytes-OK!")
-
-	tests := []struct {
-		name    string
-		pepper  []byte
-		wantErr bool
-		errMsg  string
-	}{
-		{
-			name:    "valid pepper",
-			pepper:  validPepper,
-			wantErr: false,
-		},
-		{
-			name:    "empty pepper",
-			pepper:  []byte{},
-			wantErr: true,
-			errMsg:  "pepper cannot be empty",
-		},
-		{
-			name:    "nil pepper",
-			pepper:  nil,
-			wantErr: true,
-			errMsg:  "pepper cannot be empty",
-		},
-		{
-			name:    "pepper too short",
-			pepper:  []byte("short"),
-			wantErr: true,
-			errMsg:  "must be exactly 32 bytes",
-		},
-		{
-			name:    "pepper too long",
-			pepper:  make([]byte, 64),
-			wantErr: true,
-			errMsg:  "must be exactly 32 bytes",
-		},
-		{
-			name:    "pepper all zeros",
-			pepper:  make([]byte, 32), // All zeros
-			wantErr: true,
-			errMsg:  "uninitialized",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			config := &Config{}
-			option := WithPepper(tt.pepper)
-			err := option(config)
-
-			if tt.wantErr {
-				assert.Error(t, err)
-				assert.Contains(t, err.Error(), tt.errMsg)
-			} else {
-				assert.NoError(t, err)
-				assert.Equal(t, tt.pepper, config.Pepper)
-			}
-		})
-	}
+	t.Skip("WithPepper option removed in v0.6.0 - pepper is now automatically generated")
 }
 
+// TestWithKeyMetadataDB removed - WithKeyMetadataDB option removed in v0.6.0
+// Database is now automatically managed by NewCrypto
 func TestWithKeyMetadataDB(t *testing.T) {
-	// Create a test database
-	db, err := sql.Open("sqlite3", ":memory:")
-	assert.NoError(t, err)
-	defer db.Close()
-
-	tests := []struct {
-		name    string
-		db      *sql.DB
-		wantErr bool
-		errMsg  string
-	}{
-		{
-			name:    "valid database",
-			db:      db,
-			wantErr: false,
-		},
-		{
-			name:    "nil database",
-			db:      nil,
-			wantErr: true,
-			errMsg:  "database connection cannot be nil",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			config := &Config{}
-			option := WithKeyMetadataDB(tt.db)
-			err := option(config)
-
-			if tt.wantErr {
-				assert.Error(t, err)
-				assert.Contains(t, err.Error(), tt.errMsg)
-			} else {
-				assert.NoError(t, err)
-				assert.Equal(t, tt.db, config.KeyMetadataDB)
-			}
-		})
-	}
+	t.Skip("WithKeyMetadataDB option removed in v0.6.0 - database is now automatically managed")
 }
 
+// TestWithKeyMetadataDBPath - deprecated, database is now auto-managed
 func TestWithKeyMetadataDBPath(t *testing.T) {
-	// Create a temporary directory for testing
-	tempDir, err := os.MkdirTemp("", "encx_test_")
-	assert.NoError(t, err)
-	defer os.RemoveAll(tempDir)
-
-	tests := []struct {
-		name    string
-		path    string
-		wantErr bool
-		errMsg  string
-	}{
-		{
-			name:    "memory database",
-			path:    ":memory:",
-			wantErr: false,
-		},
-		{
-			name:    "valid file path",
-			path:    filepath.Join(tempDir, "test.db"),
-			wantErr: false,
-		},
-		{
-			name:    "empty path",
-			path:    "",
-			wantErr: true,
-			errMsg:  "database path cannot be empty",
-		},
-		{
-			name:    "whitespace only path",
-			path:    "   ",
-			wantErr: true,
-			errMsg:  "database path cannot be empty",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			config := &Config{}
-			option := WithKeyMetadataDBPath(tt.path)
-			err := option(config)
-
-			if tt.wantErr {
-				assert.Error(t, err)
-				assert.Contains(t, err.Error(), tt.errMsg)
-			} else {
-				assert.NoError(t, err)
-				assert.NotNil(t, config.KeyMetadataDB)
-				// Clean up the database connection
-				if config.KeyMetadataDB != nil {
-					config.KeyMetadataDB.Close()
-				}
-			}
-		})
-	}
+	t.Skip("WithKeyMetadataDBPath is deprecated - database is auto-managed in v0.6.0+")
 }
 
 func TestWithArgon2Params(t *testing.T) {
@@ -344,36 +111,14 @@ func TestWithArgon2Params(t *testing.T) {
 	}
 }
 
+// TestApplyOptions removed - tests removed options
 func TestApplyOptions(t *testing.T) {
-	mockKMS := &MockKeyManagementService{}
-	pepper := []byte("test-pepper-exactly-32-bytes-OK!")
-
-	config := &Config{}
-	options := []Option{
-		WithKMSService(mockKMS),
-		WithKEKAlias("test-alias"),
-		WithPepper(pepper),
-	}
-
-	err := ApplyOptions(config, options)
-
-	assert.NoError(t, err)
-	assert.Equal(t, mockKMS, config.KMSService)
-	assert.Equal(t, "test-alias", config.KEKAlias)
-	assert.Equal(t, pepper, config.Pepper)
+	t.Skip("Test references removed options - WithKMSService, WithKEKAlias, WithPepper removed in v0.6.0")
 }
 
+// TestApplyOptions_WithErrors removed - tests removed options
 func TestApplyOptions_WithErrors(t *testing.T) {
-	config := &Config{}
-	options := []Option{
-		WithKMSService(nil), // This will cause an error
-		WithKEKAlias("valid-alias"),
-	}
-
-	err := ApplyOptions(config, options)
-
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "KMS service cannot be nil")
+	t.Skip("Test references removed options - WithKMSService, WithKEKAlias removed in v0.6.0")
 }
 
 func TestDefaultConfig(t *testing.T) {
@@ -388,47 +133,10 @@ func TestDefaultConfig(t *testing.T) {
 	assert.Equal(t, uint32(32), config.Argon2Params.KeyLength)
 }
 
+// TestWithPepperSecretPath removed - WithPepperSecretPath option removed in v0.6.0
+// Pepper path is now set via ENCX_PEPPER_SECRET_PATH environment variable
 func TestWithPepperSecretPath(t *testing.T) {
-	tests := []struct {
-		name       string
-		secretPath string
-		wantErr    bool
-		errMsg     string
-	}{
-		{
-			name:       "valid secret path",
-			secretPath: "/secrets/pepper",
-			wantErr:    false,
-		},
-		{
-			name:       "empty secret path",
-			secretPath: "",
-			wantErr:    true,
-			errMsg:     "pepper secret path cannot be empty",
-		},
-		{
-			name:       "whitespace only secret path",
-			secretPath: "   ",
-			wantErr:    true,
-			errMsg:     "pepper secret path cannot be empty",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			config := &Config{}
-			option := WithPepperSecretPath(tt.secretPath)
-			err := option(config)
-
-			if tt.wantErr {
-				assert.Error(t, err)
-				assert.Contains(t, err.Error(), tt.errMsg)
-			} else {
-				assert.NoError(t, err)
-				assert.Equal(t, tt.secretPath, config.PepperSecretPath)
-			}
-		})
-	}
+	t.Skip("WithPepperSecretPath option removed in v0.6.0 - use ENCX_PEPPER_SECRET_PATH environment variable")
 }
 
 func TestWithDBPath(t *testing.T) {
@@ -535,54 +243,9 @@ func TestWithDBFilename(t *testing.T) {
 	}
 }
 
+// TestWithKeyMetadataDBFilename - deprecated, database is now auto-managed
 func TestWithKeyMetadataDBFilename(t *testing.T) {
-	tests := []struct {
-		name     string
-		filename string
-		wantErr  bool
-		errMsg   string
-	}{
-		{
-			name:     "valid filename",
-			filename: "metadata.db",
-			wantErr:  false,
-		},
-		{
-			name:     "empty filename",
-			filename: "",
-			wantErr:  true,
-			errMsg:   "database filename cannot be empty",
-		},
-		{
-			name:     "whitespace only filename",
-			filename: "   ",
-			wantErr:  true,
-			errMsg:   "database filename cannot be empty",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			config := &Config{}
-			option := WithKeyMetadataDBFilename(tt.filename)
-			err := option(config)
-
-			if tt.wantErr {
-				assert.Error(t, err)
-				assert.Contains(t, err.Error(), tt.errMsg)
-			} else {
-				assert.NoError(t, err)
-				assert.NotNil(t, config.KeyMetadataDB)
-				assert.Equal(t, tt.filename, config.DBFilename)
-				// Clean up
-				if config.KeyMetadataDB != nil {
-					config.KeyMetadataDB.Close()
-				}
-				// Clean up created directory
-				os.RemoveAll(config.DBPath)
-			}
-		})
-	}
+	t.Skip("WithKeyMetadataDBFilename is deprecated - database is auto-managed in v0.6.0+")
 }
 
 func TestWithMetricsCollector(t *testing.T) {
