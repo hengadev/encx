@@ -91,6 +91,12 @@ func NewCrypto(ctx context.Context, options ...Option) (*Crypto, error) {
 		if err != nil {
 			return nil, fmt.Errorf("failed to open key metadata database at '%s': %w", dbPath, err)
 		}
+
+		// Initialize database schema if needed
+		if err := initializeDatabaseSchema(ctx, db); err != nil {
+			return nil, fmt.Errorf("failed to initialize database schema: %w", err)
+		}
+
 		cfg.KeyMetadataDB = db
 	}
 
@@ -285,4 +291,46 @@ func (c *Crypto) getCurrentKEKVersion(ctx context.Context, alias string) (int, e
 		return 0, fmt.Errorf("failed to get current KEK version for alias '%s': %w", alias, err)
 	}
 	return version, nil
+}
+
+// initializeDatabaseSchema creates the necessary tables if they don't exist
+func initializeDatabaseSchema(ctx context.Context, db *sql.DB) error {
+	// Check if kek_versions table exists
+	var count int
+	err := db.QueryRowContext(ctx, `
+		SELECT COUNT(*) FROM sqlite_master
+		WHERE type='table' AND name='kek_versions'
+	`).Scan(&count)
+	if err != nil {
+		return fmt.Errorf("failed to check if kek_versions table exists: %w", err)
+	}
+
+	// Create table if it doesn't exist
+	if count == 0 {
+		_, err = db.ExecContext(ctx, `
+			CREATE TABLE kek_versions (
+				alias TEXT NOT NULL,
+				version INTEGER NOT NULL,
+				kms_key_id TEXT NOT NULL,
+				is_deprecated BOOLEAN DEFAULT FALSE,
+				created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+				updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+				PRIMARY KEY (alias, version)
+			)
+		`)
+		if err != nil {
+			return fmt.Errorf("failed to create kek_versions table: %w", err)
+		}
+
+		// Create index for efficient queries
+		_, err = db.ExecContext(ctx, `
+			CREATE INDEX idx_kek_versions_active
+			ON kek_versions(alias, is_deprecated, version DESC)
+		`)
+		if err != nil {
+			return fmt.Errorf("failed to create index on kek_versions table: %w", err)
+		}
+	}
+
+	return nil
 }
