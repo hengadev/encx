@@ -25,7 +25,8 @@ func TestNewCrypto_ValidConfiguration(t *testing.T) {
 		encx.WithKMSService(kms),
 		encx.WithKEKAlias("test-kek"),
 		encx.WithPepper(pepper),
-		encx.WithKeyMetadataDBPath(filepath.Join(tempDir, "test.db")),
+		encx.WithDBPath(tempDir),
+		encx.WithDBFilename("test.db"),
 	)
 
 	require.NoError(t, err)
