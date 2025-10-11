@@ -431,4 +431,16 @@ func TestHashingOperations_CompareEdgeCases(t *testing.T) {
 		assert.Error(t, err)
 		assert.False(t, match)
 	})
+
+	t.Run("invalid value type for secure compare", func(t *testing.T) {
+		// First generate a valid hash for testing
+		validHash, err := ho.HashSecure(ctx, []byte("test"))
+		require.NoError(t, err)
+
+		// Try to compare with a string instead of []byte - this should fail with our type assertion fix
+		match, err := ho.CompareSecureHashAndValue(ctx, "not-a-byte-slice", validHash)
+		assert.Error(t, err)
+		assert.False(t, match)
+		assert.Contains(t, err.Error(), "value must be of type []byte")
+	})
 }
