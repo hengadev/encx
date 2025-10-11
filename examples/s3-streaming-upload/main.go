@@ -183,33 +183,35 @@ func main() {
 		log.Fatalf("failed to create KMS service: %v", err)
 	}
 
-	// 4. Create crypto service with AWS KMS
-	pepper := []byte(os.Getenv("ENCX_PEPPER"))
-	if len(pepper) != 32 {
-		log.Fatal("ENCX_PEPPER must be exactly 32 bytes")
+	// 4. Set up environment variables for crypto service
+	kekAlias := os.Getenv("KMS_KEY_ALIAS")
+	if kekAlias == "" {
+		log.Fatal("KMS_KEY_ALIAS environment variable is required")
 	}
+	os.Setenv("ENCX_KEK_ALIAS", kekAlias)
 
-	cryptoService, err := encx.NewCrypto(ctx,
-		encx.WithKMSService(kmsService),
-		encx.WithKEKAlias(os.Getenv("KMS_KEY_ALIAS")),
-		encx.WithPepper(pepper),
-	)
+	// Optional: Set pepper storage path (empty means in-memory only)
+	pepperPath := os.Getenv("ENCX_PEPPER_SECRET_PATH")
+	os.Setenv("ENCX_PEPPER_SECRET_PATH", pepperPath)
+
+	// 5. Create crypto service with AWS KMS using new v0.6.0 API
+	cryptoService, err := encx.NewCrypto(ctx, kmsService)
 	if err != nil {
 		log.Fatalf("failed to create Crypto service: %v", err)
 	}
 
-	// 5. Define S3 bucket
+	// 6. Define S3 bucket
 	bucketName := os.Getenv("S3_BUCKET_NAME")
 	if bucketName == "" {
 		log.Fatal("S3_BUCKET_NAME environment variable is required")
 	}
 
-	// 6. Set up the HTTP handler
+	// 7. Set up the HTTP handler
 	http.HandleFunc("/upload", func(w http.ResponseWriter, r *http.Request) {
 		uploadImageToS3(w, r, cryptoService, s3Client, bucketName)
 	})
 
-	// 7. Start the server
+	// 8. Start the server
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8080"

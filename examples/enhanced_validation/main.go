@@ -4,129 +4,157 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"os"
 
 	"github.com/hengadev/encx"
 )
 
 func main() {
 	fmt.Println("=== Enhanced Input Validation Demo ===")
-	fmt.Println("Demonstrating comprehensive configuration validation in ENCX")
+	fmt.Println("Demonstrating comprehensive configuration validation in ENCX v0.6.0+")
+	fmt.Println("Note: This example shows the new environment-based API")
 	fmt.Println()
 
 	ctx := context.Background()
+	kms := encx.NewSimpleTestKMS()
 
-	// Example 1: Invalid KEK alias
-	fmt.Println("1. Testing invalid KEK alias...")
-	_, err := encx.NewCrypto(ctx,
-		encx.WithKMSService(encx.NewSimpleTestKMS()),
-		encx.WithKEKAlias("invalid@alias"), // Contains invalid character
-		encx.WithPepper([]byte("test-pepper-exactly-32-bytes-OK!")),
-	)
+	// Example 1: Missing required environment variables
+	fmt.Println("1. Testing missing ENCX_KEK_ALIAS environment variable...")
+	os.Unsetenv("ENCX_KEK_ALIAS")
+	os.Unsetenv("ENCX_PEPPER_SECRET_PATH")
+	_, err := encx.NewCrypto(ctx, kms)
+	if err != nil {
+		fmt.Printf("❌ Correctly caught missing KEK alias: %v\n", err)
+	}
+	fmt.Println()
+
+	// Example 2: Invalid KEK alias (contains special characters)
+	fmt.Println("2. Testing invalid KEK alias...")
+	os.Setenv("ENCX_KEK_ALIAS", "invalid@alias") // Contains invalid character
+	os.Setenv("ENCX_ALLOW_IN_MEMORY_PEPPER", "true") // Empty for in-memory
+	_, err = encx.NewCrypto(ctx, kms)
 	if err != nil {
 		fmt.Printf("❌ Correctly caught invalid alias: %v\n", err)
 	}
 	fmt.Println()
 
-	// Example 2: Invalid pepper length
-	fmt.Println("2. Testing invalid pepper length...")
-	_, err = encx.NewCrypto(ctx,
-		encx.WithKMSService(encx.NewSimpleTestKMS()),
-		encx.WithKEKAlias("valid-alias"),
-		encx.WithPepper([]byte("too-short")), // Only 9 bytes
-	)
+	// Example 3: Valid KEK alias
+	fmt.Println("3. Testing valid KEK alias...")
+	os.Setenv("ENCX_KEK_ALIAS", "my-app-kek")
+	crypto, err := encx.NewCrypto(ctx, kms)
 	if err != nil {
-		fmt.Printf("❌ Correctly caught invalid pepper length: %v\n", err)
+		log.Fatalf("❌ Unexpected error with valid KEK alias: %v", err)
+	}
+	fmt.Println("✅ Successfully created crypto instance with valid KEK alias!")
+	fmt.Printf("   - KEK Alias: %s\n", crypto.GetAlias())
+	fmt.Printf("   - Pepper length: %d bytes (auto-generated)\n", len(crypto.GetPepper()))
+	fmt.Println()
+
+	// Example 4: Nil KMS service (should fail)
+	fmt.Println("4. Testing nil KMS service...")
+	_, err = encx.NewCrypto(ctx, nil)
+	if err != nil {
+		fmt.Printf("❌ Correctly caught nil KMS service: %v\n", err)
 	}
 	fmt.Println()
 
-	// Example 3: Zero pepper (security risk)
-	fmt.Println("3. Testing zero pepper (security risk)...")
-	zeroPepper := make([]byte, 32) // All zeros
-	_, err = encx.NewCrypto(ctx,
-		encx.WithKMSService(encx.NewSimpleTestKMS()),
-		encx.WithKEKAlias("valid-alias"),
-		encx.WithPepper(zeroPepper),
-	)
-	if err != nil {
-		fmt.Printf("❌ Correctly caught zero pepper: %v\n", err)
-	}
-	fmt.Println()
-
-	// Example 4: Missing required configuration
-	fmt.Println("4. Testing missing required configuration...")
-	_, err = encx.NewCrypto(ctx,
-		// Missing KMS service, KEK alias, and pepper
-	)
-	if err != nil {
-		fmt.Printf("❌ Correctly caught missing configuration: %v\n", err)
-	}
-	fmt.Println()
-
-	// Example 5: Configuration conflicts
-	fmt.Println("5. Testing configuration conflicts...")
-	_, err = encx.NewCrypto(ctx,
-		encx.WithKMSService(encx.NewSimpleTestKMS()),
-		encx.WithKEKAlias("valid-alias"),
-		encx.WithPepper([]byte("test-pepper-exactly-32-bytes-OK!")),
-		encx.WithPepperSecretPath("secret/path"), // Conflict: both direct pepper and secret path
-	)
-	if err != nil {
-		fmt.Printf("❌ Correctly caught configuration conflict: %v\n", err)
-	}
-	fmt.Println()
-
-	// Example 6: Invalid Argon2 parameters
-	fmt.Println("6. Testing invalid Argon2 parameters...")
+	// Example 5: Invalid Argon2 parameters
+	fmt.Println("5. Testing invalid Argon2 parameters...")
 	invalidParams := &encx.Argon2Params{
 		Memory:      1,  // Too low
 		Iterations:  1,  // Too low
 		Parallelism: 0,  // Too low
 	}
-	_, err = encx.NewCrypto(ctx,
-		encx.WithKMSService(encx.NewSimpleTestKMS()),
-		encx.WithKEKAlias("valid-alias"),
-		encx.WithPepper([]byte("test-pepper-exactly-32-bytes-OK!")),
-		encx.WithArgon2Params(invalidParams),
-	)
+	_, err = encx.NewCrypto(ctx, kms, encx.WithArgon2Params(invalidParams))
 	if err != nil {
 		fmt.Printf("❌ Correctly caught invalid Argon2 parameters: %v\n", err)
 	}
 	fmt.Println()
 
-	// Example 7: Valid configuration (should work)
-	fmt.Println("7. Testing valid configuration...")
-	crypto, err := encx.NewCrypto(ctx,
-		encx.WithKMSService(encx.NewSimpleTestKMS()),
-		encx.WithKEKAlias("my-app-kek"),
-		encx.WithPepper([]byte("test-pepper-exactly-32-bytes-OK!")),
-		encx.WithArgon2Params(&encx.Argon2Params{
-			Memory:      65536,
-			Iterations:  3,
-			Parallelism: 4,
-			SaltLength:  16,
-			KeyLength:   32,
-		}),
-	)
+	// Example 6: Valid configuration with custom Argon2 parameters
+	fmt.Println("6. Testing valid configuration with custom Argon2 parameters...")
+	validParams := &encx.Argon2Params{
+		Memory:      65536,
+		Iterations:  3,
+		Parallelism: 4,
+		SaltLength:  16,
+		KeyLength:   32,
+	}
+	crypto2, err := encx.NewCrypto(ctx, kms, encx.WithArgon2Params(validParams))
 	if err != nil {
 		log.Fatalf("❌ Unexpected error with valid configuration: %v", err)
 	}
-	fmt.Println("✅ Successfully created crypto instance with valid configuration!")
-	fmt.Printf("   - KEK Alias: %s\n", crypto.GetAlias())
-	fmt.Printf("   - Pepper length: %d bytes\n", len(crypto.GetPepper()))
-	fmt.Printf("   - Argon2 memory: %d KB\n", crypto.GetArgon2Params().Memory)
+	fmt.Println("✅ Successfully created crypto instance with custom Argon2 parameters!")
+	fmt.Printf("   - KEK Alias: %s\n", crypto2.GetAlias())
+	fmt.Printf("   - Pepper length: %d bytes (auto-generated)\n", len(crypto2.GetPepper()))
+	fmt.Printf("   - Argon2 memory: %d KB\n", crypto2.GetArgon2Params().Memory)
+	fmt.Printf("   - Argon2 iterations: %d\n", crypto2.GetArgon2Params().Iterations)
 	fmt.Println()
 
-	// Example 8: Demonstrate backward compatibility
-	// NOTE: Legacy constructor has been removed in favor of NewCrypto with options
-	fmt.Println("8. All validation checks completed!")
+	// Example 7: Test pepper persistence
+	fmt.Println("7. Testing pepper persistence...")
+	// Create a temporary directory for pepper storage
+	tempDir := "/tmp/encx-test"
+	os.MkdirAll(tempDir, 0700)
+	defer os.RemoveAll(tempDir)
+
+	pepperPath := tempDir + "/pepper"
+	os.Setenv("ENCX_PEPPER_SECRET_PATH", pepperPath)
+
+	// First instance - should create pepper
+	crypto3, err := encx.NewCrypto(ctx, kms)
+	if err != nil {
+		log.Fatalf("❌ Failed to create first crypto instance: %v", err)
+	}
+	firstPepper := crypto3.GetPepper()
+	fmt.Printf("✅ First instance created with pepper: %x\n", firstPepper[:8]) // Show first 8 bytes
+
+	// Second instance - should load same pepper
+	crypto4, err := encx.NewCrypto(ctx, kms)
+	if err != nil {
+		log.Fatalf("❌ Failed to create second crypto instance: %v", err)
+	}
+	secondPepper := crypto4.GetPepper()
+	fmt.Printf("✅ Second instance loaded pepper: %x\n", secondPepper[:8]) // Show first 8 bytes
+
+	// Verify peppers are the same
+	if string(firstPepper) == string(secondPepper) {
+		fmt.Println("✅ Pepper persistence working correctly!")
+	} else {
+		fmt.Println("❌ Pepper persistence failed - different peppers loaded")
+	}
 	fmt.Println()
 
-	fmt.Println("=== Enhanced Validation Benefits ===")
-	fmt.Println("✅ Catches configuration errors early (at startup, not runtime)")
-	fmt.Println("✅ Provides clear, actionable error messages")
-	fmt.Println("✅ Prevents common security misconfigurations")
-	fmt.Println("✅ Validates all configuration combinations")
-	fmt.Println("✅ Maintains full backward compatibility")
+	// Example 8: Test different KEK aliases create different instances
+	fmt.Println("8. Testing different KEK aliases...")
+	os.Setenv("ENCX_KEK_ALIAS", "different-service")
+	crypto5, err := encx.NewCrypto(ctx, kms)
+	if err != nil {
+		log.Fatalf("❌ Failed to create crypto with different alias: %v", err)
+	}
+	fmt.Printf("✅ Created crypto with different alias: %s\n", crypto5.GetAlias())
+	if crypto5.GetAlias() != crypto.GetAlias() {
+		fmt.Println("✅ Different KEK aliases create separate instances!")
+	} else {
+		fmt.Println("❌ KEK aliases should be different")
+	}
+	fmt.Println()
+
+	// Reset to original values
+	os.Setenv("ENCX_KEK_ALIAS", "my-app-kek")
+	os.Setenv("ENCX_ALLOW_IN_MEMORY_PEPPER", "true")
+
+	fmt.Println("=== All validation checks completed! ===")
+	fmt.Println()
+
+	fmt.Println("=== ENCX v0.6.0+ Validation Benefits ===")
+	fmt.Println("✅ Environment-based configuration (12-factor app compliant)")
+	fmt.Println("✅ Automatic pepper generation and persistence")
+	fmt.Println("✅ No manual pepper management required")
+	fmt.Println("✅ Early validation of required parameters")
+	fmt.Println("✅ Clear, actionable error messages")
+	fmt.Println("✅ Microservices-friendly with service identity")
 	fmt.Println("✅ Tests KMS connectivity during initialization")
 	fmt.Println("✅ Ensures database accessibility and permissions")
+	fmt.Println("✅ Simplified API with fewer required options")
 }
