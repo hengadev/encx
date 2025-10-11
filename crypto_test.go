@@ -3,6 +3,7 @@ package encx_test
 import (
 	"bytes"
 	"context"
+	"os"
 	"testing"
 
 	"github.com/hengadev/encx"
@@ -17,52 +18,53 @@ func TestNewCrypto(t *testing.T) {
 	ctx := context.Background()
 
 	tests := []struct {
-		name    string
-		opts    []encx.Option
-		wantErr bool
-		errMsg  string
+		name      string
+		setupEnv  func()
+		kms       encx.KeyManagementService
+		wantErr   bool
+		errMsg    string
 	}{
 		{
 			name: "valid configuration",
-			opts: []encx.Option{
-				encx.WithKMSService(encx.NewSimpleTestKMS()),
-				encx.WithKEKAlias("test-key"),
-				encx.WithPepper([]byte("test-pepper-exactly-32-bytes-OK!")),
+			setupEnv: func() {
+				os.Setenv("ENCX_KEK_ALIAS", "test-key")
+				os.Setenv("ENCX_ALLOW_IN_MEMORY_PEPPER", "true")
 			},
+			kms:     encx.NewSimpleTestKMS(),
 			wantErr: false,
 		},
 		{
-			name: "missing KMS service",
-			opts: []encx.Option{
-				encx.WithKEKAlias("test-key"),
-				encx.WithPepper([]byte("test-pepper-exactly-32-bytes-OK!")),
+			name: "nil KMS service",
+			setupEnv: func() {
+				os.Setenv("ENCX_KEK_ALIAS", "test-key")
+				os.Setenv("ENCX_ALLOW_IN_MEMORY_PEPPER", "true")
 			},
+			kms:     nil,
 			wantErr: true,
 			errMsg:  "KMS service",
 		},
 		{
 			name: "missing KEK alias",
-			opts: []encx.Option{
-				encx.WithKMSService(encx.NewSimpleTestKMS()),
-				encx.WithPepper([]byte("test-pepper-exactly-32-bytes-OK!")),
+			setupEnv: func() {
+				os.Unsetenv("ENCX_KEK_ALIAS")
+				os.Setenv("ENCX_ALLOW_IN_MEMORY_PEPPER", "true")
 			},
+			kms:     encx.NewSimpleTestKMS(),
 			wantErr: true,
-			errMsg:  "KEK alias",
-		},
-		{
-			name: "missing pepper",
-			opts: []encx.Option{
-				encx.WithKMSService(encx.NewSimpleTestKMS()),
-				encx.WithKEKAlias("test-key"),
-			},
-			wantErr: true,
-			errMsg:  "pepper",
+			errMsg:  "ENCX_KEK_ALIAS",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			crypto, err := encx.NewCrypto(ctx, tt.opts...)
+			// Clean up environment
+			os.Unsetenv("ENCX_KEK_ALIAS")
+			os.Unsetenv("ENCX_PEPPER_SECRET_PATH")
+			os.Unsetenv("ENCX_ALLOW_IN_MEMORY_PEPPER")
+
+			tt.setupEnv()
+
+			crypto, err := encx.NewCrypto(ctx, tt.kms)
 			if tt.wantErr {
 				assert.Error(t, err)
 				if tt.errMsg != "" {
@@ -525,16 +527,26 @@ func TestDecryptStream(t *testing.T) {
 // TestGetPepper tests GetPepper method
 func TestGetPepper(t *testing.T) {
 	ctx := context.Background()
-	pepper := []byte("test-pepper-exactly-32-bytes-OK!")
-	crypto, err := encx.NewCrypto(ctx,
-		encx.WithKMSService(encx.NewSimpleTestKMS()),
-		encx.WithKEKAlias("test-key"),
-		encx.WithPepper(pepper),
-	)
+
+	// Set environment variables
+	os.Setenv("ENCX_KEK_ALIAS", "test-key")
+	os.Setenv("ENCX_ALLOW_IN_MEMORY_PEPPER", "true")
+
+	crypto, err := encx.NewCrypto(ctx, encx.NewSimpleTestKMS())
 	require.NoError(t, err)
 
 	retrievedPepper := crypto.GetPepper()
-	assert.Equal(t, pepper, retrievedPepper)
+	assert.Len(t, retrievedPepper, 32, "Pepper should be 32 bytes")
+
+	// Check that pepper is not all zeros (not uninitialized)
+	allZeros := true
+	for _, b := range retrievedPepper {
+		if b != 0 {
+			allZeros = false
+			break
+		}
+	}
+	assert.False(t, allZeros, "Pepper should not be uninitialized (all zeros)")
 }
 
 // TestGetArgon2Params tests GetArgon2Params method
@@ -542,27 +554,35 @@ func TestGetArgon2Params(t *testing.T) {
 	ctx := context.Background()
 	params, err := encx.NewArgon2Params(64*1024, 2, 4, 16, 32)
 	require.NoError(t, err)
-	crypto, err := encx.NewCrypto(ctx,
-		encx.WithKMSService(encx.NewSimpleTestKMS()),
-		encx.WithKEKAlias("test-key"),
-		encx.WithPepper([]byte("test-pepper-exactly-32-bytes-OK!")),
+
+	// Set environment variables
+	os.Setenv("ENCX_KEK_ALIAS", "test-key")
+	os.Setenv("ENCX_ALLOW_IN_MEMORY_PEPPER", "true")
+
+	crypto, err := encx.NewCrypto(ctx, encx.NewSimpleTestKMS(),
 		encx.WithArgon2Params(params),
 	)
 	require.NoError(t, err)
 
 	retrievedParams := crypto.GetArgon2Params()
 	assert.NotNil(t, retrievedParams)
+	assert.Equal(t, params.Memory, retrievedParams.Memory)
+	assert.Equal(t, params.Iterations, retrievedParams.Iterations)
+	assert.Equal(t, params.Parallelism, retrievedParams.Parallelism)
+	assert.Equal(t, params.SaltLength, retrievedParams.SaltLength)
+	assert.Equal(t, params.KeyLength, retrievedParams.KeyLength)
 }
 
 // TestGetAlias tests GetAlias method
 func TestGetAlias(t *testing.T) {
 	ctx := context.Background()
 	alias := "test-kek-alias"
-	crypto, err := encx.NewCrypto(ctx,
-		encx.WithKMSService(encx.NewSimpleTestKMS()),
-		encx.WithKEKAlias(alias),
-		encx.WithPepper([]byte("test-pepper-exactly-32-bytes-OK!")),
-	)
+
+	// Set environment variables
+	os.Setenv("ENCX_KEK_ALIAS", alias)
+	os.Setenv("ENCX_ALLOW_IN_MEMORY_PEPPER", "true")
+
+	crypto, err := encx.NewCrypto(ctx, encx.NewSimpleTestKMS())
 	require.NoError(t, err)
 
 	retrievedAlias := crypto.GetAlias()

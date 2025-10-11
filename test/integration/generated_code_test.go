@@ -34,12 +34,12 @@ func (suite *GeneratedCodeIntegrationTestSuite) SetupSuite() {
 	require.NoError(suite.T(), err)
 	suite.tempDir = tempDir
 
-	// Create crypto instance with simple test KMS
-	suite.crypto, err = encx.NewCrypto(suite.ctx,
-		encx.WithKMSService(encx.NewSimpleTestKMS()),
-		encx.WithKEKAlias("integration-test-key"),
-		encx.WithPepper([]byte("test-pepper-exactly-32-bytes-OK!")),
-	)
+	// Set environment variables for v0.6.0+ API
+	os.Setenv("ENCX_KEK_ALIAS", "integration-test-key")
+	os.Setenv("ENCX_ALLOW_IN_MEMORY_PEPPER", "true") // Empty for in-memory generation
+
+	// Create crypto instance with simple test KMS using new v0.6.0+ API
+	suite.crypto, err = encx.NewCrypto(suite.ctx, encx.NewSimpleTestKMS())
 	require.NoError(suite.T(), err)
 }
 
@@ -294,9 +294,8 @@ func (suite *GeneratedCodeIntegrationTestSuite) generateCode(dir string) error {
 	}
 
 	codegenConfig := codegen.GenerationConfig{
-		OutputSuffix:   "_encx",
-		FunctionPrefix: "Process",
-		PackageName:    "integration_test",
+		OutputSuffix: "_encx",
+		PackageName:  "integration_test",
 	}
 
 	for _, structInfo := range structs {

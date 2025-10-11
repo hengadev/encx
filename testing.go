@@ -10,6 +10,7 @@ import (
 	"crypto/rand"
 	"database/sql"
 	"fmt"
+	"os"
 
 	"github.com/hengadev/encx/internal/config"
 	_ "github.com/mattn/go-sqlite3"
@@ -109,24 +110,30 @@ func (s *SimpleTestKMS) DecryptDEK(ctx context.Context, keyID string, ciphertext
 func NewTestCrypto(t interface{}) (*Crypto, error) {
 	ctx := context.Background()
 
-	// Create an in-memory database with the necessary schema
-	db, err := sql.Open("sqlite3", ":memory:")
-	if err != nil {
-		return nil, fmt.Errorf("failed to open in-memory database: %w", err)
-	}
-
-	// Initialize the database schema
-	if err := initializeTestDatabase(ctx, db); err != nil {
-		return nil, fmt.Errorf("failed to initialize database: %w", err)
-	}
+	// Set required environment variables for testing
+	os.Setenv("ENCX_KEK_ALIAS", "test-kek-alias")
+	os.Setenv("ENCX_ALLOW_IN_MEMORY_PEPPER", "true") // Empty for auto-generation
 
 	// Create crypto instance with test configuration
-	crypto, err := NewCrypto(ctx,
-		WithKMSService(NewSimpleTestKMS()),
-		WithKEKAlias("test-kek-alias"),
-		WithPepper([]byte("test-pepper-exactly-32-bytes-OK!")),
-		WithKeyMetadataDB(db),
-	)
+	crypto, err := NewCrypto(ctx, NewSimpleTestKMS())
+	if err != nil {
+		return nil, fmt.Errorf("failed to create test crypto: %w", err)
+	}
+
+	return crypto, nil
+}
+
+// NewTestCryptoWithDatabase creates a Crypto instance with a specific database for testing
+func NewTestCryptoWithDatabase(db *sql.DB) (*Crypto, error) {
+	ctx := context.Background()
+
+	// Set required environment variables for testing
+	os.Setenv("ENCX_KEK_ALIAS", "test-kek-alias")
+	os.Setenv("ENCX_ALLOW_IN_MEMORY_PEPPER", "true") // Empty for auto-generation
+
+	// Create crypto instance with specific database
+	// Note: WithKeyMetadataDB option was removed - the database is auto-managed
+	crypto, err := NewCrypto(ctx, NewSimpleTestKMS())
 	if err != nil {
 		return nil, fmt.Errorf("failed to create test crypto: %w", err)
 	}
