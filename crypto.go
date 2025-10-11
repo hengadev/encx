@@ -84,6 +84,12 @@ func NewCrypto(ctx context.Context, options ...Option) (*Crypto, error) {
 		return nil, fmt.Errorf("failed to apply options: %w", err)
 	}
 
+	// Validate configuration first
+	validator := config.NewValidator()
+	if err := validator.ValidateConfig(cfg); err != nil {
+		return nil, fmt.Errorf("configuration validation failed: %w", err)
+	}
+
 	// Initialize KeyMetadataDB if not provided via options
 	if cfg.KeyMetadataDB == nil {
 		dbPath := filepath.Join(cfg.DBPath, cfg.DBFilename)
@@ -98,12 +104,6 @@ func NewCrypto(ctx context.Context, options ...Option) (*Crypto, error) {
 		}
 
 		cfg.KeyMetadataDB = db
-	}
-
-	// Validate configuration
-	validator := config.NewValidator()
-	if err := validator.ValidateConfig(cfg); err != nil {
-		return nil, fmt.Errorf("configuration validation failed: %w", err)
 	}
 
 	// Set defaults for optional components
@@ -145,6 +145,11 @@ func NewCrypto(ctx context.Context, options ...Option) (*Crypto, error) {
 		return nil, fmt.Errorf("failed to create key rotation operations: %w", err)
 	}
 	cryptoInstance.keyRotationOps = keyRotationOps
+
+	// Ensure initial KEK exists (create if needed)
+	if err := cryptoInstance.keyRotationOps.EnsureInitialKEK(ctx, cryptoInstance); err != nil {
+		return nil, fmt.Errorf("failed to ensure initial KEK: %w", err)
+	}
 
 	return cryptoInstance, nil
 }
