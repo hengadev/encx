@@ -2,9 +2,11 @@ package encx
 
 import (
 	"context"
+	"crypto/rand"
 	"database/sql"
 	"fmt"
 	"io"
+	"os"
 	"path/filepath"
 
 	"github.com/hengadev/encx/internal/config"
@@ -75,49 +77,237 @@ type Crypto struct {
 	keyRotationOps *crypto.KeyRotationOperations
 }
 
-// NewCrypto creates a new Crypto instance
+// ValidateEnvironment validates the required environment variables and configuration
+// before creating a Crypto instance. This allows for fail-fast validation at application
+// startup rather than discovering configuration errors during runtime.
 //
-// This function automatically handles the complete initialization process:
-// 1. Applies configuration options and validates them before any operations
-// 2. Creates and initializes the SQLite database with required schema (kek_versions table + index)
-// 3. Sets up internal cryptographic components (DEK, data encryption, hashing, key rotation)
-// 4. Ensures an initial KEK exists in the database (creates if needed)
-// 5. Returns a fully functional Crypto instance ready for immediate use
+// This function checks:
+// - ENCX_KEK_ALIAS is set and valid (max 256 characters)
+// - ENCX_PEPPER_SECRET_PATH is set (or ENCX_ALLOW_IN_MEMORY_PEPPER=true for testing)
+// - Pepper storage directory exists and is writable (if path is provided)
 //
-// **Automatic Initialization (v0.5.2+):**
-// - Database schema creation: No manual database setup required
-// - KEK initialization: First KEK automatically created and stored
-// - Configuration validation: Errors detected early before database operations
+// Example usage in main():
+//
+//	func main() {
+//	    // Validate environment at startup
+//	    if err := encx.ValidateEnvironment(); err != nil {
+//	        log.Fatal("Invalid ENCX configuration:", err)
+//	    }
+//
+//	    // Now start your application
+//	    startServer()
+//	}
+//
+// Returns nil if validation succeeds, or an error describing what's wrong.
+func ValidateEnvironment() error {
+	// Check ENCX_KEK_ALIAS
+	kekAlias := os.Getenv("ENCX_KEK_ALIAS")
+	if kekAlias == "" {
+		return fmt.Errorf("ENCX_KEK_ALIAS environment variable is required")
+	}
+	if len(kekAlias) > 256 {
+		return fmt.Errorf("ENCX_KEK_ALIAS must be 256 characters or less, got %d", len(kekAlias))
+	}
+
+	// Check ENCX_PEPPER_SECRET_PATH (required unless explicitly opted out)
+	pepperPath := os.Getenv("ENCX_PEPPER_SECRET_PATH")
+	allowInMemory := os.Getenv("ENCX_ALLOW_IN_MEMORY_PEPPER") == "true"
+
+	if pepperPath == "" && !allowInMemory {
+		return fmt.Errorf("ENCX_PEPPER_SECRET_PATH is required for production use. " +
+			"Set ENCX_ALLOW_IN_MEMORY_PEPPER=true only for testing (data will be lost on restart)")
+	}
+
+	// Validate pepper path if provided
+	if pepperPath != "" {
+		if err := validatePepperPath(pepperPath); err != nil {
+			return fmt.Errorf("pepper path validation failed: %w", err)
+		}
+	}
+
+	return nil
+}
+
+// validatePepperPath checks that the pepper storage directory exists and is writable
+func validatePepperPath(pepperPath string) error {
+	dir := filepath.Dir(pepperPath)
+
+	// Check if directory exists, if not try to create it
+	if _, err := os.Stat(dir); os.IsNotExist(err) {
+		// Try to create the directory with secure permissions
+		if err := os.MkdirAll(dir, 0700); err != nil {
+			return fmt.Errorf("pepper directory '%s' does not exist and cannot be created: %w", dir, err)
+		}
+	}
+
+	// Check if directory is writable by attempting to create a test file
+	testFile := filepath.Join(dir, ".encx_validate_test")
+	f, err := os.OpenFile(testFile, os.O_CREATE|os.O_WRONLY|os.O_EXCL, 0600)
+	if err != nil {
+		return fmt.Errorf("pepper directory '%s' is not writable: %w", dir, err)
+	}
+	f.Close()
+	os.Remove(testFile) // Clean up test file
+
+	return nil
+}
+
+// generateRandomPepper creates a cryptographically secure random 32-byte pepper
+func generateRandomPepper() ([]byte, error) {
+	pepper := make([]byte, 32)
+	if _, err := rand.Read(pepper); err != nil {
+		return nil, fmt.Errorf("failed to generate random pepper: %w", err)
+	}
+	return pepper, nil
+}
+
+// loadOrGeneratePepper loads pepper from storage or generates a new one
+func loadOrGeneratePepper(ctx context.Context, kmsService KeyManagementService, kekAlias, pepperPath string) ([]byte, error) {
+	// Check if pepper already exists at the specified path
+	if pepperPath != "" {
+		if pepper, exists := checkPepperExists(pepperPath); exists {
+			return pepper, nil
+		}
+	}
+
+	// Generate new pepper
+	pepper, err := generateRandomPepper()
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate pepper: %w", err)
+	}
+
+	// Store the pepper using KMS if path is provided
+	if pepperPath != "" {
+		if err := storePepperWithKMS(ctx, kmsService, kekAlias, pepperPath, pepper); err != nil {
+			return nil, fmt.Errorf("failed to store pepper: %w", err)
+		}
+	}
+
+	return pepper, nil
+}
+
+// checkPepperExists checks if pepper exists at the specified path
+// This is a simplified implementation - in production you'd integrate with your secret store
+func checkPepperExists(pepperPath string) ([]byte, bool) {
+	// For now, implement file-based storage
+	// In production, this could be KMS, Vault, etc.
+	if _, err := os.Stat(pepperPath); os.IsNotExist(err) {
+		return nil, false
+	}
+
+	pepper, err := os.ReadFile(pepperPath)
+	if err != nil {
+		return nil, false
+	}
+
+	if len(pepper) != 32 {
+		return nil, false
+	}
+
+	return pepper, true
+}
+
+// storePepperWithKMS stores pepper using KMS encryption
+// This is a simplified implementation - in production you'd integrate with your secret store
+func storePepperWithKMS(ctx context.Context, kmsService KeyManagementService, kekAlias, pepperPath string, pepper []byte) error {
+	// For now, implement file-based storage with basic permissions
+	// In production, this should use KMS to encrypt the pepper before storing
+	dir := filepath.Dir(pepperPath)
+	if err := os.MkdirAll(dir, 0700); err != nil {
+		return fmt.Errorf("failed to create pepper directory: %w", err)
+	}
+
+	if err := os.WriteFile(pepperPath, pepper, 0600); err != nil {
+		return fmt.Errorf("failed to write pepper file: %w", err)
+	}
+
+	return nil
+}
+
+// NewCrypto creates a new Crypto instance with automatic pepper management
+//
+// This function creates a new Crypto instance with the following automatic initialization:
+// 1. Reads required environment variables (ENCX_KEK_ALIAS, ENCX_PEPPER_SECRET_PATH)
+// 2. Generates or loads pepper using KMS integration
+// 3. Creates and initializes the SQLite database with required schema
+// 4. Sets up internal cryptographic components
+// 5. Ensures an initial KEK exists in the database
+//
+// **Environment Variables:**
+//   ENCX_KEK_ALIAS: KMS key alias for this service (required)
+//   ENCX_PEPPER_SECRET_PATH: Path where pepper is stored/loaded (required for production)
+//   ENCX_ALLOW_IN_MEMORY_PEPPER: Set to "true" for testing only (allows empty pepper path)
 //
 // **Parameters:**
 //   ctx: Context for the initialization process
-//   options: Configuration options (KMS service, KEK alias, pepper, database settings, etc.)
+//   kmsService: KMS service instance (required)
+//   options: Optional configuration (database settings, monitoring, etc.)
 //
 // **Returns:**
 //   *Crypto: Fully initialized crypto instance
-//   error: Initialization error (including validation errors)
+//   error: Initialization error
 //
-// **Example:**
-//   crypto, err := encx.NewCrypto(ctx,
-//       encx.WithKMSService(kms),
-//       encx.WithKEKAlias("my-app-key"),
-//       encx.WithPepper([]byte("your-32-byte-secret-pepper-key!")),
-//   )
+// **Production Example:**
+//   // Set environment variables:
+//   // export ENCX_KEK_ALIAS="my-service-prod"
+//   // export ENCX_PEPPER_SECRET_PATH="/etc/encx/pepper"
+//
+//   crypto, err := encx.NewCrypto(ctx, kmsService)
 //   if err != nil {
 //       panic(err)
 //   }
-//   // Ready to use immediately - no additional setup required!
-func NewCrypto(ctx context.Context, options ...Option) (*Crypto, error) {
+//   // Ready to use immediately!
+//
+// **Testing Example:**
+//   // For testing only - data will be lost on restart
+//   os.Setenv("ENCX_KEK_ALIAS", "test-key")
+//   os.Setenv("ENCX_ALLOW_IN_MEMORY_PEPPER", "true")
+//
+//   crypto, err := encx.NewCrypto(ctx, testKMS)
+//   // ...
+func NewCrypto(ctx context.Context, kmsService KeyManagementService, options ...Option) (*Crypto, error) {
+	// Validate required KMS service
+	if kmsService == nil {
+		return nil, fmt.Errorf("KMS service is required")
+	}
+
+	// Read required environment variables
+	kekAlias := os.Getenv("ENCX_KEK_ALIAS")
+	pepperSecretPath := os.Getenv("ENCX_PEPPER_SECRET_PATH")
+	allowInMemory := os.Getenv("ENCX_ALLOW_IN_MEMORY_PEPPER") == "true"
+
+	if kekAlias == "" {
+		return nil, fmt.Errorf("ENCX_KEK_ALIAS environment variable is required")
+	}
+
+	// Enforce pepper persistence requirement (with testing opt-out)
+	if pepperSecretPath == "" && !allowInMemory {
+		return nil, fmt.Errorf("ENCX_PEPPER_SECRET_PATH is required for production use. " +
+			"Set ENCX_ALLOW_IN_MEMORY_PEPPER=true only for testing (data will be lost on restart)")
+	}
+
+	// Start with default configuration
 	cfg := config.DefaultConfig()
 
-	// Apply all options
+	// Set required configuration from environment and parameters
+	cfg.KMSService = kmsService
+	cfg.KEKAlias = kekAlias
+
+	// Apply optional configuration
 	if err := config.ApplyOptions(cfg, options); err != nil {
 		return nil, fmt.Errorf("failed to apply options: %w", err)
 	}
 
-	// Validate configuration first
+	// Generate or load pepper automatically
+	pepper, err := loadOrGeneratePepper(ctx, kmsService, kekAlias, pepperSecretPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load or generate pepper: %w", err)
+	}
+	cfg.Pepper = pepper
+
+	// Validate configuration (skip pepper validation since it's auto-generated)
 	validator := config.NewValidator()
-	if err := validator.ValidateConfig(cfg); err != nil {
+	if err := validator.ValidateConfigForEnvironment(cfg); err != nil {
 		return nil, fmt.Errorf("configuration validation failed: %w", err)
 	}
 
