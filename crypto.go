@@ -76,6 +76,37 @@ type Crypto struct {
 }
 
 // NewCrypto creates a new Crypto instance
+//
+// This function automatically handles the complete initialization process:
+// 1. Applies configuration options and validates them before any operations
+// 2. Creates and initializes the SQLite database with required schema (kek_versions table + index)
+// 3. Sets up internal cryptographic components (DEK, data encryption, hashing, key rotation)
+// 4. Ensures an initial KEK exists in the database (creates if needed)
+// 5. Returns a fully functional Crypto instance ready for immediate use
+//
+// **Automatic Initialization (v0.5.2+):**
+// - Database schema creation: No manual database setup required
+// - KEK initialization: First KEK automatically created and stored
+// - Configuration validation: Errors detected early before database operations
+//
+// **Parameters:**
+//   ctx: Context for the initialization process
+//   options: Configuration options (KMS service, KEK alias, pepper, database settings, etc.)
+//
+// **Returns:**
+//   *Crypto: Fully initialized crypto instance
+//   error: Initialization error (including validation errors)
+//
+// **Example:**
+//   crypto, err := encx.NewCrypto(ctx,
+//       encx.WithKMSService(kms),
+//       encx.WithKEKAlias("my-app-key"),
+//       encx.WithPepper([]byte("your-32-byte-secret-pepper-key!")),
+//   )
+//   if err != nil {
+//       panic(err)
+//   }
+//   // Ready to use immediately - no additional setup required!
 func NewCrypto(ctx context.Context, options ...Option) (*Crypto, error) {
 	cfg := config.DefaultConfig()
 
