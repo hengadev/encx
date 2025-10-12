@@ -44,13 +44,17 @@ func (suite *ReliabilityIntegrationTestSuite) SetupSuite() {
 
 	suite.circuitBreaker = reliability.NewCircuitBreaker("test-kms", cbConfig)
 
-	// Create crypto instance with failing KMS
+	// Create in-memory secret store for testing
+	secretStore := encx.NewInMemorySecretStore()
+
+	// Create crypto instance with failing KMS using new API
+	cfg := encx.Config{
+		KEKAlias:    "reliability-test-key",
+		PepperAlias: "reliability-test",
+	}
+
 	var err error
-	suite.crypto, err = encx.NewCrypto(suite.ctx,
-		encx.WithKMSService(suite.failingKMS),
-		encx.WithKEKAlias("reliability-test-key"),
-		encx.WithPepper([]byte("reliability-test-pepper-32-bytes")),
-	)
+	suite.crypto, err = encx.NewCrypto(suite.ctx, suite.failingKMS, secretStore, cfg)
 	require.NoError(suite.T(), err)
 }
 

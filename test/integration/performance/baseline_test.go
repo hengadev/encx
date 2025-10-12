@@ -35,12 +35,18 @@ func (suite *PerformanceBaselineTestSuite) SetupSuite() {
 	// Create metrics collector for performance tracking
 	suite.metricsCollector = monitoring.NewInMemoryMetricsCollector()
 
-	// Create crypto instance with performance monitoring
+	// Create test KMS and secret store
+	kms := encx.NewSimpleTestKMS()
+	secretStore := encx.NewInMemorySecretStore()
+
+	// Create crypto instance with performance monitoring using new API
+	cfg := encx.Config{
+		KEKAlias:    "performance-test-key",
+		PepperAlias: "performance-test",
+	}
+
 	var err error
-	suite.crypto, err = encx.NewCrypto(suite.ctx,
-		encx.WithKMSService(encx.NewSimpleTestKMS()),
-		encx.WithKEKAlias("performance-test-key"),
-		encx.WithPepper([]byte("performance-test-pepper-32-bytes")),
+	suite.crypto, err = encx.NewCrypto(suite.ctx, kms, secretStore, cfg,
 		encx.WithMetricsCollector(suite.metricsCollector),
 	)
 	require.NoError(suite.T(), err)

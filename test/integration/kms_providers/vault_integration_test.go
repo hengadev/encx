@@ -20,7 +20,7 @@ import (
 // VaultIntegrationTestSuite contains integration tests for HashiCorp Vault KMS provider
 type VaultIntegrationTestSuite struct {
 	suite.Suite
-	vault   *hashicorpvault.VaultService
+	vault   encx.KeyManagementService
 	crypto  *encx.Crypto
 	ctx     context.Context
 	keyID   string
@@ -47,12 +47,17 @@ func (suite *VaultIntegrationTestSuite) SetupSuite() {
 	require.NoError(suite.T(), err, "Failed to create test key")
 	suite.keyID = keyID
 
-	// Create crypto instance with Vault KMS
-	suite.crypto, err = encx.NewCrypto(suite.ctx,
-		encx.WithKMSService(vault),
-		encx.WithKEKAlias(keyID),
-		encx.WithPepperSecretPath("secret/encx/pepper"),
-	)
+	// Create in-memory secret store for integration testing
+	// (In production with Vault, you could use a Vault-backed secret store)
+	secretStore := encx.NewInMemorySecretStore()
+
+	// Create crypto instance with Vault KMS and new API
+	cfg := encx.Config{
+		KEKAlias:    keyID,
+		PepperAlias: "integration-test",
+	}
+
+	suite.crypto, err = encx.NewCrypto(suite.ctx, vault, secretStore, cfg)
 	require.NoError(suite.T(), err, "Failed to create crypto instance")
 
 	// Generate test DEK

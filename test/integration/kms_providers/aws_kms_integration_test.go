@@ -41,7 +41,7 @@ func (suite *AWSKMSIntegrationTestSuite) SetupSuite() {
 		region = "us-east-1"
 	}
 
-	kmsService, err := aws.NewKMSService(suite.ctx, awskms.Config{
+	kmsService, err := aws.NewKMSService(suite.ctx, aws.Config{
 		Region: region,
 	})
 	require.NoError(suite.T(), err, "Failed to create AWS KMS service")
@@ -63,13 +63,17 @@ func (suite *AWSKMSIntegrationTestSuite) SetupSuite() {
 		suite.T().Logf("Using existing KMS key: %s (alias: %s)", keyID, keyAlias)
 	}
 
-	// Create crypto instance with AWS KMS
-	pepper := []byte("test-pepper-exactly-32-bytes-OK!")
-	suite.crypto, err = encx.NewCrypto(suite.ctx,
-		encx.WithKMSService(suite.awsKMS),
-		encx.WithKEKAlias(suite.keyID),
-		encx.WithPepper(pepper),
-	)
+	// Create in-memory secret store for integration testing
+	// (In production, use aws.NewSecretsManagerStore)
+	secretStore := encx.NewInMemorySecretStore()
+
+	// Create crypto instance with AWS KMS and new API
+	cfg := encx.Config{
+		KEKAlias:    suite.keyID,
+		PepperAlias: "integration-test",
+	}
+
+	suite.crypto, err = encx.NewCrypto(suite.ctx, suite.awsKMS, secretStore, cfg)
 	require.NoError(suite.T(), err, "Failed to create crypto instance")
 }
 
@@ -194,7 +198,7 @@ func TestAWSEnvironmentSetup(t *testing.T) {
 	region := os.Getenv("AWS_REGION")
 
 	// Test AWS KMS service creation
-	kmsService, err := aws.NewKMSService(ctx, awskms.Config{
+	kmsService, err := aws.NewKMSService(ctx, aws.Config{
 		Region: region,
 	})
 	require.NoError(t, err, "Failed to create AWS KMS service")

@@ -35,12 +35,17 @@ func (suite *EndToEndWorkflowTestSuite) SetupSuite() {
 	require.NoError(suite.T(), err)
 	suite.tempDir = tempDir
 
-	// Create crypto instance with test KMS
-	suite.crypto, err = encx.NewCrypto(suite.ctx,
-		encx.WithKMSService(encx.NewSimpleTestKMS()),
-		encx.WithKEKAlias("e2e-workflow-key"),
-		encx.WithPepper([]byte("e2e-test-pepper-32-bytes-exactly")),
-	)
+	// Create test KMS and secret store
+	kms := encx.NewSimpleTestKMS()
+	secretStore := encx.NewInMemorySecretStore()
+
+	// Create crypto instance with new API
+	cfg := encx.Config{
+		KEKAlias:    "e2e-workflow-key",
+		PepperAlias: "e2e-test",
+	}
+
+	suite.crypto, err = encx.NewCrypto(suite.ctx, kms, secretStore, cfg)
 	require.NoError(suite.T(), err)
 }
 
