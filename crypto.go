@@ -234,37 +234,42 @@ func storePepperWithKMS(ctx context.Context, kmsService KeyManagementService, ke
 // 5. Ensures an initial KEK exists in the database
 //
 // **Environment Variables:**
-//   ENCX_KEK_ALIAS: KMS key alias for this service (required)
-//   ENCX_PEPPER_SECRET_PATH: Path where pepper is stored/loaded (required for production)
-//   ENCX_ALLOW_IN_MEMORY_PEPPER: Set to "true" for testing only (allows empty pepper path)
+//
+//	ENCX_KEK_ALIAS: KMS key alias for this service (required)
+//	ENCX_PEPPER_SECRET_PATH: Path where pepper is stored/loaded (required for production)
+//	ENCX_ALLOW_IN_MEMORY_PEPPER: Set to "true" for testing only (allows empty pepper path)
 //
 // **Parameters:**
-//   ctx: Context for the initialization process
-//   kmsService: KMS service instance (required)
-//   options: Optional configuration (database settings, monitoring, etc.)
+//
+//	ctx: Context for the initialization process
+//	kmsService: KMS service instance (required)
+//	options: Optional configuration (database settings, monitoring, etc.)
 //
 // **Returns:**
-//   *Crypto: Fully initialized crypto instance
-//   error: Initialization error
+//
+//	*Crypto: Fully initialized crypto instance
+//	error: Initialization error
 //
 // **Production Example:**
-//   // Set environment variables:
-//   // export ENCX_KEK_ALIAS="my-service-prod"
-//   // export ENCX_PEPPER_SECRET_PATH="/etc/encx/pepper"
 //
-//   crypto, err := encx.NewCrypto(ctx, kmsService)
-//   if err != nil {
-//       panic(err)
-//   }
-//   // Ready to use immediately!
+//	// Set environment variables:
+//	// export ENCX_KEK_ALIAS="my-service-prod"
+//	// export ENCX_PEPPER_SECRET_PATH="/etc/encx/pepper"
+//
+//	crypto, err := encx.NewCrypto(ctx, kmsService)
+//	if err != nil {
+//	    panic(err)
+//	}
+//	// Ready to use immediately!
 //
 // **Testing Example:**
-//   // For testing only - data will be lost on restart
-//   os.Setenv("ENCX_KEK_ALIAS", "test-key")
-//   os.Setenv("ENCX_ALLOW_IN_MEMORY_PEPPER", "true")
 //
-//   crypto, err := encx.NewCrypto(ctx, testKMS)
-//   // ...
+//	// For testing only - data will be lost on restart
+//	os.Setenv("ENCX_KEK_ALIAS", "test-key")
+//	os.Setenv("ENCX_ALLOW_IN_MEMORY_PEPPER", "true")
+//
+//	crypto, err := encx.NewCrypto(ctx, testKMS)
+//	// ...
 func NewCrypto(ctx context.Context, kmsService KeyManagementService, options ...Option) (*Crypto, error) {
 	// Validate required KMS service
 	if kmsService == nil {
