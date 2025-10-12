@@ -61,14 +61,14 @@ package main
 import (
     "context"
     "github.com/hengadev/encx"
-    "github.com/hengadev/encx/providers/awskms"
+    "github.com/hengadev/encx/providers/aws"
 )
 
 func main() {
     ctx := context.Background()
 
     // Create KMS service (your choice of provider)
-    kms, err := awskms.New(ctx, awskms.Config{
+    kms, err := aws.NewKMSService(ctx, aws.Config{
         Region: "us-east-1",
     })
 
@@ -422,9 +422,9 @@ func TestUserRepository(t *testing.T) {
 
 **AWS KMS:**
 ```go
-import "github.com/hengadev/encx/providers/awskms"
+import "github.com/hengadev/encx/providers/aws"
 
-kmsService, err := awskms.New(ctx, awskms.Config{
+kmsService, err := aws.NewKMSService(ctx, aws.Config{
     Region: "us-east-1",
 })
 
@@ -437,13 +437,13 @@ crypto, err := encx.NewCrypto(ctx,
 
 **HashiCorp Vault:**
 ```go
-import "github.com/hengadev/encx/providers/hashicorpvault"
+import "github.com/hengadev/encx/providers/hashicorp"
 
 vaultClient, _ := vault.NewClient(&vault.Config{
     Address: os.Getenv("VAULT_ADDR"),
 })
 
-kmsService, _ := hashicorpvault.NewKMSService(vaultClient)
+kmsService, _ := hashicorp.NewTransitService(vaultClient)
 
 crypto, err := encx.NewCrypto(ctx,
     encx.WithKMSService(kmsService),

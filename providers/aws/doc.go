@@ -46,14 +46,14 @@
 //	import (
 //	    "context"
 //	    "github.com/hengadev/encx"
-//	    "github.com/hengadev/encx/providers/awskms"
+//	    "github.com/hengadev/encx/providers/aws"
 //	)
 //
 //	func main() {
 //	    ctx := context.Background()
 //
 //	    // Create AWS KMS provider
-//	    kmsService, err := awskms.New(ctx, awskms.Config{
+//	    kmsService, err := aws.NewKMSService(ctx, aws.Config{
 //	        Region: "us-east-1",  // Optional: uses AWS_REGION if not specified
 //	    })
 //	    if err != nil {
@@ -125,8 +125,8 @@
 //
 // For multi-region applications, create separate KMS service instances per region:
 //
-//	kmsUSEast, _ := awskms.New(ctx, awskms.Config{Region: "us-east-1"})
-//	kmsEUWest, _ := awskms.New(ctx, awskms.Config{Region: "eu-west-1"})
+//	kmsUSEast, _ := aws.NewKMSService(ctx, aws.Config{Region: "us-east-1"})
+//	kmsEUWest, _ := aws.NewKMSService(ctx, aws.Config{Region: "eu-west-1"})
 //
 // Or use AWS KMS multi-region keys for automatic key replication.
-package awskms
+package aws

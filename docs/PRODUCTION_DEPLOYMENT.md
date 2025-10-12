@@ -529,7 +529,7 @@ import (
     "github.com/aws/aws-sdk-go-v2/config"
     "github.com/aws/aws-sdk-go-v2/service/secretsmanager"
     "github.com/hengadev/encx"
-    "github.com/hengadev/encx/providers/awskms"
+    "github.com/hengadev/encx/providers/aws"
 )
 
 // loadPepperFromAWS loads pepper from AWS Secrets Manager
@@ -621,7 +621,7 @@ func initializeEncx(ctx context.Context) (*encx.Crypto, error) {
     }
 
     // 2. Initialize KMS provider
-    kmsProvider, err := awskms.NewAWSKMSProvider(ctx, awskms.Config{
+    kmsProvider, err := aws.NewKMSServiceAWSKMSProvider(ctx, aws.Config{
         Region: os.Getenv("AWS_REGION"),
         KeyID:  "alias/encx-production-kek",
     })

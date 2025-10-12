@@ -128,14 +128,14 @@ import (
     "log"
 
     "github.com/hengadev/encx"
-    "github.com/hengadev/encx/providers/awskms"
+    "github.com/hengadev/encx/providers/aws"
 )
 
 func main() {
     ctx := context.Background()
 
     // Create AWS KMS provider
-    kmsService, err := awskms.New(ctx, awskms.Config{
+    kmsService, err := aws.NewKMSService(ctx, aws.Config{
         Region: "us-east-1",
     })
     if err != nil {
@@ -172,7 +172,7 @@ func main() {
 ```go
 import (
     "github.com/aws/aws-sdk-go-v2/config"
-    "github.com/hengadev/encx/providers/awskms"
+    "github.com/hengadev/encx/providers/aws"
 )
 
 // Load custom AWS config
@@ -185,7 +185,7 @@ if err != nil {
 }
 
 // Use custom config
-kmsService, err := awskms.New(ctx, awskms.Config{
+kmsService, err := aws.NewKMSService(ctx, aws.Config{
     AWSConfig: &awsCfg,
 })
 ```
@@ -203,14 +203,14 @@ import (
 
     _ "github.com/lib/pq"
     "github.com/hengadev/encx"
-    "github.com/hengadev/encx/providers/awskms"
+    "github.com/hengadev/encx/providers/aws"
 )
 
 func main() {
     ctx := context.Background()
 
     // AWS KMS provider
-    kmsService, err := awskms.New(ctx, awskms.Config{
+    kmsService, err := aws.NewKMSService(ctx, aws.Config{
         // Region from environment or AWS config
     })
     if err != nil {
@@ -268,7 +268,7 @@ For multi-region applications:
 **Option 1: Separate keys per region**
 ```go
 // US East
-kmsUSEast, _ := awskms.New(ctx, awskms.Config{Region: "us-east-1"})
+kmsUSEast, _ := aws.NewKMSService(ctx, aws.Config{Region: "us-east-1"})
 cryptoUSEast, _ := encx.NewCrypto(ctx,
     encx.WithKMSService(kmsUSEast),
     encx.WithKEKAlias("alias/my-key"),
@@ -276,7 +276,7 @@ cryptoUSEast, _ := encx.NewCrypto(ctx,
 )
 
 // EU West
-kmsEUWest, _ := awskms.New(ctx, awskms.Config{Region: "eu-west-1"})
+kmsEUWest, _ := aws.NewKMSService(ctx, aws.Config{Region: "eu-west-1"})
 cryptoEUWest, _ := encx.NewCrypto(ctx,
     encx.WithKMSService(kmsEUWest),
     encx.WithKEKAlias("alias/my-key"),
@@ -408,7 +408,7 @@ Error: The key ARN is from a different region
 
 **Solution**: Ensure KMS provider region matches your key region:
 ```go
-kmsService, _ := awskms.New(ctx, awskms.Config{
+kmsService, _ := aws.NewKMSService(ctx, aws.Config{
     Region: "us-east-1", // Must match key region
 })
 ```

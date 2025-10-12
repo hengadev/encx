@@ -401,9 +401,9 @@ DecryptUserEncx(ctx, crypto, newUserEncx) // Automatically uses key v2
 ### AWS KMS
 
 ```go
-import "github.com/hengadev/encx/providers/awskms"
+import "github.com/hengadev/encx/providers/aws"
 
-kmsService, err := awskms.New(ctx, awskms.Config{
+kmsService, err := aws.NewKMSService(ctx, aws.Config{
     Region: "us-east-1",
 })
 if err != nil {
@@ -423,7 +423,7 @@ crypto, err := encx.NewCrypto(ctx,
 ### HashiCorp Vault
 
 ```go
-import "github.com/hengadev/encx/providers/hashicorpvault"
+import "github.com/hengadev/encx/providers/hashicorp"
 
 vaultClient, err := vault.NewClient(&vault.Config{
     Address: "https://vault.example.com",
@@ -432,7 +432,7 @@ if err != nil {
     log.Fatal(err)
 }
 
-kmsService, err := hashicorpvault.NewKMSService(vaultClient)
+kmsService, err := hashicorp.NewTransitServiceKMSService(vaultClient)
 if err != nil {
     log.Fatal(err)
 }
@@ -456,7 +456,7 @@ Example showing how to encrypt files on-the-fly and stream them directly to AWS 
 ```go
 import (
     "github.com/hengadev/encx"
-    "github.com/hengadev/encx/providers/awskms"
+    "github.com/hengadev/encx/providers/aws"
     "github.com/aws/aws-sdk-go-v2/service/s3"
 )
 

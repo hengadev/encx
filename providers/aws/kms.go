@@ -1,8 +1,8 @@
-// Package awskms provides AWS Key Management Service (KMS) integration for encx.
+// Package aws provides AWS Key Management Service (KMS) integration for encx.
 //
 // This provider implements the KeyManagementService interface using AWS KMS
 // for secure key encryption operations (KEK management).
-package awskms
+package aws
 
 import (
 	"context"
@@ -41,20 +41,20 @@ type Config struct {
 	AWSConfig *aws.Config
 }
 
-// New creates a new AWS KMS service instance.
+// NewKMSService creates a new AWS KMS service instance.
 //
 // Usage:
 //
 //	// Using default AWS configuration
-//	kmsService, err := awskms.New(ctx, awskms.Config{})
+//	kmsService, err := aws.NewKMSService(ctx, aws.Config{})
 //
 //	// With specific region
-//	kmsService, err := awskms.New(ctx, awskms.Config{Region: "us-east-1"})
+//	kmsService, err := aws.NewKMSService(ctx, aws.Config{Region: "us-east-1"})
 //
 //	// With custom AWS config
 //	awsCfg, _ := config.LoadDefaultConfig(ctx)
-//	kmsService, err := awskms.New(ctx, awskms.Config{AWSConfig: &awsCfg})
-func New(ctx context.Context, cfg Config) (*KMSService, error) {
+//	kmsService, err := aws.NewKMSService(ctx, aws.Config{AWSConfig: &awsCfg})
+func NewKMSService(ctx context.Context, cfg Config) (*KMSService, error) {
 	var awsConfig aws.Config
 	var err error
 

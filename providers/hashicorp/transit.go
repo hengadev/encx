@@ -1,4 +1,4 @@
-package hashicorpvault
+package hashicorp
 
 import (
 	"context"
@@ -19,7 +19,7 @@ type VaultService struct {
 }
 
 // New creates a new VaultService instance.
-func New() (*VaultService, error) {
+func NewTransitService() (*VaultService, error) {
 	config := api.DefaultConfig()
 	addr := os.Getenv("VAULT_ADDR") // Or load from config
 	if addr != "" {

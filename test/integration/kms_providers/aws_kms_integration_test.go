@@ -14,7 +14,7 @@ import (
 	"github.com/stretchr/testify/suite"
 
 	"github.com/hengadev/encx"
-	"github.com/hengadev/encx/providers/awskms"
+	"github.com/hengadev/encx/providers/aws"
 )
 
 // AWSKMSIntegrationTestSuite contains integration tests for AWS KMS provider
@@ -41,7 +41,7 @@ func (suite *AWSKMSIntegrationTestSuite) SetupSuite() {
 		region = "us-east-1"
 	}
 
-	kmsService, err := awskms.New(suite.ctx, awskms.Config{
+	kmsService, err := aws.NewKMSService(suite.ctx, awskms.Config{
 		Region: region,
 	})
 	require.NoError(suite.T(), err, "Failed to create AWS KMS service")
@@ -194,7 +194,7 @@ func TestAWSEnvironmentSetup(t *testing.T) {
 	region := os.Getenv("AWS_REGION")
 
 	// Test AWS KMS service creation
-	kmsService, err := awskms.New(ctx, awskms.Config{
+	kmsService, err := aws.NewKMSService(ctx, awskms.Config{
 		Region: region,
 	})
 	require.NoError(t, err, "Failed to create AWS KMS service")
