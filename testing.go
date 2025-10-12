@@ -10,7 +10,6 @@ import (
 	"crypto/rand"
 	"database/sql"
 	"fmt"
-	"os"
 	"sync"
 
 	"github.com/hengadev/encx/internal/config"
@@ -190,12 +189,18 @@ func (s *InMemorySecretStore) PepperExists(ctx context.Context, alias string) (b
 func NewTestCrypto(t interface{}) (*Crypto, error) {
 	ctx := context.Background()
 
-	// Set required environment variables for testing
-	os.Setenv("ENCX_KEK_ALIAS", "test-kek-alias")
-	os.Setenv("ENCX_ALLOW_IN_MEMORY_PEPPER", "true") // Empty for auto-generation
+	// Create test KMS and in-memory secret store
+	kms := NewSimpleTestKMS()
+	secrets := NewInMemorySecretStore()
+
+	// Create explicit configuration
+	cfg := Config{
+		KEKAlias:    "test-kek-alias",
+		PepperAlias: "test-service",
+	}
 
 	// Create crypto instance with test configuration
-	crypto, err := NewCrypto(ctx, NewSimpleTestKMS())
+	crypto, err := NewCrypto(ctx, kms, secrets, cfg)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create test crypto: %w", err)
 	}
@@ -207,13 +212,19 @@ func NewTestCrypto(t interface{}) (*Crypto, error) {
 func NewTestCryptoWithDatabase(db *sql.DB) (*Crypto, error) {
 	ctx := context.Background()
 
-	// Set required environment variables for testing
-	os.Setenv("ENCX_KEK_ALIAS", "test-kek-alias")
-	os.Setenv("ENCX_ALLOW_IN_MEMORY_PEPPER", "true") // Empty for auto-generation
+	// Create test KMS and in-memory secret store
+	kms := NewSimpleTestKMS()
+	secrets := NewInMemorySecretStore()
+
+	// Create explicit configuration
+	cfg := Config{
+		KEKAlias:    "test-kek-alias",
+		PepperAlias: "test-service",
+	}
 
 	// Create crypto instance with specific database
 	// Note: WithKeyMetadataDB option was removed - the database is auto-managed
-	crypto, err := NewCrypto(ctx, NewSimpleTestKMS())
+	crypto, err := NewCrypto(ctx, kms, secrets, cfg)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create test crypto: %w", err)
 	}
