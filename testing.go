@@ -11,6 +11,7 @@ import (
 	"database/sql"
 	"fmt"
 	"os"
+	"sync"
 
 	"github.com/hengadev/encx/internal/config"
 	_ "github.com/mattn/go-sqlite3"
@@ -103,6 +104,85 @@ func (s *SimpleTestKMS) DecryptDEK(ctx context.Context, keyID string, ciphertext
 	}
 
 	return plaintext, nil
+}
+
+// InMemorySecretStore implements SecretManagementService for testing
+//
+// This store keeps all secrets in memory and is suitable for unit tests and examples.
+// All data is lost when the process terminates.
+//
+// Usage:
+//
+//	store := NewInMemorySecretStore()
+//	err := store.StorePepper(ctx, "my-service", pepper)
+type InMemorySecretStore struct {
+	mu      sync.RWMutex
+	peppers map[string][]byte
+}
+
+// NewInMemorySecretStore creates a new in-memory secret store
+func NewInMemorySecretStore() SecretManagementService {
+	return &InMemorySecretStore{
+		peppers: make(map[string][]byte),
+	}
+}
+
+// GetStoragePath returns the storage path for a given alias
+//
+// For in-memory store, this is just a virtual path for consistency.
+func (s *InMemorySecretStore) GetStoragePath(alias string) string {
+	return fmt.Sprintf("memory://%s/pepper", alias)
+}
+
+// StorePepper stores a pepper in memory
+//
+// The pepper must be exactly 32 bytes (PepperLength).
+func (s *InMemorySecretStore) StorePepper(ctx context.Context, alias string, pepper []byte) error {
+	if len(pepper) != PepperLength {
+		return fmt.Errorf("%w: pepper must be exactly %d bytes, got %d",
+			ErrInvalidConfiguration, PepperLength, len(pepper))
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	// Make a copy to prevent external modification
+	pepperCopy := make([]byte, len(pepper))
+	copy(pepperCopy, pepper)
+
+	s.peppers[alias] = pepperCopy
+	return nil
+}
+
+// GetPepper retrieves a pepper from memory
+//
+// Returns an error if the pepper doesn't exist or has invalid length.
+func (s *InMemorySecretStore) GetPepper(ctx context.Context, alias string) ([]byte, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	pepper, exists := s.peppers[alias]
+	if !exists {
+		return nil, fmt.Errorf("%w: pepper not found for alias: %s",
+			ErrSecretStorageUnavailable, alias)
+	}
+
+	// Return a copy to prevent external modification
+	pepperCopy := make([]byte, len(pepper))
+	copy(pepperCopy, pepper)
+
+	return pepperCopy, nil
+}
+
+// PepperExists checks if a pepper exists in memory
+//
+// Returns true if the pepper exists, false if it doesn't.
+func (s *InMemorySecretStore) PepperExists(ctx context.Context, alias string) (bool, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	_, exists := s.peppers[alias]
+	return exists, nil
 }
 
 // NewTestCrypto creates a simple Crypto instance for testing and examples
