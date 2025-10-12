@@ -4,170 +4,166 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
-	"net/http"
-	"os"
 
 	"github.com/hashicorp/vault/api"
 	"github.com/hengadev/encx"
 )
 
-// VaultService is an implementation of KeyManagementService for HashiCorp Vault.
-type VaultService struct {
+// TransitService implements encx.KeyManagementService using HashiCorp Vault Transit Engine.
+//
+// This service provides cryptographic operations (encrypt/decrypt DEKs) using Vault's
+// Transit Engine. It does NOT handle secret storage - use KVStore for that.
+type TransitService struct {
 	client     *api.Client
 	renewalCtx context.Context
 	cancelFunc context.CancelFunc
 }
 
-// New creates a new VaultService instance.
-func NewTransitService() (*VaultService, error) {
-	config := api.DefaultConfig()
-	addr := os.Getenv("VAULT_ADDR") // Or load from config
-	if addr != "" {
-		config.Address = addr
-	}
-	transport := &http.Transport{
-		Proxy: http.ProxyFromEnvironment,
-	}
-	config.HttpClient.Transport = transport
-
-	client, err := api.NewClient(config)
+// NewTransitService creates a new TransitService instance.
+//
+// The service uses environment variables for configuration (see createVaultClient).
+//
+// Usage:
+//
+//	transit, err := hashicorp.NewTransitService()
+//	if err != nil {
+//	    log.Fatal(err)
+//	}
+//	defer transit.Close()
+//
+// The Transit Engine must be enabled in Vault before use:
+//
+//	vault secrets enable transit
+func NewTransitService() (*TransitService, error) {
+	client, renewalCtx, cancelFunc, err := createVaultClientWithContext()
 	if err != nil {
-		return nil, fmt.Errorf("%w: failed to create Vault client: %w", encx.ErrKMSUnavailable, err)
+		return nil, err
 	}
 
-	// Set namespace if using HCP Vault
-	namespace := os.Getenv("VAULT_NAMESPACE") // Should be "admin/example"
-	if namespace != "" {
-		client.SetNamespace(namespace)
-	}
-
-	// AppRole authentication
-	roleID := os.Getenv("VAULT_ROLE_ID")
-	secretID := os.Getenv("VAULT_SECRET_ID")
-	if roleID != "" && secretID != "" {
-		data := map[string]interface{}{
-			"role_id":   roleID,
-			"secret_id": secretID,
-		}
-
-		resp, err := client.Logical().Write("auth/approle/login", data)
-		if err != nil {
-			return nil, fmt.Errorf("%w: failed to login with AppRole: %w", encx.ErrAuthenticationFailed, err)
-		}
-
-		if resp.Auth == nil {
-			return nil, fmt.Errorf("%w: no auth info returned from AppRole login", encx.ErrAuthenticationFailed)
-		}
-
-		// Set the token from AppRole authentication response
-		client.SetToken(resp.Auth.ClientToken)
-	}
-	ctx, cancelFunc := context.WithCancel(context.Background())
-
-	return &VaultService{
+	return &TransitService{
 		client:     client,
-		renewalCtx: ctx,
+		renewalCtx: renewalCtx,
 		cancelFunc: cancelFunc,
 	}, nil
 }
 
-func (v *VaultService) GetKey(ctx context.Context, keyID string) ([]byte, error) {
-	// For Vault's transit engine, directly retrieving the raw key is generally not allowed.
-	// You would use the encrypt/decrypt APIs.
-	return nil, fmt.Errorf("getting raw key material is not supported for Vault's transit engine")
-}
-
-func (v *VaultService) GetKeyID(ctx context.Context, alias string) (string, error) {
-	// For Vault's transit engine, the 'alias' is the key name.
+// GetKeyID returns the key ID for a given alias.
+//
+// In Vault Transit Engine, the alias IS the key ID/name, so this just returns the alias.
+func (t *TransitService) GetKeyID(ctx context.Context, alias string) (string, error) {
+	if alias == "" {
+		return "", fmt.Errorf("%w: alias cannot be empty", encx.ErrInvalidConfiguration)
+	}
+	// For Vault's transit engine, the 'alias' is the key name
 	return alias, nil
 }
 
-func (v *VaultService) CreateKey(ctx context.Context, description string) (string, error) {
-	_, err := v.client.Logical().Write(fmt.Sprintf("transit/keys/%s", description), map[string]interface{}{
-		"type": "aes256-gcm96", // Or your desired key type
+// CreateKey creates a new Transit Engine key with the given name.
+//
+// The description parameter is used as the key name in Vault.
+// Returns the key name (which serves as the key ID).
+//
+// Example:
+//
+//	keyID, err := transit.CreateKey(ctx, "my-app-key")
+func (t *TransitService) CreateKey(ctx context.Context, description string) (string, error) {
+	if description == "" {
+		return "", fmt.Errorf("%w: description (key name) cannot be empty", encx.ErrInvalidConfiguration)
+	}
+
+	_, err := t.client.Logical().Write(fmt.Sprintf("transit/keys/%s", description), map[string]interface{}{
+		"type": "aes256-gcm96", // AES-256-GCM with 96-bit nonce
 	})
 	if err != nil {
 		return "", fmt.Errorf("%w: failed to create transit key '%s': %w", encx.ErrKMSUnavailable, description, err)
 	}
-	return description, nil // The description acts as the KeyID/alias
+
+	// The description acts as the KeyID/name in Transit Engine
+	return description, nil
 }
 
-func (v *VaultService) RotateKey(ctx context.Context, keyID string) error {
-	_, err := v.client.Logical().Write(fmt.Sprintf("transit/keys/%s/rotate", keyID), nil)
-	if err != nil {
-		return fmt.Errorf("%w: failed to rotate key '%s': %w", encx.ErrKMSUnavailable, keyID, err)
+// EncryptDEK encrypts a Data Encryption Key using the Vault Transit Engine.
+//
+// The keyID is the name of the Transit Engine key.
+// Returns Vault-formatted ciphertext (e.g., "vault:v1:base64...").
+//
+// Example:
+//
+//	encryptedDEK, err := transit.EncryptDEK(ctx, "my-app-key", dek)
+func (t *TransitService) EncryptDEK(ctx context.Context, keyID string, plaintextDEK []byte) ([]byte, error) {
+	if len(plaintextDEK) == 0 {
+		return nil, fmt.Errorf("%w: plaintext cannot be empty", encx.ErrEncryptionFailed)
 	}
-	return nil
-}
+	if keyID == "" {
+		return nil, fmt.Errorf("%w: keyID cannot be empty", encx.ErrInvalidConfiguration)
+	}
 
-func (v *VaultService) GetSecret(ctx context.Context, path string) ([]byte, error) {
-	secret, err := v.client.Logical().Read(path)
-	if err != nil {
-		return nil, fmt.Errorf("%w: failed to read secret from Vault at %s: %w", encx.ErrKMSUnavailable, path, err)
-	}
-	if secret == nil || secret.Data == nil {
-		return nil, fmt.Errorf("%w: secret not found at %s", encx.ErrInvalidConfiguration, path)
-	}
-	data, ok := secret.Data["data"].(map[string]interface{})
-	if !ok {
-		return nil, fmt.Errorf("invalid secret format at %s", path)
-	}
-	value, ok := data["value"].(string) // Assuming your pepper is stored under the key "value"
-	if !ok {
-		return nil, fmt.Errorf("pepper not found or invalid format at %s", path)
-	}
-	return []byte(value), nil
-}
-
-func (v *VaultService) SetSecret(ctx context.Context, path string, value []byte) error {
-	data := map[string]interface{}{
-		"data": map[string]interface{}{
-			"value": string(value),
-		},
-	}
-	_, err := v.client.Logical().Write(path, data)
-	if err != nil {
-		return fmt.Errorf("%w: failed to write secret to Vault at %s: %w", encx.ErrKMSUnavailable, path, err)
-	}
-	return nil
-}
-
-func (v *VaultService) EncryptDEK(ctx context.Context, keyID string, plaintextDEK []byte) ([]byte, error) {
-	resp, err := v.client.Logical().Write(fmt.Sprintf("transit/encrypt/%s", keyID), map[string]interface{}{
+	// Vault Transit expects base64-encoded plaintext
+	resp, err := t.client.Logical().Write(fmt.Sprintf("transit/encrypt/%s", keyID), map[string]interface{}{
 		"plaintext": base64.StdEncoding.EncodeToString(plaintextDEK),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("%w: failed to encrypt with key '%s': %w", encx.ErrEncryptionFailed, keyID, err)
 	}
+
+	if resp == nil || resp.Data == nil {
+		return nil, fmt.Errorf("%w: no response from Vault Transit encrypt", encx.ErrEncryptionFailed)
+	}
+
 	ciphertext, ok := resp.Data["ciphertext"].(string)
 	if !ok {
-		return nil, fmt.Errorf("ciphertext not found in response")
+		return nil, fmt.Errorf("%w: ciphertext not found in response", encx.ErrEncryptionFailed)
 	}
+
 	return []byte(ciphertext), nil
 }
 
-func (v *VaultService) DecryptDEK(ctx context.Context, keyID string, ciphertextDEK []byte) ([]byte, error) {
-	resp, err := v.client.Logical().Write(fmt.Sprintf("transit/decrypt/%s", keyID), map[string]any{
+// DecryptDEK decrypts a Data Encryption Key using the Vault Transit Engine.
+//
+// The keyID is the name of the Transit Engine key.
+// The ciphertext should be in Vault format (e.g., "vault:v1:base64...").
+//
+// Example:
+//
+//	dek, err := transit.DecryptDEK(ctx, "my-app-key", encryptedDEK)
+func (t *TransitService) DecryptDEK(ctx context.Context, keyID string, ciphertextDEK []byte) ([]byte, error) {
+	if len(ciphertextDEK) == 0 {
+		return nil, fmt.Errorf("%w: ciphertext cannot be empty", encx.ErrDecryptionFailed)
+	}
+	if keyID == "" {
+		return nil, fmt.Errorf("%w: keyID cannot be empty", encx.ErrInvalidConfiguration)
+	}
+
+	resp, err := t.client.Logical().Write(fmt.Sprintf("transit/decrypt/%s", keyID), map[string]interface{}{
 		"ciphertext": string(ciphertextDEK),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("%w: failed to decrypt with key '%s': %w", encx.ErrDecryptionFailed, keyID, err)
 	}
+
+	if resp == nil || resp.Data == nil {
+		return nil, fmt.Errorf("%w: no response from Vault Transit decrypt", encx.ErrDecryptionFailed)
+	}
+
 	plaintextBase64, ok := resp.Data["plaintext"].(string)
 	if !ok {
-		return nil, fmt.Errorf("plaintext not found in response")
+		return nil, fmt.Errorf("%w: plaintext not found in response", encx.ErrDecryptionFailed)
 	}
+
+	// Decode from base64
 	plaintext, err := base64.StdEncoding.DecodeString(plaintextBase64)
 	if err != nil {
 		return nil, fmt.Errorf("%w: failed to decode plaintext: %w", encx.ErrDecryptionFailed, err)
 	}
+
 	return plaintext, nil
 }
 
-func (v *VaultService) EncryptDEKWithVersion(ctx context.Context, plaintextDEK []byte, version int) ([]byte, error) {
-	return v.EncryptDEK(ctx, "", plaintextDEK)
-}
-
-func (v *VaultService) DecryptDEKWithVersion(ctx context.Context, ciphertextDEK []byte, version int) ([]byte, error) {
-	return v.DecryptDEK(ctx, "", ciphertextDEK)
+// Close cancels the renewal context and cleans up resources.
+//
+// Call this when shutting down to stop any background token renewal.
+func (t *TransitService) Close() {
+	if t.cancelFunc != nil {
+		t.cancelFunc()
+	}
 }
