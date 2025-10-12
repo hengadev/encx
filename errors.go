@@ -9,13 +9,14 @@ import (
 
 var (
 	// High-level service errors
-	ErrKMSUnavailable       = errors.New("KMS service unavailable")
-	ErrKeyRotationRequired  = errors.New("key rotation required")
-	ErrInvalidConfiguration = errors.New("invalid configuration")
-	ErrAuthenticationFailed = errors.New("authentication failed")
-	ErrEncryptionFailed     = errors.New("encryption failed")
-	ErrDecryptionFailed     = errors.New("decryption failed")
-	ErrDatabaseUnavailable  = errors.New("database unavailable")
+	ErrKMSUnavailable            = errors.New("KMS service unavailable")
+	ErrSecretStorageUnavailable  = errors.New("secret storage unavailable")
+	ErrKeyRotationRequired       = errors.New("key rotation required")
+	ErrInvalidConfiguration      = errors.New("invalid configuration")
+	ErrAuthenticationFailed      = errors.New("authentication failed")
+	ErrEncryptionFailed          = errors.New("encryption failed")
+	ErrDecryptionFailed          = errors.New("decryption failed")
+	ErrDatabaseUnavailable       = errors.New("database unavailable")
 
 	// Crypto errors
 	ErrUninitializedPepper = errors.New("pepper value appears to be uninitialized (all zeros)")
@@ -87,6 +88,7 @@ func NewInvalidFormatError(fieldName string, formatName string, action types.Act
 // IsRetryableError returns true if the error represents a transient failure that might succeed on retry.
 func IsRetryableError(err error) bool {
 	return errors.Is(err, ErrKMSUnavailable) ||
+		errors.Is(err, ErrSecretStorageUnavailable) ||
 		errors.Is(err, ErrDatabaseUnavailable)
 }
 
