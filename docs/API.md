@@ -67,15 +67,66 @@ type CryptoService interface {
 
 ### KeyManagementService Interface
 
-Interface for KMS providers.
+Interface for cryptographic operations using cloud KMS providers (AWS KMS, HashiCorp Vault Transit Engine).
 
 ```go
 type KeyManagementService interface {
-    CreateKey(ctx context.Context, alias string) (keyID string, err error)
-    GetKeyID(ctx context.Context, alias string) (keyID string, err error)
-    Encrypt(ctx context.Context, keyID string, plaintext []byte) (ciphertext []byte, err error)
-    Decrypt(ctx context.Context, keyID string, ciphertext []byte) (plaintext []byte, err error)
+    GetKeyID(ctx context.Context, alias string) (string, error)
+    CreateKey(ctx context.Context, description string) (string, error)
+    EncryptDEK(ctx context.Context, keyID string, plaintext []byte) ([]byte, error)
+    DecryptDEK(ctx context.Context, keyID string, ciphertext []byte) ([]byte, error)
 }
+```
+
+**Implementations**:
+- `providers/aws.KMSService` - AWS KMS implementation
+- `providers/hashicorp.TransitService` - HashiCorp Vault Transit Engine implementation
+
+### SecretManagementService Interface
+
+Interface for secret storage providers (AWS Secrets Manager, HashiCorp Vault KV).
+
+```go
+type SecretManagementService interface {
+    StorePepper(ctx context.Context, alias string, pepper []byte) error
+    GetPepper(ctx context.Context, alias string) ([]byte, error)
+    PepperExists(ctx context.Context, alias string) (bool, error)
+    GetStoragePath(alias string) string
+}
+```
+
+**Implementations**:
+- `providers/aws.SecretsManagerStore` - AWS Secrets Manager implementation
+- `providers/hashicorp.KVStore` - HashiCorp Vault KV v2 implementation
+- `InMemorySecretStore` - In-memory implementation for testing
+
+**Storage Paths**:
+- AWS: `encx/{PepperAlias}/pepper`
+- Vault: `secret/data/encx/{PepperAlias}/pepper`
+- In-memory: `memory://{PepperAlias}/pepper`
+
+### Config Struct
+
+Configuration struct for explicit dependency injection.
+
+```go
+type Config struct {
+    KEKAlias    string  // Required: KMS key identifier
+    PepperAlias string  // Required: Service identifier for pepper storage
+    DBPath      string  // Optional: Database directory (default: .encx)
+    DBFilename  string  // Optional: Database filename (default: keys.db)
+}
+```
+
+**Validation**:
+- `KEKAlias` must not be empty and must be ≤ 256 characters
+- `PepperAlias` must not be empty
+- `DBPath` defaults to `.encx` if empty
+- `DBFilename` defaults to `keys.db` if empty
+
+**Methods**:
+```go
+func (c *Config) Validate() error
 ```
 
 ### Argon2Params
@@ -103,15 +154,24 @@ type Argon2Params struct {
 
 ### NewCrypto
 
-Creates a new Crypto instance with production configuration.
+Creates a new Crypto instance with explicit dependency injection (low-level API).
 
 ```go
-func NewCrypto(ctx context.Context, options ...Option) (*Crypto, error)
+func NewCrypto(
+    ctx context.Context,
+    kms KeyManagementService,
+    secrets SecretManagementService,
+    cfg Config,
+    options ...Option,
+) (*Crypto, error)
 ```
 
 **Parameters**:
 - `ctx`: Context for initialization
-- `options`: Configuration options (see [Configuration Options](#configuration-options))
+- `kms`: Key Management Service for cryptographic operations (required)
+- `secrets`: Secret Management Service for pepper storage (required)
+- `cfg`: Configuration struct with KEKAlias, PepperAlias, etc. (required)
+- `options`: Additional configuration options (optional)
 
 **Returns**:
 - `*Crypto`: Configured crypto instance
@@ -119,36 +179,135 @@ func NewCrypto(ctx context.Context, options ...Option) (*Crypto, error)
 
 **Example**:
 ```go
-crypto, err := encx.NewCrypto(ctx,
-    encx.WithKMSService(kmsService),
-    encx.WithKeyMetadataDB(db),
-    encx.WithPepper(pepper),
-    encx.WithKEKAlias("my-app-kek"),
-)
+// Initialize providers
+kms, _ := aws.NewKMSService(ctx, aws.Config{Region: "us-east-1"})
+secrets, _ := aws.NewSecretsManagerStore(ctx, aws.Config{Region: "us-east-1"})
+
+// Create explicit configuration
+cfg := encx.Config{
+    KEKAlias:    "alias/my-encryption-key",
+    PepperAlias: "my-app-service",
+}
+
+// Initialize crypto
+crypto, err := encx.NewCrypto(ctx, kms, secrets, cfg)
+if err != nil {
+    log.Fatal(err)
+}
+```
+
+**Behavior**:
+- Validates all required parameters
+- Validates Config struct (calls cfg.Validate())
+- Checks KMS connectivity by retrieving KEK
+- Checks/generates pepper in SecretManagementService
+- Initializes key metadata database
+- Returns ready-to-use Crypto instance
+
+### NewCryptoFromEnv
+
+Creates a new Crypto instance using environment variables (convenience API for 12-factor apps).
+
+```go
+func NewCryptoFromEnv(
+    ctx context.Context,
+    kms KeyManagementService,
+    secrets SecretManagementService,
+    options ...Option,
+) (*Crypto, error)
+```
+
+**Parameters**:
+- `ctx`: Context for initialization
+- `kms`: Key Management Service (required)
+- `secrets`: Secret Management Service (required)
+- `options`: Additional configuration options (optional)
+
+**Returns**:
+- `*Crypto`: Configured crypto instance
+- `error`: Initialization error, if any
+
+**Required Environment Variables**:
+- `ENCX_KEK_ALIAS`: KMS key identifier
+- `ENCX_PEPPER_ALIAS`: Service identifier for pepper storage
+
+**Optional Environment Variables**:
+- `ENCX_DB_PATH`: Database directory (default: `.encx`)
+- `ENCX_DB_FILENAME`: Database filename (default: `keys.db`)
+
+**Example**:
+```go
+// Set environment variables:
+// export ENCX_KEK_ALIAS="alias/my-encryption-key"
+// export ENCX_PEPPER_ALIAS="my-app-service"
+
+kms, _ := aws.NewKMSService(ctx, aws.Config{Region: "us-east-1"})
+secrets, _ := aws.NewSecretsManagerStore(ctx, aws.Config{Region: "us-east-1"})
+
+crypto, err := encx.NewCryptoFromEnv(ctx, kms, secrets)
+if err != nil {
+    log.Fatal(err)
+}
+```
+
+### LoadConfigFromEnvironment
+
+Loads configuration from environment variables.
+
+```go
+func LoadConfigFromEnvironment() (Config, error)
+```
+
+**Returns**:
+- `Config`: Loaded configuration
+- `error`: Loading/validation error, if any
+
+**Environment Variables**:
+- `ENCX_KEK_ALIAS`: KMS key identifier (required)
+- `ENCX_PEPPER_ALIAS`: Service identifier (required)
+- `ENCX_DB_PATH`: Database directory (optional, default: `.encx`)
+- `ENCX_DB_FILENAME`: Database filename (optional, default: `keys.db`)
+
+**Example**:
+```go
+cfg, err := encx.LoadConfigFromEnvironment()
+if err != nil {
+    log.Fatalf("Invalid configuration: %v", err)
+}
+
+crypto, err := encx.NewCrypto(ctx, kms, secrets, cfg)
 ```
 
 ### NewTestCrypto
 
-Creates a crypto instance optimized for testing.
+Creates a crypto instance optimized for testing with in-memory storage.
 
 ```go
-func NewTestCrypto(t testing.TB, options ...*TestCryptoOptions) (*Crypto, KeyManagementService)
+func NewTestCrypto(t testing.TB) *Crypto
 ```
 
 **Parameters**:
 - `t`: Testing interface (can be nil for non-test usage)
-- `options`: Test-specific configuration options
 
 **Returns**:
-- `*Crypto`: Test crypto instance
-- `KeyManagementService`: The KMS service used (for cleanup if needed)
+- `*Crypto`: Test crypto instance with mock KMS and in-memory secret store
 
 **Example**:
 ```go
-crypto, kms := encx.NewTestCrypto(t, &encx.TestCryptoOptions{
-    Pepper: []byte("test-pepper-exactly-32-bytes!!"),
-})
+func TestMyFunction(t *testing.T) {
+    crypto := encx.NewTestCrypto(t)
+
+    // Use crypto in tests
+    dek, _ := crypto.GenerateDEK()
+    encrypted, _ := crypto.EncryptData(ctx, plaintext, dek)
+}
 ```
+
+**Features**:
+- Uses `SimpleTestKMS` (mock KMS implementation)
+- Uses `InMemorySecretStore` (automatic pepper generation)
+- Pre-configured with test-friendly Argon2 parameters
+- Automatic cleanup on test completion
 
 ## Crypto Methods
 
@@ -480,22 +639,64 @@ err := service.ProcessUser(user)
 mock.AssertExpectations(t)
 ```
 
-### TestCryptoOptions
+### InMemorySecretStore
 
-Configuration options for test crypto instances.
+In-memory implementation of SecretManagementService for testing.
 
 ```go
-type TestCryptoOptions struct {
-    Pepper       []byte
-    KMSService   KeyManagementService
-    Argon2Params *Argon2Params
-}
+func NewInMemorySecretStore() *InMemorySecretStore
 ```
 
-**Fields**:
-- `Pepper`: Custom pepper for testing (must be 32 bytes)
-- `KMSService`: Custom KMS service for testing
-- `Argon2Params`: Custom Argon2 parameters for testing
+**Returns**:
+- `*InMemorySecretStore`: Thread-safe in-memory secret store
+
+**Example**:
+```go
+// Create in-memory store
+secretStore := encx.NewInMemorySecretStore()
+
+// Use with NewCrypto
+kms := encx.NewSimpleTestKMS()
+cfg := encx.Config{
+    KEKAlias:    "test-kek",
+    PepperAlias: "test-service",
+}
+
+crypto, err := encx.NewCrypto(ctx, kms, secretStore, cfg)
+```
+
+**Features**:
+- Thread-safe for concurrent testing
+- Automatic pepper generation
+- Isolated storage per PepperAlias
+- Data lost on restart (in-memory only)
+
+**Warning**: Only use for testing. Not suitable for production use.
+
+### SimpleTestKMS
+
+Mock KMS implementation for testing.
+
+```go
+func NewSimpleTestKMS() KeyManagementService
+```
+
+**Returns**:
+- `KeyManagementService`: Mock KMS that simulates cloud KMS behavior
+
+**Example**:
+```go
+kms := encx.NewSimpleTestKMS()
+
+// Use with NewCrypto
+secretStore := encx.NewInMemorySecretStore()
+cfg := encx.Config{
+    KEKAlias:    "test-kek",
+    PepperAlias: "test-service",
+}
+
+crypto, err := encx.NewCrypto(ctx, kms, secretStore, cfg)
+```
 
 ## Error Types
 
@@ -530,52 +731,82 @@ func NewInvalidFormatError(fieldName string, formatName string, action Action) e
 
 ## Configuration Options
 
-### Option Functions
+### Configuration Approaches
 
-#### WithKMSService
+ENCX v0.6.0+ provides two configuration approaches:
 
-Sets the Key Management Service provider.
+#### 1. Explicit Configuration (Recommended for Libraries)
 
-```go
-func WithKMSService(kms KeyManagementService) Option
-```
-
-#### WithKeyMetadataDB
-
-Sets the database connection for key metadata.
+Use explicit dependency injection with the `Config` struct:
 
 ```go
-func WithKeyMetadataDB(db *sql.DB) Option
+kms, _ := aws.NewKMSService(ctx, aws.Config{Region: "us-east-1"})
+secrets, _ := aws.NewSecretsManagerStore(ctx, aws.Config{Region: "us-east-1"})
+
+cfg := encx.Config{
+    KEKAlias:    "alias/my-encryption-key",
+    PepperAlias: "my-app-service",
+}
+
+crypto, err := encx.NewCrypto(ctx, kms, secrets, cfg)
 ```
 
-#### WithPepper
+**Benefits**:
+- Full control over dependencies
+- No hidden environment variable dependencies
+- Better for library code
+- Easier to test with dependency injection
 
-Sets the pepper value for secure hashing.
+#### 2. Environment-Based Configuration (Recommended for Applications)
+
+Use environment variables with `NewCryptoFromEnv`:
 
 ```go
-func WithPepper(pepper []byte) Option
+// Set environment:
+// export ENCX_KEK_ALIAS="alias/my-encryption-key"
+// export ENCX_PEPPER_ALIAS="my-app-service"
+
+kms, _ := aws.NewKMSService(ctx, aws.Config{Region: "us-east-1"})
+secrets, _ := aws.NewSecretsManagerStore(ctx, aws.Config{Region: "us-east-1"})
+
+crypto, err := encx.NewCryptoFromEnv(ctx, kms, secrets)
 ```
 
-**Requirements**:
-- Must be exactly 32 bytes
-- Should be generated securely and stored separately from database
-- Must not be all zeros
+**Benefits**:
+- 12-factor app compliant
+- Environment-specific configuration
+- Easier deployment across environments
+- No hardcoded configuration values
 
-#### WithKEKAlias
+### Advanced Option Functions
 
-Sets the Key Encryption Key alias.
-
-```go
-func WithKEKAlias(alias string) Option
-```
+For advanced scenarios, you can pass additional options to `NewCrypto` or `NewCryptoFromEnv`:
 
 #### WithArgon2Params
 
-Sets custom Argon2id parameters.
+Sets custom Argon2id parameters for secure hashing.
 
 ```go
 func WithArgon2Params(params *Argon2Params) Option
 ```
+
+**Example**:
+```go
+params := &encx.Argon2Params{
+    Memory:      131072, // 128 MB
+    Iterations:  4,
+    Parallelism: 8,
+    SaltLength:  16,
+    KeyLength:   32,
+}
+
+crypto, err := encx.NewCrypto(ctx, kms, secrets, cfg, encx.WithArgon2Params(params))
+```
+
+**Use Cases**:
+- Customizing password hashing strength
+- Balancing security vs performance
+- Meeting specific compliance requirements
 
 #### WithSerializer
 
@@ -584,6 +815,31 @@ Sets a custom serializer for field values.
 ```go
 func WithSerializer(serializer Serializer) Option
 ```
+
+**Use Cases**:
+- Custom encoding formats
+- Legacy data format compatibility
+- Performance optimization for specific data types
+
+### Environment Variables Reference
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `ENCX_KEK_ALIAS` | Yes | - | KMS key identifier (e.g., `alias/my-key`) |
+| `ENCX_PEPPER_ALIAS` | Yes | - | Service identifier for pepper storage |
+| `ENCX_DB_PATH` | No | `.encx` | Database directory path |
+| `ENCX_DB_FILENAME` | No | `keys.db` | Database filename |
+
+### Deprecated Options
+
+The following options are **deprecated** in v0.6.0+ and replaced by explicit parameters:
+
+- ~~`WithKMSService(kms)`~~ → Pass `kms` directly to `NewCrypto`
+- ~~`WithPepper(pepper)`~~ → Pepper auto-managed via `SecretManagementService`
+- ~~`WithKEKAlias(alias)`~~ → Use `Config.KEKAlias` field
+- ~~`WithKeyMetadataDB(db)`~~ → Database auto-initialized from `Config.DBPath`
+
+**Migration**: See the [Migration Guide](./MIGRATION_GUIDE.md) for upgrading from v0.5.x to v0.6.0+.
 
 ## Constants
 
