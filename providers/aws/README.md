@@ -1,16 +1,21 @@
-# AWS KMS Provider for ENCX
+# AWS Provider for ENCX
 
-AWS Key Management Service (KMS) provider for the encx encryption library.
+AWS provider for the encx encryption library, implementing both key management and secret storage.
 
 ## Overview
 
-This provider implements the `KeyManagementService` interface using AWS KMS, enabling secure key encryption operations (KEK management) for your encx-based applications.
+The AWS provider includes two services that work together:
+
+1. **KMSService** - Implements `encx.KeyManagementService` using AWS KMS for encryption/decryption operations
+2. **SecretsManagerStore** - Implements `encx.SecretManagementService` using AWS Secrets Manager for pepper storage
+
+This separation follows the single responsibility principle: KMS handles cryptographic operations while Secrets Manager handles secret storage.
 
 ## Prerequisites
 
 ### 1. AWS Account Setup
 
-- AWS account with KMS access
+- AWS account with KMS and Secrets Manager access
 - AWS credentials configured
 - KMS key created in your desired region
 
@@ -41,13 +46,14 @@ region = us-east-1
 
 ### 3. IAM Permissions
 
-Your AWS credentials/role must have these KMS permissions:
+Your AWS credentials/role must have these permissions:
 
 ```json
 {
   "Version": "2012-10-17",
   "Statement": [
     {
+      "Sid": "KMSPermissions",
       "Effect": "Allow",
       "Action": [
         "kms:Encrypt",
@@ -55,20 +61,19 @@ Your AWS credentials/role must have these KMS permissions:
         "kms:DescribeKey"
       ],
       "Resource": "arn:aws:kms:REGION:ACCOUNT:key/KEY-ID"
+    },
+    {
+      "Sid": "SecretsManagerPermissions",
+      "Effect": "Allow",
+      "Action": [
+        "secretsmanager:GetSecretValue",
+        "secretsmanager:CreateSecret",
+        "secretsmanager:PutSecretValue",
+        "secretsmanager:DescribeSecret"
+      ],
+      "Resource": "arn:aws:secretsmanager:REGION:ACCOUNT:secret:encx/*"
     }
   ]
-}
-```
-
-Optional permissions (if creating keys programmatically):
-```json
-{
-  "Effect": "Allow",
-  "Action": [
-    "kms:CreateKey",
-    "kms:CreateAlias"
-  ],
-  "Resource": "*"
 }
 ```
 
@@ -134,23 +139,30 @@ import (
 func main() {
     ctx := context.Background()
 
-    // Create AWS KMS provider
-    kmsService, err := aws.NewKMSService(ctx, aws.Config{
+    // Initialize KMS for cryptographic operations
+    kms, err := aws.NewKMSService(ctx, aws.Config{
         Region: "us-east-1",
     })
     if err != nil {
         log.Fatalf("Failed to create KMS service: %v", err)
     }
 
-    // Get pepper from secure storage (e.g., AWS Secrets Manager)
-    pepper := []byte("your-pepper-exactly-32-bytes-OK!")
+    // Initialize Secrets Manager for pepper storage
+    secrets, err := aws.NewSecretsManagerStore(ctx, aws.Config{
+        Region: "us-east-1",
+    })
+    if err != nil {
+        log.Fatalf("Failed to create Secrets Manager store: %v", err)
+    }
+
+    // Create explicit configuration
+    cfg := encx.Config{
+        KEKAlias:    "alias/my-encryption-key",  // KMS key identifier
+        PepperAlias: "my-app-service",           // Service identifier
+    }
 
     // Create encx crypto service
-    crypto, err := encx.NewCrypto(ctx,
-        encx.WithKMSService(kmsService),
-        encx.WithKEKAlias("alias/my-encryption-key"),
-        encx.WithPepper(pepper),
-    )
+    crypto, err := encx.NewCrypto(ctx, kms, secrets, cfg)
     if err != nil {
         log.Fatalf("Failed to create crypto service: %v", err)
     }
@@ -167,30 +179,45 @@ func main() {
 }
 ```
 
-### With Custom AWS Config
+### Environment-based Configuration
+
+For 12-factor apps, use environment variables:
 
 ```go
+package main
+
 import (
-    "github.com/aws/aws-sdk-go-v2/config"
+    "context"
+    "log"
+
+    "github.com/hengadev/encx"
     "github.com/hengadev/encx/providers/aws"
 )
 
-// Load custom AWS config
-awsCfg, err := config.LoadDefaultConfig(ctx,
-    config.WithRegion("us-west-2"),
-    config.WithRetryMaxAttempts(3),
-)
-if err != nil {
-    log.Fatal(err)
-}
+func main() {
+    ctx := context.Background()
 
-// Use custom config
-kmsService, err := aws.NewKMSService(ctx, aws.Config{
-    AWSConfig: &awsCfg,
-})
+    // Set environment variables:
+    // export ENCX_KEK_ALIAS="alias/my-encryption-key"
+    // export ENCX_PEPPER_ALIAS="my-app-service"
+
+    // Initialize providers
+    kms, _ := aws.NewKMSService(ctx, aws.Config{Region: "us-east-1"})
+    secrets, _ := aws.NewSecretsManagerStore(ctx, aws.Config{Region: "us-east-1"})
+
+    // Load configuration from environment
+    crypto, err := encx.NewCryptoFromEnv(ctx, kms, secrets)
+    if err != nil {
+        log.Fatalf("Failed to create crypto service: %v", err)
+    }
+
+    // Ready to use
+    dek, _ := crypto.GenerateDEK()
+    // ...
+}
 ```
 
-### Production Setup
+### Production Setup with Database
 
 ```go
 package main
@@ -209,40 +236,64 @@ import (
 func main() {
     ctx := context.Background()
 
-    // AWS KMS provider
-    kmsService, err := aws.NewKMSService(ctx, aws.Config{
-        // Region from environment or AWS config
+    // AWS providers
+    kms, err := aws.NewKMSService(ctx, aws.Config{
+        Region: os.Getenv("AWS_REGION"),
     })
     if err != nil {
         log.Fatal(err)
     }
 
-    // Database for key versioning
-    db, err := sql.Open("postgres", os.Getenv("DATABASE_URL"))
-    if err != nil {
-        log.Fatal(err)
-    }
-    defer db.Close()
-
-    // Get pepper from AWS Secrets Manager (example)
-    pepper, err := getPepperFromSecretsManager(ctx)
+    secrets, err := aws.NewSecretsManagerStore(ctx, aws.Config{
+        Region: os.Getenv("AWS_REGION"),
+    })
     if err != nil {
         log.Fatal(err)
     }
 
-    // Create crypto service
-    crypto, err := encx.NewCrypto(ctx,
-        encx.WithKMSService(kmsService),
-        encx.WithKEKAlias(os.Getenv("KMS_KEY_ALIAS")),
-        encx.WithPepper(pepper),
-        encx.WithDatabase(db),
-    )
+    // Load configuration from environment
+    crypto, err := encx.NewCryptoFromEnv(ctx, kms, secrets)
     if err != nil {
         log.Fatal(err)
     }
 
     // Your application logic here
+    log.Println("Crypto service initialized successfully")
 }
+```
+
+## Pepper Storage
+
+The `SecretsManagerStore` automatically manages pepper storage in AWS Secrets Manager:
+
+### Storage Path
+
+Peppers are stored at: `encx/{PepperAlias}/pepper`
+
+For example:
+- PepperAlias: `my-app-service` → Secret path: `encx/my-app-service/pepper`
+- PepperAlias: `payment-service` → Secret path: `encx/payment-service/pepper`
+
+### Automatic Pepper Management
+
+The first time you initialize crypto with a new `PepperAlias`:
+1. ENCX checks if pepper exists in Secrets Manager
+2. If not found, generates a secure random 32-byte pepper
+3. Stores it in Secrets Manager at `encx/{PepperAlias}/pepper`
+4. Subsequent initializations load the existing pepper
+
+### Manual Pepper Inspection
+
+```bash
+# View pepper (requires IAM permissions)
+aws secretsmanager get-secret-value \
+  --secret-id encx/my-app-service/pepper \
+  --region us-east-1
+
+# List all encx peppers
+aws secretsmanager list-secrets \
+  --filters Key=name,Values=encx/ \
+  --region us-east-1
 ```
 
 ## Key Alias vs Key ID
@@ -250,10 +301,16 @@ func main() {
 **Recommended: Use Key Aliases**
 ```go
 // Good: Using alias
-encx.WithKEKAlias("alias/my-encryption-key")
+cfg := encx.Config{
+    KEKAlias: "alias/my-encryption-key",
+    // ...
+}
 
 // Works but not recommended: Using key ID directly
-encx.WithKEKAlias("1234abcd-12ab-34cd-56ef-1234567890ab")
+cfg := encx.Config{
+    KEKAlias: "1234abcd-12ab-34cd-56ef-1234567890ab",
+    // ...
+}
 ```
 
 **Why use aliases?**
@@ -269,19 +326,13 @@ For multi-region applications:
 ```go
 // US East
 kmsUSEast, _ := aws.NewKMSService(ctx, aws.Config{Region: "us-east-1"})
-cryptoUSEast, _ := encx.NewCrypto(ctx,
-    encx.WithKMSService(kmsUSEast),
-    encx.WithKEKAlias("alias/my-key"),
-    ...
-)
+secretsUSEast, _ := aws.NewSecretsManagerStore(ctx, aws.Config{Region: "us-east-1"})
+cryptoUSEast, _ := encx.NewCrypto(ctx, kmsUSEast, secretsUSEast, cfg)
 
 // EU West
 kmsEUWest, _ := aws.NewKMSService(ctx, aws.Config{Region: "eu-west-1"})
-cryptoEUWest, _ := encx.NewCrypto(ctx,
-    encx.WithKMSService(kmsEUWest),
-    encx.WithKEKAlias("alias/my-key"),
-    ...
-)
+secretsEUWest, _ := aws.NewSecretsManagerStore(ctx, aws.Config{Region: "eu-west-1"})
+cryptoEUWest, _ := encx.NewCrypto(ctx, kmsEUWest, secretsEUWest, cfg)
 ```
 
 **Option 2: Multi-region KMS keys** (Automatic replication)
@@ -295,67 +346,21 @@ aws kms replicate-key \
   --replica-region eu-west-1
 ```
 
-## Performance Optimization
-
-### DEK Caching
-
-For high-throughput applications, cache DEKs to reduce KMS API calls:
-
-```go
-type DEKCache struct {
-    mu sync.RWMutex
-    cache map[string][]byte
-    ttl time.Duration
-}
-
-func (c *DEKCache) GetOrGenerate(ctx context.Context, crypto *encx.Crypto, recordID string) ([]byte, error) {
-    c.mu.RLock()
-    if dek, ok := c.cache[recordID]; ok {
-        c.mu.RUnlock()
-        return dek, nil
-    }
-    c.mu.RUnlock()
-
-    // Generate new DEK
-    dek, err := crypto.GenerateDEK()
-    if err != nil {
-        return nil, err
-    }
-
-    c.mu.Lock()
-    c.cache[recordID] = dek
-    c.mu.Unlock()
-
-    return dek, nil
-}
-```
-
-### Connection Pooling
-
-The AWS SDK automatically handles connection pooling. For custom tuning:
-
-```go
-import "github.com/aws/aws-sdk-go-v2/aws/retry"
-
-awsCfg, _ := config.LoadDefaultConfig(ctx,
-    config.WithRetryer(func() aws.Retryer {
-        return retry.AddWithMaxAttempts(retry.NewStandard(), 3)
-    }),
-)
-```
-
 ## Error Handling
 
 ```go
-ciphertext, err := crypto.EncryptData(ctx, plaintext, dek)
+crypto, err := encx.NewCrypto(ctx, kms, secrets, cfg)
 if err != nil {
     switch {
     case errors.Is(err, encx.ErrKMSUnavailable):
         // KMS service unavailable - retry with backoff
         log.Println("KMS unavailable, retrying...")
-    case errors.Is(err, encx.ErrEncryptionFailed):
-        // Encryption failed - check key permissions
-        log.Println("Encryption failed, check KMS permissions")
+    case errors.Is(err, encx.ErrSecretStorageUnavailable):
+        // Secrets Manager unavailable
+        log.Println("Secrets Manager unavailable")
+    case errors.Is(err, encx.ErrInvalidConfiguration):
+        // Configuration validation failed
+        log.Printf("Invalid configuration: %v", err)
     default:
         // Other error
         log.Printf("Unexpected error: %v", err)
@@ -365,29 +370,37 @@ if err != nil {
 
 ## Cost Optimization
 
-AWS KMS pricing (as of 2024):
+### AWS KMS Pricing (as of 2024)
 - **Key storage**: ~$1/month per key
 - **API requests**: $0.03 per 10,000 requests
 
-**Cost reduction strategies:**
-1. Cache DEKs (reduces API calls)
-2. Use single key for multiple applications (if appropriate)
-3. Batch operations when possible
-4. Monitor usage with CloudWatch
+### AWS Secrets Manager Pricing
+- **Secret storage**: $0.40/month per secret
+- **API requests**: $0.05 per 10,000 requests
 
-Example: Encrypting 1M records/day
-- Without caching: 1M encryptions = ~$3/day = $90/month
-- With caching (1 DEK per 1000 records): 1K encryptions = ~$0.003/day = ~$0.09/month
+**Cost reduction strategies:**
+1. Cache DEKs (reduces KMS API calls)
+2. Use single key for multiple applications (if appropriate)
+3. Share peppers across environments using different PepperAlias values
+4. Monitor usage with CloudWatch
 
 ## Troubleshooting
 
-### Access Denied Errors
+### Access Denied - KMS
 
 ```
 Error: AccessDeniedException: User is not authorized to perform: kms:Encrypt
 ```
 
 **Solution**: Add KMS permissions to your IAM role/user (see IAM Permissions section)
+
+### Access Denied - Secrets Manager
+
+```
+Error: AccessDeniedException: User is not authorized to perform: secretsmanager:GetSecretValue
+```
+
+**Solution**: Add Secrets Manager permissions to your IAM role/user
 
 ### Key Not Found
 
@@ -400,44 +413,58 @@ Error: NotFoundException: Key 'alias/my-key' does not exist
 - Check you're in the correct region
 - Verify alias name is correct (includes "alias/" prefix)
 
+### Secret Not Found (First Run)
+
+This is normal! On first run, ENCX will automatically create the pepper secret. If you see errors:
+- Check Secrets Manager permissions (CreateSecret, PutSecretValue)
+- Verify the secret name doesn't already exist with different ownership
+
 ### Region Mismatch
 
 ```
 Error: The key ARN is from a different region
 ```
 
-**Solution**: Ensure KMS provider region matches your key region:
+**Solution**: Ensure KMS and Secrets Manager regions match:
 ```go
-kmsService, _ := aws.NewKMSService(ctx, aws.Config{
-    Region: "us-east-1", // Must match key region
-})
+kms, _ := aws.NewKMSService(ctx, aws.Config{Region: "us-east-1"})
+secrets, _ := aws.NewSecretsManagerStore(ctx, aws.Config{Region: "us-east-1"})
 ```
 
 ## Security Best Practices
 
 1. **Use IAM roles** instead of access keys when possible
-2. **Enable key rotation** in KMS console
-3. **Use separate keys** for dev/staging/prod
-4. **Monitor key usage** with CloudWatch
+2. **Enable key rotation** in KMS console (automatic annual rotation)
+3. **Use separate keys and peppers** for dev/staging/prod
+4. **Monitor key usage** with CloudWatch and AWS CloudTrail
 5. **Set key deletion window** (30 days recommended)
-6. **Store pepper in AWS Secrets Manager**, not in code
-7. **Use VPC endpoints** for KMS to keep traffic private
+6. **Use unique PepperAlias** for each service/environment
+7. **Use VPC endpoints** for KMS and Secrets Manager to keep traffic private
 8. **Enable CloudTrail** logging for audit compliance
+9. **Restrict Secrets Manager access** to specific secret paths (encx/*)
 
 ## Testing
 
-See `awskms_test.go` for unit tests and examples.
+For unit tests with mock services:
+```go
+func TestEncryption(t *testing.T) {
+    crypto, _ := encx.NewTestCrypto(t)
+    // Test your encryption logic
+}
+```
 
-For integration testing with real AWS KMS:
+For integration testing with real AWS services:
 ```bash
 export AWS_REGION=us-east-1
-export TEST_KMS_KEY_ID=alias/test-key
-go test -tags=integration ./providers/awskms
+export ENCX_KEK_ALIAS=alias/test-key
+export ENCX_PEPPER_ALIAS=test-service
+go test -tags=integration ./providers/aws
 ```
 
 ## References
 
 - [AWS KMS Documentation](https://docs.aws.amazon.com/kms/)
+- [AWS Secrets Manager Documentation](https://docs.aws.amazon.com/secretsmanager/)
 - [AWS SDK for Go v2](https://aws.github.io/aws-sdk-go-v2/)
 - [ENCX Documentation](../../README.md)
 - [Envelope Encryption Pattern](https://docs.aws.amazon.com/encryption-sdk/latest/developer-guide/how-it-works.html)
