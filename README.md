@@ -291,25 +291,102 @@ userEncx, _ := ProcessUserEncx(ctx, crypto, user)
 
 ## Configuration
 
+ENCX supports two configuration approaches:
+1. **Explicit Configuration** - Full control over all dependencies (recommended for libraries)
+2. **Environment-based Configuration** - 12-factor app pattern (recommended for applications)
+
 ### Production Setup
 
+#### Explicit Configuration (Recommended for Libraries)
+
 ```go
-// With AWS KMS
-pepper := []byte("your-32-byte-pepper-here!!!!")
-crypto, err := encx.NewCrypto(ctx,
-    encx.WithKMSService(awsKMS),
-    encx.WithKEKAlias("alias/myapp-kek"),
-    encx.WithPepper(pepper),
+import (
+    "github.com/hengadev/encx"
+    "github.com/hengadev/encx/providers/aws"
 )
 
-// With HashiCorp Vault
-pepper := []byte("your-32-byte-pepper-here!!!!")
-crypto, err := encx.NewCrypto(ctx,
-    encx.WithKMSService(vaultKMS),
-    encx.WithKEKAlias("transit/keys/myapp-kek"),
-    encx.WithPepper(pepper),
-)
+// Initialize KMS for cryptographic operations
+kms, err := aws.NewKMSService(ctx, aws.Config{
+    Region: "us-east-1",
+})
+
+// Initialize Secrets Manager for pepper storage
+secrets, err := aws.NewSecretsManagerStore(ctx, aws.Config{
+    Region: "us-east-1",
+})
+
+// Create explicit configuration
+cfg := encx.Config{
+    KEKAlias:    "my-app-kek",      // KMS key identifier
+    PepperAlias: "my-app-service",  // Service identifier for pepper
+}
+
+// Initialize crypto with explicit dependencies
+crypto, err := encx.NewCrypto(ctx, kms, secrets, cfg)
 ```
+
+#### Environment-based Configuration (Recommended for Applications)
+
+```go
+import (
+    "github.com/hengadev/encx"
+    "github.com/hengadev/encx/providers/aws"
+)
+
+// Set environment variables:
+// export ENCX_KEK_ALIAS="my-app-kek"
+// export ENCX_PEPPER_ALIAS="my-app-service"
+
+// Initialize providers
+kms, _ := aws.NewKMSService(ctx, aws.Config{Region: "us-east-1"})
+secrets, _ := aws.NewSecretsManagerStore(ctx, aws.Config{Region: "us-east-1"})
+
+// Load configuration from environment
+crypto, err := encx.NewCryptoFromEnv(ctx, kms, secrets)
+```
+
+#### With HashiCorp Vault
+
+```go
+import (
+    "github.com/hengadev/encx"
+    "github.com/hengadev/encx/providers/hashicorp"
+)
+
+// Initialize Transit Engine for cryptographic operations
+transit, err := hashicorp.NewTransitService()
+
+// Initialize KV Store for pepper storage
+kvStore, err := hashicorp.NewKVStore()
+
+// Explicit configuration
+cfg := encx.Config{
+    KEKAlias:    "my-app-kek",
+    PepperAlias: "my-app-service",
+}
+
+crypto, err := encx.NewCrypto(ctx, transit, kvStore, cfg)
+```
+
+### Environment Variables
+
+When using `NewCryptoFromEnv()`, these environment variables are required:
+
+- `ENCX_KEK_ALIAS` - Key encryption key identifier (required)
+- `ENCX_PEPPER_ALIAS` - Service identifier for pepper storage (required)
+- `ENCX_DB_PATH` - Database directory (optional, default: `.encx`)
+- `ENCX_DB_FILENAME` - Database filename (optional, default: `keys.db`)
+
+For AWS configuration:
+- `AWS_REGION` - AWS region
+- `AWS_ACCESS_KEY_ID` - AWS credentials
+- `AWS_SECRET_ACCESS_KEY` - AWS credentials
+
+For Vault configuration:
+- `VAULT_ADDR` - Vault server address (required)
+- `VAULT_TOKEN` - Vault token (or use AppRole)
+- `VAULT_NAMESPACE` - Vault namespace (HCP Vault)
+
 
 ### Testing Setup
 
@@ -398,54 +475,105 @@ DecryptUserEncx(ctx, crypto, newUserEncx) // Automatically uses key v2
 
 ## KMS Providers
 
+ENCX separates key management (cryptographic operations) from secret management (pepper storage). Each provider implements both interfaces.
+
 ### AWS KMS
 
-```go
-import "github.com/hengadev/encx/providers/aws"
+AWS provider offers two services:
+- **KMSService** - Handles encryption/decryption using AWS KMS
+- **SecretsManagerStore** - Stores pepper in AWS Secrets Manager
 
-kmsService, err := aws.NewKMSService(ctx, aws.Config{
+```go
+import (
+    "github.com/hengadev/encx"
+    "github.com/hengadev/encx/providers/aws"
+)
+
+// Initialize both services
+kms, err := aws.NewKMSService(ctx, aws.Config{
     Region: "us-east-1",
 })
 if err != nil {
     log.Fatal(err)
 }
 
-pepper := []byte("your-32-byte-pepper-here!!!!")
-crypto, err := encx.NewCrypto(ctx,
-    encx.WithKMSService(kmsService),
-    encx.WithKEKAlias("alias/my-encryption-key"),
-    encx.WithPepper(pepper),
-)
-```
-
-**[→ Full AWS KMS Documentation](./providers/awskms/README.md)**
-
-### HashiCorp Vault
-
-```go
-import "github.com/hengadev/encx/providers/hashicorp"
-
-vaultClient, err := vault.NewClient(&vault.Config{
-    Address: "https://vault.example.com",
+secrets, err := aws.NewSecretsManagerStore(ctx, aws.Config{
+    Region: "us-east-1",
 })
 if err != nil {
     log.Fatal(err)
 }
 
-kmsService, err := hashicorp.NewTransitServiceKMSService(vaultClient)
+// Create crypto instance
+cfg := encx.Config{
+    KEKAlias:    "alias/my-encryption-key",
+    PepperAlias: "my-app-service",
+}
+
+crypto, err := encx.NewCrypto(ctx, kms, secrets, cfg)
+if err != nil {
+    log.Fatal(err)
+}
+```
+
+**Key Benefits:**
+- Pepper automatically stored in AWS Secrets Manager
+- No filesystem dependencies
+- Follows AWS security best practices
+- Supports key rotation
+
+**Required IAM Permissions:**
+- KMS: `kms:Encrypt`, `kms:Decrypt`, `kms:DescribeKey`
+- Secrets Manager: `secretsmanager:GetSecretValue`, `secretsmanager:CreateSecret`, `secretsmanager:PutSecretValue`
+
+**[→ Full AWS Provider Documentation](./providers/aws/README.md)**
+
+### HashiCorp Vault
+
+HashiCorp provider offers two services:
+- **TransitService** - Handles encryption/decryption using Vault Transit Engine
+- **KVStore** - Stores pepper in Vault KV v2 storage
+
+```go
+import (
+    "github.com/hengadev/encx"
+    "github.com/hengadev/encx/providers/hashicorp"
+)
+
+// Initialize both services (uses same Vault connection)
+transit, err := hashicorp.NewTransitService()
 if err != nil {
     log.Fatal(err)
 }
 
-pepper := []byte("your-32-byte-pepper-here!!!!")
-crypto, err := encx.NewCrypto(ctx,
-    encx.WithKMSService(kmsService),
-    encx.WithKEKAlias("transit/keys/my-key"),
-    encx.WithPepper(pepper),
-)
+kvStore, err := hashicorp.NewKVStore()
+if err != nil {
+    log.Fatal(err)
+}
+
+// Create crypto instance
+cfg := encx.Config{
+    KEKAlias:    "my-encryption-key",
+    PepperAlias: "my-app-service",
+}
+
+crypto, err := encx.NewCrypto(ctx, transit, kvStore, cfg)
+if err != nil {
+    log.Fatal(err)
+}
 ```
 
-**[→ Full HashiCorp Vault Documentation](./providers/hashicorpvault/README.md)**
+**Key Benefits:**
+- Pepper automatically stored in Vault KV v2
+- Leverages Vault's secret versioning
+- Supports multi-region Vault deployments
+- AppRole authentication support
+
+**Required Vault Policies:**
+- Transit: `transit/encrypt/<key-name>`, `transit/decrypt/<key-name>`
+- KV: `secret/data/encx/<pepper-alias>/pepper` (read/write)
+
+**[→ Full HashiCorp Provider Documentation](./providers/hashicorp/README.md)**
 
 ## Examples
 
@@ -535,11 +663,14 @@ go func() {
 
 ## Security Considerations
 
-- **Pepper Management**: Store pepper securely, separate from database
-- **KMS Permissions**: Use least-privilege access for KMS operations  
+- **Pepper Management**: Peppers are automatically stored in KMS/Vault, never on filesystem
+- **Service Isolation**: Use unique `PepperAlias` for each service/environment
+- **KMS Permissions**: Use least-privilege IAM policies for KMS and Secrets Manager
+- **Vault Policies**: Restrict access to Transit Engine and KV paths
 - **Database Security**: Encrypt database at rest and in transit
 - **Memory Management**: Clear sensitive data from memory when possible
 - **Audit Logging**: Log all cryptographic operations for compliance
+- **Key Rotation**: Implement regular KEK rotation schedules (e.g., every 90 days)
 
 ## Testing
 
@@ -577,11 +708,13 @@ func TestUserEncryptDecryptCycle(t *testing.T) {
 
 ## Important: Version Control (.gitignore)
 
-When using the `encx` package, add the following to your `.gitignore`:
+The `.encx/` directory contains the local key metadata database (SQLite). This should be excluded from version control:
 
 ```gitignore
 .encx/
 ```
+
+**Note:** Peppers are stored in your configured SecretManagementService (AWS Secrets Manager, Vault KV, or in-memory for testing), not in the `.encx/` directory. The directory only contains key version metadata for encryption key rotation.
 
 ## Contributing
 
