@@ -3,7 +3,6 @@ package encx_test
 import (
 	"bytes"
 	"context"
-	"os"
 	"testing"
 
 	"github.com/hengadev/encx"
@@ -13,58 +12,86 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestNewCrypto tests the main constructor
+// TestNewCrypto tests the main constructor with explicit configuration
 func TestNewCrypto(t *testing.T) {
 	ctx := context.Background()
 
 	tests := []struct {
-		name      string
-		setupEnv  func()
-		kms       encx.KeyManagementService
-		wantErr   bool
-		errMsg    string
+		name    string
+		kms     encx.KeyManagementService
+		secrets encx.SecretManagementService
+		cfg     encx.Config
+		wantErr bool
+		errMsg  string
 	}{
 		{
-			name: "valid configuration",
-			setupEnv: func() {
-				os.Setenv("ENCX_KEK_ALIAS", "test-key")
-				os.Setenv("ENCX_ALLOW_IN_MEMORY_PEPPER", "true")
-			},
+			name:    "valid configuration",
 			kms:     encx.NewSimpleTestKMS(),
+			secrets: encx.NewInMemorySecretStore(),
+			cfg: encx.Config{
+				KEKAlias:    "test-key",
+				PepperAlias: "test-service",
+			},
 			wantErr: false,
 		},
 		{
-			name: "nil KMS service",
-			setupEnv: func() {
-				os.Setenv("ENCX_KEK_ALIAS", "test-key")
-				os.Setenv("ENCX_ALLOW_IN_MEMORY_PEPPER", "true")
-			},
+			name:    "nil KMS service",
 			kms:     nil,
+			secrets: encx.NewInMemorySecretStore(),
+			cfg: encx.Config{
+				KEKAlias:    "test-key",
+				PepperAlias: "test-service",
+			},
 			wantErr: true,
-			errMsg:  "KMS service",
+			errMsg:  "KeyManagementService is required",
 		},
 		{
-			name: "missing KEK alias",
-			setupEnv: func() {
-				os.Unsetenv("ENCX_KEK_ALIAS")
-				os.Setenv("ENCX_ALLOW_IN_MEMORY_PEPPER", "true")
-			},
+			name:    "nil SecretManagementService",
 			kms:     encx.NewSimpleTestKMS(),
+			secrets: nil,
+			cfg: encx.Config{
+				KEKAlias:    "test-key",
+				PepperAlias: "test-service",
+			},
 			wantErr: true,
-			errMsg:  "ENCX_KEK_ALIAS",
+			errMsg:  "SecretManagementService is required",
+		},
+		{
+			name:    "missing KEK alias",
+			kms:     encx.NewSimpleTestKMS(),
+			secrets: encx.NewInMemorySecretStore(),
+			cfg: encx.Config{
+				PepperAlias: "test-service",
+			},
+			wantErr: true,
+			errMsg:  "KEKAlias is required",
+		},
+		{
+			name:    "missing PepperAlias",
+			kms:     encx.NewSimpleTestKMS(),
+			secrets: encx.NewInMemorySecretStore(),
+			cfg: encx.Config{
+				KEKAlias: "test-key",
+			},
+			wantErr: true,
+			errMsg:  "PepperAlias is required",
+		},
+		{
+			name:    "KEK alias too long",
+			kms:     encx.NewSimpleTestKMS(),
+			secrets: encx.NewInMemorySecretStore(),
+			cfg: encx.Config{
+				KEKAlias:    string(make([]byte, 257)), // > MaxKEKAliasLength
+				PepperAlias: "test-service",
+			},
+			wantErr: true,
+			errMsg:  "256 characters or less",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Clean up environment
-			os.Unsetenv("ENCX_KEK_ALIAS")
-			os.Unsetenv("ENCX_PEPPER_SECRET_PATH")
-			os.Unsetenv("ENCX_ALLOW_IN_MEMORY_PEPPER")
-
-			tt.setupEnv()
-
-			crypto, err := encx.NewCrypto(ctx, tt.kms)
+			crypto, err := encx.NewCrypto(ctx, tt.kms, tt.secrets, tt.cfg)
 			if tt.wantErr {
 				assert.Error(t, err)
 				if tt.errMsg != "" {
@@ -528,11 +555,14 @@ func TestDecryptStream(t *testing.T) {
 func TestGetPepper(t *testing.T) {
 	ctx := context.Background()
 
-	// Set environment variables
-	os.Setenv("ENCX_KEK_ALIAS", "test-key")
-	os.Setenv("ENCX_ALLOW_IN_MEMORY_PEPPER", "true")
+	kms := encx.NewSimpleTestKMS()
+	secrets := encx.NewInMemorySecretStore()
+	cfg := encx.Config{
+		KEKAlias:    "test-key",
+		PepperAlias: "test-service",
+	}
 
-	crypto, err := encx.NewCrypto(ctx, encx.NewSimpleTestKMS())
+	crypto, err := encx.NewCrypto(ctx, kms, secrets, cfg)
 	require.NoError(t, err)
 
 	retrievedPepper := crypto.GetPepper()
@@ -555,11 +585,14 @@ func TestGetArgon2Params(t *testing.T) {
 	params, err := encx.NewArgon2Params(64*1024, 2, 4, 16, 32)
 	require.NoError(t, err)
 
-	// Set environment variables
-	os.Setenv("ENCX_KEK_ALIAS", "test-key")
-	os.Setenv("ENCX_ALLOW_IN_MEMORY_PEPPER", "true")
+	kms := encx.NewSimpleTestKMS()
+	secrets := encx.NewInMemorySecretStore()
+	cfg := encx.Config{
+		KEKAlias:    "test-key",
+		PepperAlias: "test-service",
+	}
 
-	crypto, err := encx.NewCrypto(ctx, encx.NewSimpleTestKMS(),
+	crypto, err := encx.NewCrypto(ctx, kms, secrets, cfg,
 		encx.WithArgon2Params(params),
 	)
 	require.NoError(t, err)
@@ -578,15 +611,272 @@ func TestGetAlias(t *testing.T) {
 	ctx := context.Background()
 	alias := "test-kek-alias"
 
-	// Set environment variables
-	os.Setenv("ENCX_KEK_ALIAS", alias)
-	os.Setenv("ENCX_ALLOW_IN_MEMORY_PEPPER", "true")
+	kms := encx.NewSimpleTestKMS()
+	secrets := encx.NewInMemorySecretStore()
+	cfg := encx.Config{
+		KEKAlias:    alias,
+		PepperAlias: "test-service",
+	}
 
-	crypto, err := encx.NewCrypto(ctx, encx.NewSimpleTestKMS())
+	crypto, err := encx.NewCrypto(ctx, kms, secrets, cfg)
 	require.NoError(t, err)
 
 	retrievedAlias := crypto.GetAlias()
 	assert.Equal(t, alias, retrievedAlias)
+}
+
+// TestNewCryptoFromEnv tests NewCryptoFromEnv with environment variables
+func TestNewCryptoFromEnv(t *testing.T) {
+	ctx := context.Background()
+
+	tests := []struct {
+		name    string
+		setupEnv func(t *testing.T)
+		kms     encx.KeyManagementService
+		secrets encx.SecretManagementService
+		wantErr bool
+		errMsg  string
+	}{
+		{
+			name: "valid environment configuration",
+			setupEnv: func(t *testing.T) {
+				t.Setenv("ENCX_KEK_ALIAS", "test-key")
+				t.Setenv("ENCX_PEPPER_ALIAS", "test-service")
+			},
+			kms:     encx.NewSimpleTestKMS(),
+			secrets: encx.NewInMemorySecretStore(),
+			wantErr: false,
+		},
+		{
+			name: "missing KEK alias in environment",
+			setupEnv: func(t *testing.T) {
+				t.Setenv("ENCX_KEK_ALIAS", "")
+				t.Setenv("ENCX_PEPPER_ALIAS", "test-service")
+			},
+			kms:     encx.NewSimpleTestKMS(),
+			secrets: encx.NewInMemorySecretStore(),
+			wantErr: true,
+			errMsg:  "ENCX_KEK_ALIAS",
+		},
+		{
+			name: "missing pepper alias in environment",
+			setupEnv: func(t *testing.T) {
+				t.Setenv("ENCX_KEK_ALIAS", "test-key")
+				t.Setenv("ENCX_PEPPER_ALIAS", "")
+			},
+			kms:     encx.NewSimpleTestKMS(),
+			secrets: encx.NewInMemorySecretStore(),
+			wantErr: true,
+			errMsg:  "ENCX_PEPPER_ALIAS",
+		},
+		{
+			name: "nil KMS service",
+			setupEnv: func(t *testing.T) {
+				t.Setenv("ENCX_KEK_ALIAS", "test-key")
+				t.Setenv("ENCX_PEPPER_ALIAS", "test-service")
+			},
+			kms:     nil,
+			secrets: encx.NewInMemorySecretStore(),
+			wantErr: true,
+			errMsg:  "KeyManagementService is required",
+		},
+		{
+			name: "nil SecretManagementService",
+			setupEnv: func(t *testing.T) {
+				t.Setenv("ENCX_KEK_ALIAS", "test-key")
+				t.Setenv("ENCX_PEPPER_ALIAS", "test-service")
+			},
+			kms:     encx.NewSimpleTestKMS(),
+			secrets: nil,
+			wantErr: true,
+			errMsg:  "SecretManagementService is required",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.setupEnv(t)
+
+			crypto, err := encx.NewCryptoFromEnv(ctx, tt.kms, tt.secrets)
+			if tt.wantErr {
+				assert.Error(t, err)
+				if tt.errMsg != "" {
+					assert.Contains(t, err.Error(), tt.errMsg)
+				}
+				if crypto != nil {
+					assert.Nil(t, crypto)
+				}
+			} else {
+				assert.NoError(t, err)
+				assert.NotNil(t, crypto)
+			}
+		})
+	}
+}
+
+// TestLoadConfigFromEnvironment tests loading configuration from environment variables
+func TestLoadConfigFromEnvironment(t *testing.T) {
+	tests := []struct {
+		name     string
+		setupEnv func(t *testing.T)
+		wantErr  bool
+		errMsg   string
+		validate func(t *testing.T, cfg encx.Config)
+	}{
+		{
+			name: "valid configuration with all variables",
+			setupEnv: func(t *testing.T) {
+				t.Setenv("ENCX_KEK_ALIAS", "test-key")
+				t.Setenv("ENCX_PEPPER_ALIAS", "test-service")
+				t.Setenv("ENCX_DB_PATH", "/custom/path")
+				t.Setenv("ENCX_DB_FILENAME", "custom.db")
+			},
+			wantErr: false,
+			validate: func(t *testing.T, cfg encx.Config) {
+				assert.Equal(t, "test-key", cfg.KEKAlias)
+				assert.Equal(t, "test-service", cfg.PepperAlias)
+				assert.Equal(t, "/custom/path", cfg.DBPath)
+				assert.Equal(t, "custom.db", cfg.DBFilename)
+			},
+		},
+		{
+			name: "valid configuration with defaults",
+			setupEnv: func(t *testing.T) {
+				t.Setenv("ENCX_KEK_ALIAS", "test-key")
+				t.Setenv("ENCX_PEPPER_ALIAS", "test-service")
+			},
+			wantErr: false,
+			validate: func(t *testing.T, cfg encx.Config) {
+				assert.Equal(t, "test-key", cfg.KEKAlias)
+				assert.Equal(t, "test-service", cfg.PepperAlias)
+				assert.Equal(t, ".encx", cfg.DBPath)
+				assert.Equal(t, "keys.db", cfg.DBFilename)
+			},
+		},
+		{
+			name: "missing KEK alias",
+			setupEnv: func(t *testing.T) {
+				t.Setenv("ENCX_KEK_ALIAS", "")
+				t.Setenv("ENCX_PEPPER_ALIAS", "test-service")
+			},
+			wantErr: true,
+			errMsg:  "ENCX_KEK_ALIAS",
+		},
+		{
+			name: "missing pepper alias",
+			setupEnv: func(t *testing.T) {
+				t.Setenv("ENCX_KEK_ALIAS", "test-key")
+				t.Setenv("ENCX_PEPPER_ALIAS", "")
+			},
+			wantErr: true,
+			errMsg:  "ENCX_PEPPER_ALIAS",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.setupEnv(t)
+
+			cfg, err := encx.LoadConfigFromEnvironment()
+			if tt.wantErr {
+				assert.Error(t, err)
+				if tt.errMsg != "" {
+					assert.Contains(t, err.Error(), tt.errMsg)
+				}
+			} else {
+				assert.NoError(t, err)
+				if tt.validate != nil {
+					tt.validate(t, cfg)
+				}
+			}
+		})
+	}
+}
+
+// TestConfigValidate tests Config.Validate method
+func TestConfigValidate(t *testing.T) {
+	tests := []struct {
+		name    string
+		cfg     encx.Config
+		wantErr bool
+		errMsg  string
+	}{
+		{
+			name: "valid configuration",
+			cfg: encx.Config{
+				KEKAlias:    "test-key",
+				PepperAlias: "test-service",
+				DBPath:      ".encx",
+				DBFilename:  "keys.db",
+			},
+			wantErr: false,
+		},
+		{
+			name: "missing KEK alias",
+			cfg: encx.Config{
+				PepperAlias: "test-service",
+				DBPath:      ".encx",
+				DBFilename:  "keys.db",
+			},
+			wantErr: true,
+			errMsg:  "KEKAlias",
+		},
+		{
+			name: "missing pepper alias",
+			cfg: encx.Config{
+				KEKAlias:   "test-key",
+				DBPath:     ".encx",
+				DBFilename: "keys.db",
+			},
+			wantErr: true,
+			errMsg:  "PepperAlias",
+		},
+		{
+			name: "KEK alias too long",
+			cfg: encx.Config{
+				KEKAlias:    string(make([]byte, 300)),
+				PepperAlias: "test-service",
+				DBPath:      ".encx",
+				DBFilename:  "keys.db",
+			},
+			wantErr: true,
+			errMsg:  "256",
+		},
+		{
+			name: "empty DB path gets default",
+			cfg: encx.Config{
+				KEKAlias:    "test-key",
+				PepperAlias: "test-service",
+				DBPath:      "",
+				DBFilename:  "keys.db",
+			},
+			wantErr: false,
+		},
+		{
+			name: "empty DB filename gets default",
+			cfg: encx.Config{
+				KEKAlias:    "test-key",
+				PepperAlias: "test-service",
+				DBPath:      ".encx",
+				DBFilename:  "",
+			},
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.cfg.Validate()
+			if tt.wantErr {
+				assert.Error(t, err)
+				if tt.errMsg != "" {
+					assert.Contains(t, err.Error(), tt.errMsg)
+				}
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
 }
 
 // TestNewArgon2Params tests Argon2Params constructor
@@ -594,6 +884,156 @@ func TestNewArgon2Params(t *testing.T) {
 	params, err := encx.NewArgon2Params(128*1024, 3, 8, 16, 32)
 	assert.NoError(t, err)
 	assert.NotNil(t, params)
+}
+
+// TestInMemorySecretStore tests the in-memory secret store implementation
+func TestInMemorySecretStore(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("store and retrieve pepper", func(t *testing.T) {
+		store := encx.NewInMemorySecretStore()
+		alias := "test-service"
+		pepper := make([]byte, 32)
+		for i := range pepper {
+			pepper[i] = byte(i)
+		}
+
+		// Store pepper
+		err := store.StorePepper(ctx, alias, pepper)
+		assert.NoError(t, err)
+
+		// Retrieve pepper
+		retrieved, err := store.GetPepper(ctx, alias)
+		assert.NoError(t, err)
+		assert.Equal(t, pepper, retrieved)
+	})
+
+	t.Run("pepper exists check", func(t *testing.T) {
+		store := encx.NewInMemorySecretStore()
+		alias := "test-service"
+
+		// Check non-existent pepper
+		exists, err := store.PepperExists(ctx, alias)
+		assert.NoError(t, err)
+		assert.False(t, exists)
+
+		// Store pepper
+		pepper := make([]byte, 32)
+		err = store.StorePepper(ctx, alias, pepper)
+		assert.NoError(t, err)
+
+		// Check existing pepper
+		exists, err = store.PepperExists(ctx, alias)
+		assert.NoError(t, err)
+		assert.True(t, exists)
+	})
+
+	t.Run("get non-existent pepper returns error", func(t *testing.T) {
+		store := encx.NewInMemorySecretStore()
+
+		_, err := store.GetPepper(ctx, "non-existent")
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "pepper not found")
+	})
+
+	t.Run("store invalid length pepper returns error", func(t *testing.T) {
+		store := encx.NewInMemorySecretStore()
+
+		// Too short
+		err := store.StorePepper(ctx, "test", make([]byte, 16))
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "exactly 32 bytes")
+
+		// Too long
+		err = store.StorePepper(ctx, "test", make([]byte, 64))
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "exactly 32 bytes")
+	})
+
+	t.Run("storage path format", func(t *testing.T) {
+		store := encx.NewInMemorySecretStore()
+		alias := "my-service"
+
+		path := store.GetStoragePath(alias)
+		assert.Contains(t, path, "memory://")
+		assert.Contains(t, path, alias)
+		assert.Contains(t, path, "pepper")
+	})
+
+	t.Run("peppers are isolated by alias", func(t *testing.T) {
+		store := encx.NewInMemorySecretStore()
+
+		pepper1 := make([]byte, 32)
+		for i := range pepper1 {
+			pepper1[i] = 1
+		}
+		pepper2 := make([]byte, 32)
+		for i := range pepper2 {
+			pepper2[i] = 2
+		}
+
+		// Store different peppers with different aliases
+		err := store.StorePepper(ctx, "service1", pepper1)
+		assert.NoError(t, err)
+		err = store.StorePepper(ctx, "service2", pepper2)
+		assert.NoError(t, err)
+
+		// Retrieve and verify they're different
+		retrieved1, err := store.GetPepper(ctx, "service1")
+		assert.NoError(t, err)
+		retrieved2, err := store.GetPepper(ctx, "service2")
+		assert.NoError(t, err)
+
+		assert.Equal(t, pepper1, retrieved1)
+		assert.Equal(t, pepper2, retrieved2)
+		assert.NotEqual(t, retrieved1, retrieved2)
+	})
+
+	t.Run("concurrent access is thread-safe", func(t *testing.T) {
+		store := encx.NewInMemorySecretStore()
+		const numGoroutines = 10
+
+		errChan := make(chan error, numGoroutines*3)
+		doneChan := make(chan bool, numGoroutines)
+
+		for i := 0; i < numGoroutines; i++ {
+			go func(id int) {
+				alias := "service"
+				pepper := make([]byte, 32)
+				for j := range pepper {
+					pepper[j] = byte(id)
+				}
+
+				// Store
+				if err := store.StorePepper(ctx, alias, pepper); err != nil {
+					errChan <- err
+				}
+
+				// Check exists
+				if _, err := store.PepperExists(ctx, alias); err != nil {
+					errChan <- err
+				}
+
+				// Retrieve
+				if _, err := store.GetPepper(ctx, alias); err != nil {
+					errChan <- err
+				}
+
+				doneChan <- true
+			}(i)
+		}
+
+		// Wait for all goroutines
+		for i := 0; i < numGoroutines; i++ {
+			<-doneChan
+		}
+		close(errChan)
+
+		// Check for errors
+		for err := range errChan {
+			t.Errorf("Concurrent operation failed: %v", err)
+		}
+	})
 }
 
 // TestUninitializedPepperError tests pepper error handling
