@@ -17,12 +17,13 @@ func main() {
 
 	ctx := context.Background()
 	kms := encx.NewSimpleTestKMS()
+	secretStore := encx.NewInMemorySecretStore()
 
 	// Example 1: Missing required environment variables
 	fmt.Println("1. Testing missing ENCX_KEK_ALIAS environment variable...")
 	os.Unsetenv("ENCX_KEK_ALIAS")
-	os.Unsetenv("ENCX_PEPPER_SECRET_PATH")
-	_, err := encx.NewCrypto(ctx, kms)
+	os.Unsetenv("ENCX_PEPPER_ALIAS")
+	_, err := encx.NewCryptoFromEnv(ctx, kms, secretStore)
 	if err != nil {
 		fmt.Printf("❌ Correctly caught missing KEK alias: %v\n", err)
 	}
@@ -31,8 +32,8 @@ func main() {
 	// Example 2: Invalid KEK alias (contains special characters)
 	fmt.Println("2. Testing invalid KEK alias...")
 	os.Setenv("ENCX_KEK_ALIAS", "invalid@alias") // Contains invalid character
-	os.Setenv("ENCX_ALLOW_IN_MEMORY_PEPPER", "true") // Empty for in-memory
-	_, err = encx.NewCrypto(ctx, kms)
+	os.Setenv("ENCX_PEPPER_ALIAS", "test-service")
+	_, err = encx.NewCryptoFromEnv(ctx, kms, secretStore)
 	if err != nil {
 		fmt.Printf("❌ Correctly caught invalid alias: %v\n", err)
 	}
@@ -41,7 +42,8 @@ func main() {
 	// Example 3: Valid KEK alias
 	fmt.Println("3. Testing valid KEK alias...")
 	os.Setenv("ENCX_KEK_ALIAS", "my-app-kek")
-	crypto, err := encx.NewCrypto(ctx, kms)
+	os.Setenv("ENCX_PEPPER_ALIAS", "my-app-service")
+	crypto, err := encx.NewCryptoFromEnv(ctx, kms, secretStore)
 	if err != nil {
 		log.Fatalf("❌ Unexpected error with valid KEK alias: %v", err)
 	}
@@ -52,7 +54,7 @@ func main() {
 
 	// Example 4: Nil KMS service (should fail)
 	fmt.Println("4. Testing nil KMS service...")
-	_, err = encx.NewCrypto(ctx, nil)
+	_, err = encx.NewCryptoFromEnv(ctx, nil, secretStore)
 	if err != nil {
 		fmt.Printf("❌ Correctly caught nil KMS service: %v\n", err)
 	}
@@ -65,7 +67,7 @@ func main() {
 		Iterations:  1,  // Too low
 		Parallelism: 0,  // Too low
 	}
-	_, err = encx.NewCrypto(ctx, kms, encx.WithArgon2Params(invalidParams))
+	_, err = encx.NewCryptoFromEnv(ctx, kms, secretStore, encx.WithArgon2Params(invalidParams))
 	if err != nil {
 		fmt.Printf("❌ Correctly caught invalid Argon2 parameters: %v\n", err)
 	}
@@ -80,7 +82,7 @@ func main() {
 		SaltLength:  16,
 		KeyLength:   32,
 	}
-	crypto2, err := encx.NewCrypto(ctx, kms, encx.WithArgon2Params(validParams))
+	crypto2, err := encx.NewCryptoFromEnv(ctx, kms, secretStore, encx.WithArgon2Params(validParams))
 	if err != nil {
 		log.Fatalf("❌ Unexpected error with valid configuration: %v", err)
 	}
@@ -91,26 +93,22 @@ func main() {
 	fmt.Printf("   - Argon2 iterations: %d\n", crypto2.GetArgon2Params().Iterations)
 	fmt.Println()
 
-	// Example 7: Test pepper persistence
-	fmt.Println("7. Testing pepper persistence...")
-	// Create a temporary directory for pepper storage
-	tempDir := "/tmp/encx-test"
-	os.MkdirAll(tempDir, 0700)
-	defer os.RemoveAll(tempDir)
+	// Example 7: Test pepper consistency with in-memory store
+	fmt.Println("7. Testing pepper consistency with in-memory store...")
 
-	pepperPath := tempDir + "/pepper"
-	os.Setenv("ENCX_PEPPER_SECRET_PATH", pepperPath)
+	// Create a new secret store to test pepper consistency
+	testSecretStore := encx.NewInMemorySecretStore()
 
 	// First instance - should create pepper
-	crypto3, err := encx.NewCrypto(ctx, kms)
+	crypto3, err := encx.NewCryptoFromEnv(ctx, kms, testSecretStore)
 	if err != nil {
 		log.Fatalf("❌ Failed to create first crypto instance: %v", err)
 	}
 	firstPepper := crypto3.GetPepper()
 	fmt.Printf("✅ First instance created with pepper: %x\n", firstPepper[:8]) // Show first 8 bytes
 
-	// Second instance - should load same pepper
-	crypto4, err := encx.NewCrypto(ctx, kms)
+	// Second instance - should load same pepper from the same secret store
+	crypto4, err := encx.NewCryptoFromEnv(ctx, kms, testSecretStore)
 	if err != nil {
 		log.Fatalf("❌ Failed to create second crypto instance: %v", err)
 	}
@@ -128,7 +126,8 @@ func main() {
 	// Example 8: Test different KEK aliases create different instances
 	fmt.Println("8. Testing different KEK aliases...")
 	os.Setenv("ENCX_KEK_ALIAS", "different-service")
-	crypto5, err := encx.NewCrypto(ctx, kms)
+	os.Setenv("ENCX_PEPPER_ALIAS", "different-app-service")
+	crypto5, err := encx.NewCryptoFromEnv(ctx, kms, secretStore)
 	if err != nil {
 		log.Fatalf("❌ Failed to create crypto with different alias: %v", err)
 	}
@@ -142,7 +141,7 @@ func main() {
 
 	// Reset to original values
 	os.Setenv("ENCX_KEK_ALIAS", "my-app-kek")
-	os.Setenv("ENCX_ALLOW_IN_MEMORY_PEPPER", "true")
+	os.Setenv("ENCX_PEPPER_ALIAS", "my-app-service")
 
 	fmt.Println("=== All validation checks completed! ===")
 	fmt.Println()
