@@ -1,7 +1,7 @@
 {
   "projectTitle": "encx",
   "description": "Go library for field-level encryption with envelope encryption, secure hashing, and automatic key management. Supports AWS KMS, HashiCorp Vault, and custom KMS providers.",
-  "folders": ["docs", "providers/aws", "providers/hashicorp"],
+  "folders": ["docs", "providers/keys", "providers/secrets"],
   "excludeFolders": ["examples", ".encx", "internal", "cmd", "test"],
   "excludeFiles": [
     "CODEBASE_IMPROVEMENTS.md",

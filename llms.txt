@@ -13,8 +13,13 @@ encx provides field-level encryption using envelope encryption (DEK/KEK), Argon2
 
 ## Provider Guides
 
-- [AWS Provider](providers/aws/README.md): AWS KMS + Secrets Manager integration
-- [HashiCorp Provider](providers/hashicorp/README.md): Vault Transit + KV integration
+### Key Management (Cryptographic Operations)
+- [AWS KMS](providers/keys/aws/README.md): AWS Key Management Service integration
+- [Vault Transit](providers/keys/hashicorp/README.md): HashiCorp Vault Transit Engine integration
+
+### Secret Management (Pepper Storage)
+- [AWS Secrets Manager](providers/secrets/aws/README.md): AWS Secrets Manager integration
+- [Vault KV](providers/secrets/hashicorp/README.md): HashiCorp Vault KV v2 integration
 
 ## Migration & Security
 
@@ -42,8 +47,13 @@ encx separates concerns into two distinct service interfaces:
 
 ```go
 // Explicit Configuration (Recommended for Libraries)
-kms, _ := aws.NewKMSService(ctx, aws.Config{Region: "us-east-1"})
-secrets, _ := aws.NewSecretsManagerStore(ctx, aws.Config{Region: "us-east-1"})
+import (
+    awskms "github.com/hengadev/encx/providers/keys/aws"
+    awssecrets "github.com/hengadev/encx/providers/secrets/aws"
+)
+
+kms, _ := awskms.NewKMSService(ctx, awskms.Config{Region: "us-east-1"})
+secrets, _ := awssecrets.NewSecretsManagerStore(ctx, awssecrets.Config{Region: "us-east-1"})
 
 cfg := encx.Config{
     KEKAlias:    "my-app-kek",
