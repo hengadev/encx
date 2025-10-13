@@ -110,10 +110,21 @@ func NewTestCrypto(t interface{}) (*encx.Crypto, error) {
 
 	// Set required environment variables for testing
 	os.Setenv("ENCX_KEK_ALIAS", "test-kek-alias")
-	os.Setenv("ENCX_ALLOW_IN_MEMORY_PEPPER", "true") // Empty for auto-generation
+	os.Setenv("ENCX_PEPPER_ALIAS", "test-pepper")
+	os.Setenv("ENCX_ALLOW_IN_MEMORY_PEPPER", "true")
+
+	// Create test KMS and in-memory secret store
+	kms := NewSimpleTestKMS()
+	secrets := encx.NewInMemorySecretStore()
+
+	// Create test configuration
+	cfg := encx.Config{
+		KEKAlias:    "test-kek-alias",
+		PepperAlias: "test-pepper",
+	}
 
 	// Create crypto instance with test configuration
-	crypto, err := encx.NewCrypto(ctx, NewSimpleTestKMS())
+	crypto, err := encx.NewCrypto(ctx, kms, secrets, cfg)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create test crypto: %w", err)
 	}

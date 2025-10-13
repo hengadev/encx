@@ -14,7 +14,7 @@ import (
 	"github.com/stretchr/testify/suite"
 
 	"github.com/hengadev/encx"
-	"github.com/hengadev/encx/providers/hashicorp"
+	vaulttransit "github.com/hengadev/encx/providers/keys/hashicorp"
 )
 
 // VaultIntegrationTestSuite contains integration tests for HashiCorp Vault KMS provider
@@ -37,7 +37,7 @@ func (suite *VaultIntegrationTestSuite) SetupSuite() {
 	}
 
 	// Create Vault service
-	vault, err := hashicorp.NewTransitService()
+	vault, err := vaulttransit.NewTransitService()
 	require.NoError(suite.T(), err, "Failed to create Vault service")
 	suite.vault = vault
 
@@ -257,7 +257,7 @@ func TestVaultEnvironmentSetup(t *testing.T) {
 		t.Skip("Skipping Vault environment test: VAULT_ADDR not set")
 	}
 
-	vault, err := hashicorp.NewTransitService()
+	vault, err := vaulttransit.NewTransitService()
 	require.NoError(t, err, "Should be able to create Vault service")
 	require.NotNil(t, vault, "Vault service should not be nil")
 
