@@ -302,16 +302,17 @@ ENCX supports two configuration approaches:
 ```go
 import (
     "github.com/hengadev/encx"
-    "github.com/hengadev/encx/providers/aws"
+    awskms "github.com/hengadev/encx/providers/keys/aws"
+    awssecrets "github.com/hengadev/encx/providers/secrets/aws"
 )
 
 // Initialize KMS for cryptographic operations
-kms, err := aws.NewKMSService(ctx, aws.Config{
+kms, err := awskms.NewKMSService(ctx, awskms.Config{
     Region: "us-east-1",
 })
 
 // Initialize Secrets Manager for pepper storage
-secrets, err := aws.NewSecretsManagerStore(ctx, aws.Config{
+secrets, err := awssecrets.NewSecretsManagerStore(ctx, awssecrets.Config{
     Region: "us-east-1",
 })
 
@@ -330,7 +331,8 @@ crypto, err := encx.NewCrypto(ctx, kms, secrets, cfg)
 ```go
 import (
     "github.com/hengadev/encx"
-    "github.com/hengadev/encx/providers/aws"
+    awskms "github.com/hengadev/encx/providers/keys/aws"
+    awssecrets "github.com/hengadev/encx/providers/secrets/aws"
 )
 
 // Set environment variables:
@@ -338,8 +340,8 @@ import (
 // export ENCX_PEPPER_ALIAS="my-app-service"
 
 // Initialize providers
-kms, _ := aws.NewKMSService(ctx, aws.Config{Region: "us-east-1"})
-secrets, _ := aws.NewSecretsManagerStore(ctx, aws.Config{Region: "us-east-1"})
+kms, _ := awskms.NewKMSService(ctx, awskms.Config{Region: "us-east-1"})
+secrets, _ := awssecrets.NewSecretsManagerStore(ctx, awssecrets.Config{Region: "us-east-1"})
 
 // Load configuration from environment
 crypto, err := encx.NewCryptoFromEnv(ctx, kms, secrets)
@@ -350,14 +352,15 @@ crypto, err := encx.NewCryptoFromEnv(ctx, kms, secrets)
 ```go
 import (
     "github.com/hengadev/encx"
-    "github.com/hengadev/encx/providers/hashicorp"
+    vaulttransit "github.com/hengadev/encx/providers/keys/hashicorp"
+    vaultkv "github.com/hengadev/encx/providers/secrets/hashicorp"
 )
 
 // Initialize Transit Engine for cryptographic operations
-transit, err := hashicorp.NewTransitService()
+transit, err := vaulttransit.NewTransitService()
 
 // Initialize KV Store for pepper storage
-kvStore, err := hashicorp.NewKVStore()
+kvStore, err := vaultkv.NewKVStore()
 
 // Explicit configuration
 cfg := encx.Config{
@@ -486,18 +489,19 @@ AWS provider offers two services:
 ```go
 import (
     "github.com/hengadev/encx"
-    "github.com/hengadev/encx/providers/aws"
+    awskms "github.com/hengadev/encx/providers/keys/aws"
+    awssecrets "github.com/hengadev/encx/providers/secrets/aws"
 )
 
 // Initialize both services
-kms, err := aws.NewKMSService(ctx, aws.Config{
+kms, err := awskms.NewKMSService(ctx, awskms.Config{
     Region: "us-east-1",
 })
 if err != nil {
     log.Fatal(err)
 }
 
-secrets, err := aws.NewSecretsManagerStore(ctx, aws.Config{
+secrets, err := awssecrets.NewSecretsManagerStore(ctx, awssecrets.Config{
     Region: "us-east-1",
 })
 if err != nil {
@@ -526,7 +530,9 @@ if err != nil {
 - KMS: `kms:Encrypt`, `kms:Decrypt`, `kms:DescribeKey`
 - Secrets Manager: `secretsmanager:GetSecretValue`, `secretsmanager:CreateSecret`, `secretsmanager:PutSecretValue`
 
-**[→ Full AWS Provider Documentation](./providers/aws/README.md)**
+**[→ Full AWS KMS Documentation](./providers/keys/aws/README.md)**
+
+**[→ Full AWS Secrets Manager Documentation](./providers/secrets/aws/README.md)**
 
 ### HashiCorp Vault
 
@@ -537,16 +543,17 @@ HashiCorp provider offers two services:
 ```go
 import (
     "github.com/hengadev/encx"
-    "github.com/hengadev/encx/providers/hashicorp"
+    vaulttransit "github.com/hengadev/encx/providers/keys/hashicorp"
+    vaultkv "github.com/hengadev/encx/providers/secrets/hashicorp"
 )
 
 // Initialize both services (uses same Vault connection)
-transit, err := hashicorp.NewTransitService()
+transit, err := vaulttransit.NewTransitService()
 if err != nil {
     log.Fatal(err)
 }
 
-kvStore, err := hashicorp.NewKVStore()
+kvStore, err := vaultkv.NewKVStore()
 if err != nil {
     log.Fatal(err)
 }
@@ -573,7 +580,9 @@ if err != nil {
 - Transit: `transit/encrypt/<key-name>`, `transit/decrypt/<key-name>`
 - KV: `secret/data/encx/<pepper-alias>/pepper` (read/write)
 
-**[→ Full HashiCorp Provider Documentation](./providers/hashicorp/README.md)**
+**[→ Full Vault Transit Documentation](./providers/keys/hashicorp/README.md)**
+
+**[→ Full Vault KV Documentation](./providers/secrets/hashicorp/README.md)**
 
 ## Examples
 
@@ -584,7 +593,7 @@ Example showing how to encrypt files on-the-fly and stream them directly to AWS 
 ```go
 import (
     "github.com/hengadev/encx"
-    "github.com/hengadev/encx/providers/aws"
+    awskms "github.com/hengadev/encx/providers/keys/aws"
     "github.com/aws/aws-sdk-go-v2/service/s3"
 )
 
