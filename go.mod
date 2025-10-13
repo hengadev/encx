@@ -8,6 +8,7 @@ require (
 	github.com/aws/aws-sdk-go-v2 v1.39.2
 	github.com/aws/aws-sdk-go-v2/config v1.31.2
 	github.com/aws/aws-sdk-go-v2/service/kms v1.45.6
+	github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.39.6
 	github.com/hashicorp/vault/api v1.16.0
 	github.com/hengadev/errsx v1.0.1
 	github.com/mattn/go-sqlite3 v1.14.28
