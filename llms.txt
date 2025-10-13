@@ -1,0 +1,79 @@
+# encx
+
+> Go library for field-level encryption with envelope encryption, secure hashing, and automatic key management
+
+encx provides field-level encryption using envelope encryption (DEK/KEK), Argon2id password hashing with pepper, and automatic key management through AWS KMS or HashiCorp Vault.
+
+## Core Documentation
+
+- [Quick Start](README.md): Installation and basic usage
+- [API Reference](docs/API.md): Complete API documentation for v0.6.0+
+- [Architecture](docs/ARCHITECTURE.md): Design patterns and separation of concerns
+- [Examples](docs/EXAMPLES.md): Real-world code examples and patterns
+
+## Provider Guides
+
+- [AWS Provider](providers/aws/README.md): AWS KMS + Secrets Manager integration
+- [HashiCorp Provider](providers/hashicorp/README.md): Vault Transit + KV integration
+
+## Migration & Security
+
+- [Migration Guide v0.6.0](docs/MIGRATION_GUIDE_V0.6.0.md): Upgrade from v0.5.x to v0.6.0+
+- [Security Guide](docs/SECURITY.md): Cryptographic implementation and best practices
+- [Testing Guide](TESTING.md): Testing patterns and utilities
+
+## Additional Resources
+
+- [Troubleshooting](docs/TROUBLESHOOTING.md): Common issues and solutions
+- [Performance Guide](docs/PERFORMANCE.md): Optimization strategies
+- [Code Generation](docs/CODE_GENERATION_GUIDE.md): Performance optimization with codegen
+- [API Reference (Codegen)](docs/API_REFERENCE.md): Code generation API documentation
+
+## Key Concepts
+
+### Architecture (v0.6.0+)
+
+encx separates concerns into two distinct service interfaces:
+
+- **KeyManagementService**: Handles cryptographic operations (encrypt/decrypt DEKs)
+- **SecretManagementService**: Handles secret storage (store/retrieve peppers)
+
+### Initialization
+
+```go
+// Explicit Configuration (Recommended for Libraries)
+kms, _ := aws.NewKMSService(ctx, aws.Config{Region: "us-east-1"})
+secrets, _ := aws.NewSecretsManagerStore(ctx, aws.Config{Region: "us-east-1"})
+
+cfg := encx.Config{
+    KEKAlias:    "my-app-kek",
+    PepperAlias: "my-app-service",
+}
+
+crypto, _ := encx.NewCrypto(ctx, kms, secrets, cfg)
+
+// Environment-based Configuration (Recommended for Applications)
+// export ENCX_KEK_ALIAS="my-app-kek"
+// export ENCX_PEPPER_ALIAS="my-app-service"
+crypto, _ := encx.NewCryptoFromEnv(ctx, kms, secrets)
+```
+
+### Testing
+
+```go
+// Simple test setup with no external dependencies
+crypto, _ := encx.NewTestCrypto(t)
+
+// Test crypto provides:
+// - In-memory KMS (no AWS/Vault required)
+// - In-memory secret store (no external storage)
+// - Automatic cleanup after tests
+```
+
+## Breaking Changes in v0.6.0
+
+- Import paths changed: `awskms` → `aws`, `hashicorpvault` → `hashicorp`
+- API changed: `NewCrypto(ctx, options...)` → `NewCrypto(ctx, kms, secrets, cfg, options...)`
+- Environment variables changed: `ENCX_PEPPER_SECRET_PATH` → `ENCX_PEPPER_ALIAS`
+- Pepper storage: Filesystem → Cloud (AWS Secrets Manager or Vault KV)
+- Configuration: Functional options → Explicit dependency injection + Config struct

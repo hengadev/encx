@@ -1,0 +1,33 @@
+{
+  "projectTitle": "encx",
+  "description": "Go library for field-level encryption with envelope encryption, secure hashing, and automatic key management. Supports AWS KMS, HashiCorp Vault, and custom KMS providers.",
+  "folders": ["docs", "providers/aws", "providers/hashicorp"],
+  "excludeFolders": ["examples", ".encx", "internal", "cmd", "test"],
+  "excludeFiles": [
+    "CODEBASE_IMPROVEMENTS.md",
+    "CODE_GENERATION_IMPLEMENTATION_PLAN.md",
+    "IMPLEMENTATION_PLAN_SECRET_MANAGEMENT.md",
+    "CONTEXT7_METADATA.md",
+    "CONTEXT7_SUBMISSION.md",
+    "VALIDATION_CHECKLIST.md",
+    "RELEASE_CHECKLIST.md",
+    "SECURITY_CHECKLIST.md",
+    "TESTING_ISSUES.md",
+    "ENCX_V0.2.0_BLOCKERS.md",
+    "VERSION.md"
+  ],
+  "rules": [
+    "Always use NewCrypto(ctx, kms, secrets, cfg) for v0.6.0+, not functional options pattern",
+    "Separate KeyManagementService (crypto operations) from SecretManagementService (pepper storage)",
+    "Peppers must be exactly 32 bytes and stored in cloud secret management (AWS Secrets Manager or Vault KV)",
+    "Use NewTestCrypto(t) for testing - provides in-memory KMS and secret store",
+    "For production: AWS uses KMSService + SecretsManagerStore, Vault uses TransitService + KVStore",
+    "Environment-based config: Use NewCryptoFromEnv(ctx, kms, secrets) for 12-factor apps",
+    "Explicit config: Use Config struct with KEKAlias and PepperAlias for library code",
+    "Automatic pepper management: Peppers are generated and stored on first initialization if not found"
+  ],
+  "previousVersions": [
+    "v0.5.x: Used functional options pattern (WithKMSService, WithPepper) - deprecated",
+    "v0.6.0: Introduced explicit dependency injection and separated secret management"
+  ]
+}
