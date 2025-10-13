@@ -96,7 +96,7 @@ func TestNew(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			svc, err := New(ctx, tt.cfg)
+			svc, err := NewKMSService(ctx, tt.cfg)
 			if tt.wantErr {
 				assert.Error(t, err)
 				if tt.errMsg != "" {

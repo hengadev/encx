@@ -91,7 +91,7 @@ func TestNew_Success(t *testing.T) {
 	os.Setenv("VAULT_ADDR", server.URL)
 	defer os.Unsetenv("VAULT_ADDR")
 
-	vs, err := New()
+	vs, err := NewTransitService()
 	require.NoError(t, err)
 	assert.NotNil(t, vs)
 	assert.NotNil(t, vs.client)
@@ -106,7 +106,7 @@ func TestNew_WithNamespace(t *testing.T) {
 	defer os.Unsetenv("VAULT_ADDR")
 	defer os.Unsetenv("VAULT_NAMESPACE")
 
-	vs, err := New()
+	vs, err := NewTransitService()
 	require.NoError(t, err)
 	assert.NotNil(t, vs)
 }
@@ -122,24 +122,14 @@ func TestNew_WithAppRole(t *testing.T) {
 	defer os.Unsetenv("VAULT_ROLE_ID")
 	defer os.Unsetenv("VAULT_SECRET_ID")
 
-	vs, err := New()
+	vs, err := NewTransitService()
 	require.NoError(t, err)
 	assert.NotNil(t, vs)
 	assert.Equal(t, "test-token-12345", vs.client.Token())
 }
 
-func TestGetKey(t *testing.T) {
-	vs := &VaultService{client: &api.Client{}}
-	ctx := context.Background()
-
-	key, err := vs.GetKey(ctx, "test-key")
-	assert.Error(t, err)
-	assert.Nil(t, key)
-	assert.Contains(t, err.Error(), "not supported")
-}
-
 func TestGetKeyID(t *testing.T) {
-	vs := &VaultService{client: &api.Client{}}
+	vs := &TransitService{client: &api.Client{}}
 	ctx := context.Background()
 
 	keyID, err := vs.GetKeyID(ctx, "test-alias")
@@ -156,61 +146,12 @@ func TestCreateKey(t *testing.T) {
 	client, err := api.NewClient(config)
 	require.NoError(t, err)
 
-	vs := &VaultService{client: client}
+	vs := &TransitService{client: client}
 	ctx := context.Background()
 
 	keyID, err := vs.CreateKey(ctx, "new-test-key")
 	assert.NoError(t, err)
 	assert.Equal(t, "new-test-key", keyID)
-}
-
-func TestRotateKey(t *testing.T) {
-	server := mockVaultServer(t)
-	defer server.Close()
-
-	config := api.DefaultConfig()
-	config.Address = server.URL
-	client, err := api.NewClient(config)
-	require.NoError(t, err)
-
-	vs := &VaultService{client: client}
-	ctx := context.Background()
-
-	err = vs.RotateKey(ctx, "test-key")
-	assert.NoError(t, err)
-}
-
-func TestGetSecret(t *testing.T) {
-	server := mockVaultServer(t)
-	defer server.Close()
-
-	config := api.DefaultConfig()
-	config.Address = server.URL
-	client, err := api.NewClient(config)
-	require.NoError(t, err)
-
-	vs := &VaultService{client: client}
-	ctx := context.Background()
-
-	secret, err := vs.GetSecret(ctx, "secret/data/pepper")
-	assert.NoError(t, err)
-	assert.Equal(t, []byte("test-pepper-value"), secret)
-}
-
-func TestSetSecret(t *testing.T) {
-	server := mockVaultServer(t)
-	defer server.Close()
-
-	config := api.DefaultConfig()
-	config.Address = server.URL
-	client, err := api.NewClient(config)
-	require.NoError(t, err)
-
-	vs := &VaultService{client: client}
-	ctx := context.Background()
-
-	err = vs.SetSecret(ctx, "secret/data/test-secret", []byte("test-value"))
-	assert.NoError(t, err)
 }
 
 func TestEncryptDEK(t *testing.T) {
@@ -222,7 +163,7 @@ func TestEncryptDEK(t *testing.T) {
 	client, err := api.NewClient(config)
 	require.NoError(t, err)
 
-	vs := &VaultService{client: client}
+	vs := &TransitService{client: client}
 	ctx := context.Background()
 
 	ciphertext, err := vs.EncryptDEK(ctx, "test-key", []byte("plaintext-dek"))
@@ -239,46 +180,10 @@ func TestDecryptDEK(t *testing.T) {
 	client, err := api.NewClient(config)
 	require.NoError(t, err)
 
-	vs := &VaultService{client: client}
+	vs := &TransitService{client: client}
 	ctx := context.Background()
 
 	plaintext, err := vs.DecryptDEK(ctx, "test-key", []byte("vault:v1:mockencrypteddata"))
 	assert.NoError(t, err)
 	assert.Equal(t, []byte("decrypted-data"), plaintext)
-}
-
-func TestEncryptDEKWithVersion(t *testing.T) {
-	server := mockVaultServer(t)
-	defer server.Close()
-
-	config := api.DefaultConfig()
-	config.Address = server.URL
-	client, err := api.NewClient(config)
-	require.NoError(t, err)
-
-	vs := &VaultService{client: client}
-	ctx := context.Background()
-
-	// Note: EncryptDEKWithVersion calls EncryptDEK with empty keyID
-	// This is a limitation in the current implementation
-	_, err = vs.EncryptDEKWithVersion(ctx, []byte("plaintext-dek"), 1)
-	assert.Error(t, err) // Expecting error due to empty keyID
-}
-
-func TestDecryptDEKWithVersion(t *testing.T) {
-	server := mockVaultServer(t)
-	defer server.Close()
-
-	config := api.DefaultConfig()
-	config.Address = server.URL
-	client, err := api.NewClient(config)
-	require.NoError(t, err)
-
-	vs := &VaultService{client: client}
-	ctx := context.Background()
-
-	// Note: DecryptDEKWithVersion calls DecryptDEK with empty keyID
-	// This is a limitation in the current implementation
-	_, err = vs.DecryptDEKWithVersion(ctx, []byte("vault:v1:mockencrypteddata"), 1)
-	assert.Error(t, err) // Expecting error due to empty keyID
 }
