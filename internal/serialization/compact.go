@@ -110,6 +110,12 @@ func serializeWithReflection(value any) ([]byte, error) {
 	case reflect.Int32:
 		return Serialize(int32(rv.Int()))
 
+	case reflect.Int16:
+		return Serialize(int32(rv.Int()))
+
+	case reflect.Int8:
+		return Serialize(int32(rv.Int()))
+
 	case reflect.Int:
 		return Serialize(int(rv.Int()))
 
@@ -117,6 +123,12 @@ func serializeWithReflection(value any) ([]byte, error) {
 		return Serialize(rv.Uint())
 
 	case reflect.Uint32:
+		return Serialize(uint32(rv.Uint()))
+
+	case reflect.Uint16:
+		return Serialize(uint32(rv.Uint()))
+
+	case reflect.Uint8:
 		return Serialize(uint32(rv.Uint()))
 
 	case reflect.Uint:
@@ -303,6 +315,22 @@ func deserializeWithReflection(data []byte, target any) error {
 		elem.SetInt(int64(i))
 		return nil
 
+	case reflect.Int16:
+		var i int32
+		if err := Deserialize(data, &i); err != nil {
+			return err
+		}
+		elem.SetInt(int64(i))
+		return nil
+
+	case reflect.Int8:
+		var i int32
+		if err := Deserialize(data, &i); err != nil {
+			return err
+		}
+		elem.SetInt(int64(i))
+		return nil
+
 	case reflect.Int:
 		var i int
 		if err := Deserialize(data, &i); err != nil {
@@ -320,6 +348,22 @@ func deserializeWithReflection(data []byte, target any) error {
 		return nil
 
 	case reflect.Uint32:
+		var u uint32
+		if err := Deserialize(data, &u); err != nil {
+			return err
+		}
+		elem.SetUint(uint64(u))
+		return nil
+
+	case reflect.Uint16:
+		var u uint32
+		if err := Deserialize(data, &u); err != nil {
+			return err
+		}
+		elem.SetUint(uint64(u))
+		return nil
+
+	case reflect.Uint8:
 		var u uint32
 		if err := Deserialize(data, &u); err != nil {
 			return err

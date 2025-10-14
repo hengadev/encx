@@ -330,6 +330,8 @@ func contains(s, substr string) bool {
 type Role string
 type SessionState string
 type UserID int64
+type Priority int8
+type Port uint16
 
 const (
 	RoleAdmin  Role = "admin"
@@ -404,6 +406,46 @@ func TestSerializeDeserializeTypeAliases(t *testing.T) {
 				}
 
 				if result != original.(UserID) {
+					t.Errorf("Expected %v, got %v", original, result)
+				}
+			},
+		},
+		{
+			name:  "Priority type alias (int8)",
+			value: Priority(5),
+			check: func(t *testing.T, original any) {
+				data, err := Serialize(original)
+				if err != nil {
+					t.Fatalf("Serialize failed: %v", err)
+				}
+
+				var result Priority
+				err = Deserialize(data, &result)
+				if err != nil {
+					t.Fatalf("Deserialize failed: %v", err)
+				}
+
+				if result != original.(Priority) {
+					t.Errorf("Expected %v, got %v", original, result)
+				}
+			},
+		},
+		{
+			name:  "Port type alias (uint16)",
+			value: Port(8080),
+			check: func(t *testing.T, original any) {
+				data, err := Serialize(original)
+				if err != nil {
+					t.Fatalf("Serialize failed: %v", err)
+				}
+
+				var result Port
+				err = Deserialize(data, &result)
+				if err != nil {
+					t.Fatalf("Deserialize failed: %v", err)
+				}
+
+				if result != original.(Port) {
 					t.Errorf("Expected %v, got %v", original, result)
 				}
 			},
