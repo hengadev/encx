@@ -325,3 +325,221 @@ func TestDeterministicSerialization(t *testing.T) {
 func contains(s, substr string) bool {
 	return strings.Contains(s, substr)
 }
+
+// Test type aliases (like enum types)
+type Role string
+type SessionState string
+type UserID int64
+
+const (
+	RoleAdmin  Role = "admin"
+	RoleUser   Role = "user"
+	RoleGuest  Role = "guest"
+)
+
+const (
+	SessionStateActive   SessionState = "active"
+	SessionStateInactive SessionState = "inactive"
+)
+
+func TestSerializeDeserializeTypeAliases(t *testing.T) {
+	tests := []struct {
+		name  string
+		value any
+		check func(t *testing.T, original any)
+	}{
+		{
+			name:  "Role type alias",
+			value: RoleAdmin,
+			check: func(t *testing.T, original any) {
+				data, err := Serialize(original)
+				if err != nil {
+					t.Fatalf("Serialize failed: %v", err)
+				}
+
+				var result Role
+				err = Deserialize(data, &result)
+				if err != nil {
+					t.Fatalf("Deserialize failed: %v", err)
+				}
+
+				if result != original.(Role) {
+					t.Errorf("Expected %v, got %v", original, result)
+				}
+			},
+		},
+		{
+			name:  "SessionState type alias",
+			value: SessionStateActive,
+			check: func(t *testing.T, original any) {
+				data, err := Serialize(original)
+				if err != nil {
+					t.Fatalf("Serialize failed: %v", err)
+				}
+
+				var result SessionState
+				err = Deserialize(data, &result)
+				if err != nil {
+					t.Fatalf("Deserialize failed: %v", err)
+				}
+
+				if result != original.(SessionState) {
+					t.Errorf("Expected %v, got %v", original, result)
+				}
+			},
+		},
+		{
+			name:  "UserID type alias (int64)",
+			value: UserID(12345),
+			check: func(t *testing.T, original any) {
+				data, err := Serialize(original)
+				if err != nil {
+					t.Fatalf("Serialize failed: %v", err)
+				}
+
+				var result UserID
+				err = Deserialize(data, &result)
+				if err != nil {
+					t.Fatalf("Deserialize failed: %v", err)
+				}
+
+				if result != original.(UserID) {
+					t.Errorf("Expected %v, got %v", original, result)
+				}
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.check(t, tt.value)
+		})
+	}
+}
+
+// TestTypeAliasCompatibility ensures that type aliases serialize to the same
+// bytes as their underlying type
+func TestTypeAliasCompatibility(t *testing.T) {
+	role := RoleAdmin
+	str := string(role)
+
+	roleData, err := Serialize(role)
+	if err != nil {
+		t.Fatalf("Failed to serialize role: %v", err)
+	}
+
+	strData, err := Serialize(str)
+	if err != nil {
+		t.Fatalf("Failed to serialize string: %v", err)
+	}
+
+	if !bytes.Equal(roleData, strData) {
+		t.Errorf("Type alias should serialize to same bytes as underlying type")
+	}
+}
+
+// Test UUID-like types (byte arrays)
+type UUID [16]byte
+
+func TestSerializeDeserializeUUID(t *testing.T) {
+	// Create a sample UUID
+	uuid := UUID{0x01, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd, 0xef,
+		0xfe, 0xdc, 0xba, 0x98, 0x76, 0x54, 0x32, 0x10}
+
+	// Serialize
+	data, err := Serialize(uuid)
+	if err != nil {
+		t.Fatalf("Failed to serialize UUID: %v", err)
+	}
+
+	// Deserialize
+	var result UUID
+	err = Deserialize(data, &result)
+	if err != nil {
+		t.Fatalf("Failed to deserialize UUID: %v", err)
+	}
+
+	// Verify
+	if result != uuid {
+		t.Errorf("Expected %v, got %v", uuid, result)
+	}
+}
+
+func TestUUIDSerializesToByteSlice(t *testing.T) {
+	// UUID should serialize to the same format as []byte
+	uuid := UUID{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08,
+		0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x10}
+	slice := []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08,
+		0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x10}
+
+	uuidData, err := Serialize(uuid)
+	if err != nil {
+		t.Fatalf("Failed to serialize UUID: %v", err)
+	}
+
+	sliceData, err := Serialize(slice)
+	if err != nil {
+		t.Fatalf("Failed to serialize []byte: %v", err)
+	}
+
+	if !bytes.Equal(uuidData, sliceData) {
+		t.Errorf("UUID should serialize to same bytes as []byte")
+		t.Errorf("UUID data:  %v", uuidData)
+		t.Errorf("Slice data: %v", sliceData)
+	}
+}
+
+func TestByteArrays(t *testing.T) {
+	tests := []struct {
+		name  string
+		value any
+		check func(t *testing.T, original any)
+	}{
+		{
+			name:  "[4]byte array",
+			value: [4]byte{0xde, 0xad, 0xbe, 0xef},
+			check: func(t *testing.T, original any) {
+				data, err := Serialize(original)
+				if err != nil {
+					t.Fatalf("Serialize failed: %v", err)
+				}
+
+				var result [4]byte
+				err = Deserialize(data, &result)
+				if err != nil {
+					t.Fatalf("Deserialize failed: %v", err)
+				}
+
+				if result != original.([4]byte) {
+					t.Errorf("Expected %v, got %v", original, result)
+				}
+			},
+		},
+		{
+			name:  "[32]byte array",
+			value: [32]byte{0x01, 0x02, 0x03, 0x04, 0x05},
+			check: func(t *testing.T, original any) {
+				data, err := Serialize(original)
+				if err != nil {
+					t.Fatalf("Serialize failed: %v", err)
+				}
+
+				var result [32]byte
+				err = Deserialize(data, &result)
+				if err != nil {
+					t.Fatalf("Deserialize failed: %v", err)
+				}
+
+				if result != original.([32]byte) {
+					t.Errorf("Expected %v, got %v", original, result)
+				}
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.check(t, tt.value)
+		})
+	}
+}

@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"math"
+	"reflect"
 	"time"
 )
 
@@ -86,6 +87,68 @@ func Serialize(value any) ([]byte, error) {
 		result := make([]byte, 4)
 		binary.LittleEndian.PutUint32(result, math.Float32bits(v))
 		return result, nil
+
+	default:
+		// Fall back to reflection for custom types and type aliases
+		return serializeWithReflection(value)
+	}
+}
+
+// serializeWithReflection handles serialization of custom types and type aliases
+// by examining their underlying kind using reflection.
+func serializeWithReflection(value any) ([]byte, error) {
+	rv := reflect.ValueOf(value)
+
+	switch rv.Kind() {
+	case reflect.String:
+		// Handle string-based type aliases (e.g., type Role string)
+		return Serialize(rv.String())
+
+	case reflect.Int64:
+		return Serialize(rv.Int())
+
+	case reflect.Int32:
+		return Serialize(int32(rv.Int()))
+
+	case reflect.Int:
+		return Serialize(int(rv.Int()))
+
+	case reflect.Uint64:
+		return Serialize(rv.Uint())
+
+	case reflect.Uint32:
+		return Serialize(uint32(rv.Uint()))
+
+	case reflect.Uint:
+		return Serialize(uint(rv.Uint()))
+
+	case reflect.Bool:
+		return Serialize(rv.Bool())
+
+	case reflect.Float64:
+		return Serialize(rv.Float())
+
+	case reflect.Float32:
+		return Serialize(float32(rv.Float()))
+
+	case reflect.Array:
+		// Handle array types (e.g., UUID which is [16]byte)
+		// Convert to []byte slice
+		if rv.Type().Elem().Kind() == reflect.Uint8 {
+			slice := make([]byte, rv.Len())
+			for i := 0; i < rv.Len(); i++ {
+				slice[i] = uint8(rv.Index(i).Uint())
+			}
+			return Serialize(slice)
+		}
+		return nil, fmt.Errorf("unsupported type for compact serialization: %T (array of non-byte)", value)
+
+	case reflect.Slice:
+		// Handle custom slice types
+		if rv.Type().Elem().Kind() == reflect.Uint8 {
+			return Serialize(rv.Bytes())
+		}
+		return nil, fmt.Errorf("unsupported type for compact serialization: %T (slice of non-byte)", value)
 
 	default:
 		return nil, fmt.Errorf("unsupported type for compact serialization: %T", value)
@@ -191,6 +254,139 @@ func Deserialize(data []byte, target any) error {
 		bits := binary.LittleEndian.Uint32(data[:4])
 		*t = math.Float32frombits(bits)
 		return nil
+
+	default:
+		// Fall back to reflection for custom types and type aliases
+		return deserializeWithReflection(data, target)
+	}
+}
+
+// deserializeWithReflection handles deserialization of custom types and type aliases
+// by examining their underlying kind using reflection.
+func deserializeWithReflection(data []byte, target any) error {
+	rv := reflect.ValueOf(target)
+
+	// Target must be a pointer
+	if rv.Kind() != reflect.Ptr {
+		return fmt.Errorf("target must be a pointer, got %T", target)
+	}
+
+	// Get the element the pointer points to
+	elem := rv.Elem()
+	if !elem.CanSet() {
+		return fmt.Errorf("target element cannot be set")
+	}
+
+	switch elem.Kind() {
+	case reflect.String:
+		// Handle string-based type aliases (e.g., type Role string)
+		var s string
+		if err := Deserialize(data, &s); err != nil {
+			return err
+		}
+		elem.SetString(s)
+		return nil
+
+	case reflect.Int64:
+		var i int64
+		if err := Deserialize(data, &i); err != nil {
+			return err
+		}
+		elem.SetInt(i)
+		return nil
+
+	case reflect.Int32:
+		var i int32
+		if err := Deserialize(data, &i); err != nil {
+			return err
+		}
+		elem.SetInt(int64(i))
+		return nil
+
+	case reflect.Int:
+		var i int
+		if err := Deserialize(data, &i); err != nil {
+			return err
+		}
+		elem.SetInt(int64(i))
+		return nil
+
+	case reflect.Uint64:
+		var u uint64
+		if err := Deserialize(data, &u); err != nil {
+			return err
+		}
+		elem.SetUint(u)
+		return nil
+
+	case reflect.Uint32:
+		var u uint32
+		if err := Deserialize(data, &u); err != nil {
+			return err
+		}
+		elem.SetUint(uint64(u))
+		return nil
+
+	case reflect.Uint:
+		var u uint
+		if err := Deserialize(data, &u); err != nil {
+			return err
+		}
+		elem.SetUint(uint64(u))
+		return nil
+
+	case reflect.Bool:
+		var b bool
+		if err := Deserialize(data, &b); err != nil {
+			return err
+		}
+		elem.SetBool(b)
+		return nil
+
+	case reflect.Float64:
+		var f float64
+		if err := Deserialize(data, &f); err != nil {
+			return err
+		}
+		elem.SetFloat(f)
+		return nil
+
+	case reflect.Float32:
+		var f float32
+		if err := Deserialize(data, &f); err != nil {
+			return err
+		}
+		elem.SetFloat(float64(f))
+		return nil
+
+	case reflect.Array:
+		// Handle array types (e.g., UUID which is [16]byte)
+		if elem.Type().Elem().Kind() == reflect.Uint8 {
+			var slice []byte
+			if err := Deserialize(data, &slice); err != nil {
+				return err
+			}
+			if len(slice) != elem.Len() {
+				return fmt.Errorf("array length mismatch: expected %d, got %d", elem.Len(), len(slice))
+			}
+			for i := 0; i < elem.Len(); i++ {
+				elem.Index(i).SetUint(uint64(slice[i]))
+			}
+			return nil
+		}
+		return fmt.Errorf("unsupported target type for compact deserialization: %T (array of non-byte)", target)
+
+	case reflect.Slice:
+		// Handle custom slice types
+		if elem.Type().Elem().Kind() == reflect.Uint8 {
+			var slice []byte
+			if err := Deserialize(data, &slice); err != nil {
+				return err
+			}
+			elem.SetBytes(slice)
+			return nil
+		}
+		return fmt.Errorf("unsupported target type for compact deserialization: %T (slice of non-byte)", target)
 
 	default:
 		return fmt.Errorf("unsupported target type for compact deserialization: %T", target)
