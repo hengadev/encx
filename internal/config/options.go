@@ -32,7 +32,6 @@ func WithArgon2Params(params *Argon2Params) Option {
 	}
 }
 
-
 // NOTE: WithKeyMetadataDB has been removed in v0.6.0
 // The database is now auto-managed by ENCX for better security and simplicity
 

@@ -2,9 +2,9 @@ package testutils
 
 import (
 	"context"
-	"crypto/rand"
 	"crypto/aes"
 	"crypto/cipher"
+	"crypto/rand"
 	"database/sql"
 	"fmt"
 	"os"
