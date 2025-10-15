@@ -334,9 +334,9 @@ type Priority int8
 type Port uint16
 
 const (
-	RoleAdmin  Role = "admin"
-	RoleUser   Role = "user"
-	RoleGuest  Role = "guest"
+	RoleAdmin Role = "admin"
+	RoleUser  Role = "user"
+	RoleGuest Role = "guest"
 )
 
 const (
@@ -574,6 +574,264 @@ func TestByteArrays(t *testing.T) {
 
 				if result != original.([32]byte) {
 					t.Errorf("Expected %v, got %v", original, result)
+				}
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.check(t, tt.value)
+		})
+	}
+}
+
+// TestPointerTypes tests serialization and deserialization of pointer types
+func TestPointerTypes(t *testing.T) {
+	tests := []struct {
+		name  string
+		value any
+		check func(t *testing.T, original any)
+	}{
+		{
+			name: "*time.Time non-nil",
+			value: func() *time.Time {
+				tm := time.Date(2024, 9, 23, 12, 30, 45, 123456789, time.UTC)
+				return &tm
+			}(),
+			check: func(t *testing.T, original any) {
+				data, err := Serialize(original)
+				if err != nil {
+					t.Fatalf("Serialize failed: %v", err)
+				}
+
+				var result *time.Time
+				err = Deserialize(data, &result)
+				if err != nil {
+					t.Fatalf("Deserialize failed: %v", err)
+				}
+
+				origPtr := original.(*time.Time)
+				if result == nil {
+					t.Fatal("Expected non-nil pointer, got nil")
+				}
+				if !result.Equal(*origPtr) {
+					t.Errorf("Expected %v, got %v", *origPtr, *result)
+				}
+			},
+		},
+		{
+			name:  "*time.Time nil",
+			value: (*time.Time)(nil),
+			check: func(t *testing.T, original any) {
+				data, err := Serialize(original)
+				if err != nil {
+					t.Fatalf("Serialize failed: %v", err)
+				}
+
+				var result *time.Time
+				err = Deserialize(data, &result)
+				if err != nil {
+					t.Fatalf("Deserialize failed: %v", err)
+				}
+
+				if result != nil {
+					t.Errorf("Expected nil pointer, got %v", result)
+				}
+			},
+		},
+		{
+			name: "*string non-nil",
+			value: func() *string {
+				s := "hello world"
+				return &s
+			}(),
+			check: func(t *testing.T, original any) {
+				data, err := Serialize(original)
+				if err != nil {
+					t.Fatalf("Serialize failed: %v", err)
+				}
+
+				var result *string
+				err = Deserialize(data, &result)
+				if err != nil {
+					t.Fatalf("Deserialize failed: %v", err)
+				}
+
+				origPtr := original.(*string)
+				if result == nil {
+					t.Fatal("Expected non-nil pointer, got nil")
+				}
+				if *result != *origPtr {
+					t.Errorf("Expected %v, got %v", *origPtr, *result)
+				}
+			},
+		},
+		{
+			name:  "*string nil",
+			value: (*string)(nil),
+			check: func(t *testing.T, original any) {
+				data, err := Serialize(original)
+				if err != nil {
+					t.Fatalf("Serialize failed: %v", err)
+				}
+
+				var result *string
+				err = Deserialize(data, &result)
+				if err != nil {
+					t.Fatalf("Deserialize failed: %v", err)
+				}
+
+				if result != nil {
+					t.Errorf("Expected nil pointer, got %v", result)
+				}
+			},
+		},
+		{
+			name: "*int64 non-nil",
+			value: func() *int64 {
+				i := int64(42)
+				return &i
+			}(),
+			check: func(t *testing.T, original any) {
+				data, err := Serialize(original)
+				if err != nil {
+					t.Fatalf("Serialize failed: %v", err)
+				}
+
+				var result *int64
+				err = Deserialize(data, &result)
+				if err != nil {
+					t.Fatalf("Deserialize failed: %v", err)
+				}
+
+				origPtr := original.(*int64)
+				if result == nil {
+					t.Fatal("Expected non-nil pointer, got nil")
+				}
+				if *result != *origPtr {
+					t.Errorf("Expected %v, got %v", *origPtr, *result)
+				}
+			},
+		},
+		{
+			name:  "*int64 nil",
+			value: (*int64)(nil),
+			check: func(t *testing.T, original any) {
+				data, err := Serialize(original)
+				if err != nil {
+					t.Fatalf("Serialize failed: %v", err)
+				}
+
+				var result *int64
+				err = Deserialize(data, &result)
+				if err != nil {
+					t.Fatalf("Deserialize failed: %v", err)
+				}
+
+				if result != nil {
+					t.Errorf("Expected nil pointer, got %v", result)
+				}
+			},
+		},
+		{
+			name: "*bool non-nil",
+			value: func() *bool {
+				b := true
+				return &b
+			}(),
+			check: func(t *testing.T, original any) {
+				data, err := Serialize(original)
+				if err != nil {
+					t.Fatalf("Serialize failed: %v", err)
+				}
+
+				var result *bool
+				err = Deserialize(data, &result)
+				if err != nil {
+					t.Fatalf("Deserialize failed: %v", err)
+				}
+
+				origPtr := original.(*bool)
+				if result == nil {
+					t.Fatal("Expected non-nil pointer, got nil")
+				}
+				if *result != *origPtr {
+					t.Errorf("Expected %v, got %v", *origPtr, *result)
+				}
+			},
+		},
+		{
+			name: "*float64 non-nil",
+			value: func() *float64 {
+				f := 3.14159
+				return &f
+			}(),
+			check: func(t *testing.T, original any) {
+				data, err := Serialize(original)
+				if err != nil {
+					t.Fatalf("Serialize failed: %v", err)
+				}
+
+				var result *float64
+				err = Deserialize(data, &result)
+				if err != nil {
+					t.Fatalf("Deserialize failed: %v", err)
+				}
+
+				origPtr := original.(*float64)
+				if result == nil {
+					t.Fatal("Expected non-nil pointer, got nil")
+				}
+				if *result != *origPtr {
+					t.Errorf("Expected %v, got %v", *origPtr, *result)
+				}
+			},
+		},
+		{
+			name: "*Role type alias non-nil",
+			value: func() *Role {
+				r := RoleAdmin
+				return &r
+			}(),
+			check: func(t *testing.T, original any) {
+				data, err := Serialize(original)
+				if err != nil {
+					t.Fatalf("Serialize failed: %v", err)
+				}
+
+				var result *Role
+				err = Deserialize(data, &result)
+				if err != nil {
+					t.Fatalf("Deserialize failed: %v", err)
+				}
+
+				origPtr := original.(*Role)
+				if result == nil {
+					t.Fatal("Expected non-nil pointer, got nil")
+				}
+				if *result != *origPtr {
+					t.Errorf("Expected %v, got %v", *origPtr, *result)
+				}
+			},
+		},
+		{
+			name:  "*Role type alias nil",
+			value: (*Role)(nil),
+			check: func(t *testing.T, original any) {
+				data, err := Serialize(original)
+				if err != nil {
+					t.Fatalf("Serialize failed: %v", err)
+				}
+
+				var result *Role
+				err = Deserialize(data, &result)
+				if err != nil {
+					t.Fatalf("Deserialize failed: %v", err)
+				}
+
+				if result != nil {
+					t.Errorf("Expected nil pointer, got %v", result)
 				}
 			},
 		},
