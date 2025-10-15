@@ -100,6 +100,24 @@ func serializeWithReflection(value any) ([]byte, error) {
 	rv := reflect.ValueOf(value)
 
 	switch rv.Kind() {
+	case reflect.Ptr:
+		// Handle pointer types
+		if rv.IsNil() {
+			// Serialize nil pointer as a single byte marker (0x00) followed by nothing
+			return []byte{0x00}, nil
+		}
+		// Dereference and serialize the underlying value
+		// Prefix with 0x01 to indicate non-nil pointer
+		underlying := rv.Elem().Interface()
+		serialized, err := Serialize(underlying)
+		if err != nil {
+			return nil, err
+		}
+		result := make([]byte, 1+len(serialized))
+		result[0] = 0x01 // Non-nil marker
+		copy(result[1:], serialized)
+		return result, nil
+
 	case reflect.String:
 		// Handle string-based type aliases (e.g., type Role string)
 		return Serialize(rv.String())
@@ -290,6 +308,33 @@ func deserializeWithReflection(data []byte, target any) error {
 	}
 
 	switch elem.Kind() {
+	case reflect.Ptr:
+		// Handle pointer types
+		if len(data) < 1 {
+			return fmt.Errorf("insufficient data for pointer marker")
+		}
+		marker := data[0]
+		if marker == 0x00 {
+			// Nil pointer - set to zero value (nil)
+			elem.Set(reflect.Zero(elem.Type()))
+			return nil
+		} else if marker == 0x01 {
+			// Non-nil pointer - deserialize the underlying value
+			// Create a new value of the pointed-to type
+			pointedType := elem.Type().Elem()
+			newValue := reflect.New(pointedType)
+
+			// Deserialize into the new value
+			if err := Deserialize(data[1:], newValue.Interface()); err != nil {
+				return err
+			}
+
+			// Set the pointer to point to the new value
+			elem.Set(newValue)
+			return nil
+		}
+		return fmt.Errorf("invalid pointer marker byte: 0x%02x", marker)
+
 	case reflect.String:
 		// Handle string-based type aliases (e.g., type Role string)
 		var s string
