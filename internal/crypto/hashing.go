@@ -159,10 +159,10 @@ func (h *HashingOperations) CompareSecureHashAndValue(ctx context.Context, value
 		return false, fmt.Errorf("failed to decode hash: %w", err)
 	}
 
-	// Convert value to bytes safely
-	valueBytes, ok := value.([]byte)
-	if !ok {
-		return false, fmt.Errorf("value must be of type []byte for secure hash comparison")
+	// Serialize value to bytes
+	valueBytes, err := serialization.Serialize(value)
+	if err != nil {
+		return false, fmt.Errorf("failed to serialize value: %w", err)
 	}
 
 	// Combine value with pepper
