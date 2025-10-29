@@ -314,6 +314,118 @@ type User struct {
 }
 ```
 
+### Type Aliases
+
+The code generator handles type aliases based on their usage patterns:
+
+#### Scalar Type Aliases (Fully Supported ✅)
+
+Simple type aliases to basic types work correctly:
+
+```go
+type State string
+type UserID int64
+type Priority int8
+type Active bool
+
+type Order struct {
+    Status   State    `encx:"encrypt"` // Always encrypted - correct
+    User     UserID   `encx:"encrypt"` // Always encrypted - correct
+    Level    Priority `encx:"encrypt"` // Always encrypted - correct
+    IsActive Active   `encx:"encrypt"` // Always encrypted - correct
+}
+```
+
+**Behavior**: These are treated as required fields and always encrypted (even zero values). This is correct because:
+- Empty string (`""`) is a valid state value
+- Zero integer (`0`) is a valid ID
+- False (`false`) is a valid active status
+
+#### Special Type Aliases (Limited Support ⚠️)
+
+Type aliases to `uuid.UUID` and `time.Time` have limitations:
+
+```go
+import (
+    "time"
+    "github.com/google/uuid"
+)
+
+type CustomUUID uuid.UUID
+type Timestamp time.Time
+
+type Resource struct {
+    // ⚠️ LIMITATION: No automatic uuid.Nil or .IsZero() checks
+    ID        CustomUUID `encx:"encrypt"` // Always encrypted (no uuid.Nil check)
+    CreatedAt Timestamp  `encx:"encrypt"` // Always encrypted (no .IsZero() check)
+}
+```
+
+**Why this happens**: The code generator sees the alias name (`CustomUUID`, `Timestamp`), not the underlying type (`uuid.UUID`, `time.Time`), so special zero-value checks aren't applied.
+
+#### Recommended Pattern for Special Type Aliases
+
+**For optional fields with special type aliases, use pointers**:
+
+```go
+type CustomUUID uuid.UUID
+type Timestamp time.Time
+
+type Resource struct {
+    // ✅ RECOMMENDED - Required fields
+    ID        CustomUUID  `encx:"encrypt"` // Always encrypted
+    CreatedAt Timestamp   `encx:"encrypt"` // Always encrypted
+
+    // ✅ RECOMMENDED - Optional fields use pointers
+    TenantID  *CustomUUID `encx:"encrypt"` // nil checked
+    UpdatedAt *Timestamp  `encx:"encrypt"` // nil checked
+    DeletedAt *Timestamp  `encx:"encrypt"` // nil checked
+}
+```
+
+**This works because**:
+- Pointer nil checks happen regardless of the underlying type
+- `*CustomUUID` gets `!= nil` check (correct)
+- `*Timestamp` gets `!= nil` check (correct)
+
+#### Alternative: Use Direct Types
+
+If you need automatic zero-value checking, use the types directly:
+
+```go
+import (
+    "time"
+    "github.com/google/uuid"
+)
+
+type Resource struct {
+    // ✅ Direct types get special handling
+    ID        uuid.UUID `encx:"encrypt"` // Checks != uuid.Nil
+    TenantID  uuid.UUID `encx:"encrypt"` // Checks != uuid.Nil
+    CreatedAt time.Time `encx:"encrypt"` // Checks !.IsZero()
+    UpdatedAt time.Time `encx:"encrypt"` // Checks !.IsZero()
+
+    // Or use pointers for optional
+    DeletedAt *time.Time `encx:"encrypt"` // Checks != nil
+}
+```
+
+#### Summary: Type Alias Best Practices
+
+| Alias Type | Pattern | Zero-Value Check | Recommendation |
+|------------|---------|------------------|----------------|
+| `type State string` | Value | None (always encrypts) | ✅ Use directly |
+| `type UserID int` | Value | None (always encrypts) | ✅ Use directly |
+| `type CustomUUID uuid.UUID` | Value | ⚠️ No special check | Use `uuid.UUID` directly |
+| `type Timestamp time.Time` | Value | ⚠️ No special check | Use `time.Time` directly |
+| `*State` | Pointer | `!= nil` | ✅ Use for optional |
+| `*CustomUUID` | Pointer | `!= nil` | ✅ Use for optional |
+| `*Timestamp` | Pointer | `!= nil` | ✅ Use for optional |
+
+**Key Takeaway**: For aliases to `uuid.UUID` and `time.Time`, either:
+1. Use the direct type for automatic zero-value checking, or
+2. Use pointers to type aliases for optional fields with nil checking
+
 ### Automatic Import Tracking
 
 The code generator automatically tracks and includes necessary imports:
