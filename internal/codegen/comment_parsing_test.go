@@ -282,7 +282,7 @@ type NoOptions struct {
 							typeSpec.Doc = node.Doc
 						}
 
-						structInfo := analyzeStruct(fset, "test.go", "test", typeSpec, structType)
+						structInfo := analyzeStruct(fset, "test.go", "test", typeSpec, structType, make(map[string]string))
 
 						// Restore original doc
 						typeSpec.Doc = originalDoc
@@ -350,7 +350,7 @@ type User struct {
 								typeSpec.Doc = node.Doc
 							}
 
-							structInfo = analyzeStruct(fset, "test.go", "test", typeSpec, structType)
+							structInfo = analyzeStruct(fset, "test.go", "test", typeSpec, structType, make(map[string]string))
 
 							// Restore original doc
 							typeSpec.Doc = originalDoc

@@ -17,6 +17,7 @@ type StructInfo struct {
 	Fields            []FieldInfo
 	HasEncxTags       bool
 	GenerationOptions map[string]string // From //encx:options comments
+	RequiredImports   map[string]string // package name -> import path
 }
 
 // FieldInfo contains information about a field with encx tags
@@ -58,9 +59,37 @@ func DiscoverStructs(packagePath string, config *DiscoveryConfig) ([]StructInfo,
 	return structs, nil
 }
 
+// extractImports extracts import statements from an AST file and returns a map of package name -> import path
+func extractImports(file *ast.File) map[string]string {
+	imports := make(map[string]string)
+
+	for _, imp := range file.Imports {
+		// Get the import path (removing quotes)
+		importPath := strings.Trim(imp.Path.Value, "\"")
+
+		// Determine the package name
+		var pkgName string
+		if imp.Name != nil {
+			// Named import (e.g., import foo "github.com/bar/foo")
+			pkgName = imp.Name.Name
+		} else {
+			// Extract package name from import path (last segment)
+			parts := strings.Split(importPath, "/")
+			pkgName = parts[len(parts)-1]
+		}
+
+		imports[pkgName] = importPath
+	}
+
+	return imports
+}
+
 // discoverStructsInFile discovers structs in a single file
 func discoverStructsInFile(fset *token.FileSet, fileName string, file *ast.File, pkgName string) []StructInfo {
 	var structs []StructInfo
+
+	// Extract imports from the file
+	fileImports := extractImports(file)
 
 	ast.Inspect(file, func(n ast.Node) bool {
 		switch node := n.(type) {
@@ -75,7 +104,7 @@ func discoverStructsInFile(fset *token.FileSet, fileName string, file *ast.File,
 							typeSpec.Doc = node.Doc
 						}
 
-						structInfo := analyzeStruct(fset, fileName, pkgName, typeSpec, structType)
+						structInfo := analyzeStruct(fset, fileName, pkgName, typeSpec, structType, fileImports)
 
 						// Restore original doc to avoid side effects
 						typeSpec.Doc = originalDoc
@@ -94,7 +123,7 @@ func discoverStructsInFile(fset *token.FileSet, fileName string, file *ast.File,
 }
 
 // analyzeStruct analyzes a struct type for encx tags
-func analyzeStruct(fset *token.FileSet, fileName, pkgName string, typeSpec *ast.TypeSpec, structType *ast.StructType) StructInfo {
+func analyzeStruct(fset *token.FileSet, fileName, pkgName string, typeSpec *ast.TypeSpec, structType *ast.StructType, fileImports map[string]string) StructInfo {
 	structInfo := StructInfo{
 		PackageName:       pkgName,
 		StructName:        typeSpec.Name.Name,
@@ -102,6 +131,7 @@ func analyzeStruct(fset *token.FileSet, fileName, pkgName string, typeSpec *ast.
 		Fields:            []FieldInfo{},
 		HasEncxTags:       false,
 		GenerationOptions: make(map[string]string),
+		RequiredImports:   make(map[string]string),
 	}
 
 	// Parse encx:options from struct-level comments
@@ -123,12 +153,44 @@ func analyzeStruct(fset *token.FileSet, fileName, pkgName string, typeSpec *ast.
 				structInfo.HasEncxTags = true
 			}
 			structInfo.Fields = append(structInfo.Fields, fieldInfo)
+
+			// Track required imports from field types
+			pkgNames := extractPackageNamesFromType(fieldInfo.Type)
+			for _, pkgName := range pkgNames {
+				if importPath, found := fileImports[pkgName]; found {
+					structInfo.RequiredImports[pkgName] = importPath
+				}
+			}
 		}
 	}
 
 	// Note: Companion field validation removed - code generation creates separate structs
 
 	return structInfo
+}
+
+// extractPackageNamesFromType extracts package identifiers from a type string
+// e.g., "uuid.UUID" -> ["uuid"], "[]time.Time" -> ["time"], "*uuid.UUID" -> ["uuid"]
+func extractPackageNamesFromType(typeStr string) []string {
+	var packages []string
+	seen := make(map[string]bool)
+
+	// Remove array/slice/pointer prefixes
+	cleanType := strings.TrimLeft(typeStr, "[]*")
+
+	// Check if the type contains a package selector (.)
+	if strings.Contains(cleanType, ".") {
+		parts := strings.Split(cleanType, ".")
+		if len(parts) >= 2 {
+			pkgName := parts[0]
+			if !seen[pkgName] {
+				packages = append(packages, pkgName)
+				seen[pkgName] = true
+			}
+		}
+	}
+
+	return packages
 }
 
 // analyzeField analyzes a single field for encx tags

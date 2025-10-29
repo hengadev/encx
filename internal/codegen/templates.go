@@ -227,13 +227,19 @@ type GenerationConfig struct {
 
 // BuildTemplateData builds template data from struct info
 func BuildTemplateData(structInfo StructInfo, config GenerationConfig) TemplateData {
+	// Collect required imports from the struct
+	var imports []string
+	for _, importPath := range structInfo.RequiredImports {
+		imports = append(imports, importPath)
+	}
+
 	data := TemplateData{
 		PackageName:        structInfo.PackageName,
 		StructName:         structInfo.StructName,
 		SourceFile:         structInfo.SourceFile,
 		GeneratedTime:      time.Now().Format(time.RFC3339),
 		GeneratorVersion:   "1.0.0",
-		Imports:            []string{},
+		Imports:            imports,
 		EncryptedFields:    []TemplateField{},
 		PlainFields:        []TemplateField{},
 		PlainFieldCopies:   []string{},
