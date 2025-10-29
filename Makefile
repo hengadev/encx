@@ -43,10 +43,35 @@ install-cli: build-cli ## Install encx-gen CLI to GOPATH/bin
 	@go install ./cmd/encx-gen
 	@echo "encx-gen installed to $(shell go env GOPATH)/bin/encx-gen"
 
+build-all: ## Build encx-gen CLI for all platforms (linux/darwin/windows)
+	@echo "Building encx-gen for all platforms..."
+	@mkdir -p bin
+	@echo "Building for Linux amd64..."
+	@GOOS=linux GOARCH=amd64 go build -o bin/encx-gen-linux-amd64 ./cmd/encx-gen
+	@echo "Building for Linux arm64..."
+	@GOOS=linux GOARCH=arm64 go build -o bin/encx-gen-linux-arm64 ./cmd/encx-gen
+	@echo "Building for macOS amd64..."
+	@GOOS=darwin GOARCH=amd64 go build -o bin/encx-gen-darwin-amd64 ./cmd/encx-gen
+	@echo "Building for macOS arm64..."
+	@GOOS=darwin GOARCH=arm64 go build -o bin/encx-gen-darwin-arm64 ./cmd/encx-gen
+	@echo "Building for Windows amd64..."
+	@GOOS=windows GOARCH=amd64 go build -o bin/encx-gen-windows-amd64.exe ./cmd/encx-gen
+	@echo "Building for Windows arm64..."
+	@GOOS=windows GOARCH=arm64 go build -o bin/encx-gen-windows-arm64.exe ./cmd/encx-gen
+	@echo "All builds complete! Binaries in bin/"
+
 # Test targets
 test: generate ## Run tests after generating code
 	@echo "Running tests..."
 	@go test -v ./...
+
+test-unit: generate ## Run unit tests only
+	@echo "Running unit tests..."
+	@go test -v ./test/unit/...
+
+test-integration: generate ## Run integration tests only
+	@echo "Running integration tests..."
+	@go test -v ./test/integration/...
 
 test-race: generate ## Run tests with race detection
 	@echo "Running tests with race detection..."
@@ -59,9 +84,31 @@ test-cover: generate ## Run tests with coverage report
 	@go tool cover -html=coverage.out -o coverage.html
 	@echo "Coverage report generated: coverage.html"
 
+test-cover-check: generate ## Run tests with coverage and enforce 60% threshold
+	@echo "Running tests with coverage threshold check..."
+	@go test -coverprofile=coverage.out ./...
+	@echo "Checking coverage threshold (minimum 60%)..."
+	@go tool cover -func=coverage.out | grep total | awk '{if ($$3+0 < 60.0) {print "❌ Coverage below 60%: " $$3; exit 1} else {print "✅ Coverage: " $$3}}'
+
 benchmark: generate ## Run benchmarks
 	@echo "Running benchmarks..."
 	@go test -bench=. -benchmem ./...
+
+# Security targets
+security: ## Run security scanners (govulncheck and gosec)
+	@echo "Running security checks..."
+	@if command -v govulncheck > /dev/null; then \
+		govulncheck ./...; \
+	else \
+		echo "govulncheck not found, install it with: go install golang.org/x/vuln/cmd/govulncheck@latest"; \
+		exit 1; \
+	fi
+	@if command -v gosec > /dev/null; then \
+		gosec -quiet ./...; \
+	else \
+		echo "gosec not found, install it with: go install github.com/securego/gosec/v2/cmd/gosec@latest"; \
+		exit 1; \
+	fi
 
 # Code quality targets
 lint: ## Run linters
@@ -90,9 +137,33 @@ dev-setup: install-tools ## Set up development environment
 install-tools: ## Install development tools
 	@echo "Installing development tools..."
 	@go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+	@go install golang.org/x/vuln/cmd/govulncheck@latest
+	@go install github.com/securego/gosec/v2/cmd/gosec@latest
+	@echo "Development tools installed successfully!"
+
+# Module management targets
+mod-verify: ## Verify dependencies
+	@echo "Verifying dependencies..."
+	@go mod verify
+	@echo "Dependencies verified successfully!"
+
+mod-tidy: ## Tidy go.mod and go.sum
+	@echo "Tidying go.mod and go.sum..."
+	@go mod tidy -v
+	@echo "Modules tidied successfully!"
+
+mod-check: ## Check if go.mod and go.sum are tidy (for CI)
+	@echo "Checking if go.mod and go.sum are tidy..."
+	@go mod tidy
+	@if git diff --exit-code go.mod go.sum; then \
+		echo "✅ go.mod and go.sum are tidy"; \
+	else \
+		echo "❌ go.mod or go.sum needs updating. Please run 'make mod-tidy' and commit changes."; \
+		exit 1; \
+	fi
 
 # CI/CD targets
-ci: validate generate test lint vet ## Run full CI pipeline
+ci: validate generate test-cover-check security lint vet ## Run full CI pipeline
 	@echo "CI pipeline complete!"
 
 ci-check-generated: generate ## Check if generated code is up to date (for CI)
@@ -118,15 +189,6 @@ clean-cache: ## Clean only the generation cache
 	@rm -f .encx-gen-cache.json
 	@echo "Cache cleaned!"
 
-# Docker targets (if using Docker)
-docker-build: ## Build Docker image
-	@echo "Building Docker image..."
-	@docker build -t encx:latest .
-
-docker-test: ## Run tests in Docker
-	@echo "Running tests in Docker..."
-	@docker run --rm encx:latest make test
-
 # Release targets
 version: ## Show current version
 	@go run cmd/encx-gen/main.go cmd/encx-gen/config.go cmd/encx-gen/generator.go version
@@ -143,7 +205,7 @@ example-init: build-cli ## Initialize example configuration
 	@./bin/encx-gen init -force
 	@echo "Example configuration created in encx.yaml"
 
-example-generate: example-init ## Run example generation
+example-generate: build-cli example-init ## Run example generation
 	@echo "Running example generation..."
 	@./bin/encx-gen generate -v .
 
