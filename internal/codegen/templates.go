@@ -2,6 +2,7 @@ package codegen
 
 import (
 	"bytes"
+	"fmt"
 	"strings"
 	"text/template"
 	"time"
@@ -180,6 +181,21 @@ const hashSecureStepTemplate = `
 	{{if .Condition}}}
 	{{end}}`
 
+// Multi-operation step template - for fields with multiple tags (e.g., encrypt + hash)
+// Serializes once and reuses the bytes for all operations
+const multiOpStepTemplate = `
+	// Process {{.FieldName}} ({{.Operations}})
+	{{if .Condition}}if {{.Condition}} {
+	{{end}}{{.FieldName}}Bytes, err := encx.SerializeValue(source.{{.FieldName}})
+	if err != nil {
+		errs.Set("{{.FieldName}} serialization", err)
+	} else {
+		{{range .OpSteps}}{{.}}
+		{{end}}
+	}
+	{{if .Condition}}}
+	{{end}}`
+
 // Decryption step templates
 const decryptStepTemplate = `
 	// Decrypt {{.FieldName}}
@@ -311,8 +327,12 @@ func isCompanionField(fieldName string) bool {
 // processFieldForTemplate processes a field and adds template data
 func processFieldForTemplate(data *TemplateData, field FieldInfo) {
 	hasEncryption := false
+	var operations []string
 
+	// First pass: add encrypted/hashed fields to struct and collect operations
 	for _, tag := range field.EncxTags {
+		operations = append(operations, tag)
+
 		switch tag {
 		case "encrypt":
 			hasEncryption = true
@@ -325,10 +345,6 @@ func processFieldForTemplate(data *TemplateData, field FieldInfo) {
 			}
 			data.EncryptedFields = append(data.EncryptedFields, encryptedField)
 
-			// Add processing step
-			step := generateProcessingStep(encryptStepTemplate, field.Name, field.Type)
-			data.ProcessingSteps = append(data.ProcessingSteps, step)
-
 		case "hash_basic":
 			// Add hash field to struct
 			hashField := TemplateField{
@@ -339,10 +355,6 @@ func processFieldForTemplate(data *TemplateData, field FieldInfo) {
 			}
 			data.EncryptedFields = append(data.EncryptedFields, hashField)
 
-			// Add processing step
-			step := generateProcessingStep(hashBasicStepTemplate, field.Name, field.Type)
-			data.ProcessingSteps = append(data.ProcessingSteps, step)
-
 		case "hash_secure":
 			// Add secure hash field to struct
 			hashField := TemplateField{
@@ -352,8 +364,26 @@ func processFieldForTemplate(data *TemplateData, field FieldInfo) {
 				JSONField: strings.ToLower(field.Name) + "_hash_secure",
 			}
 			data.EncryptedFields = append(data.EncryptedFields, hashField)
+		}
+	}
 
-			// Add processing step
+	// Second pass: generate processing step(s)
+	// If field has multiple operations, use multi-op template (serialize once)
+	// Otherwise, use individual templates (backward compatible)
+	if len(operations) > 1 {
+		// Multi-operation: serialize once and apply all operations
+		step := generateMultiOpStep(field.Name, field.Type, operations)
+		data.ProcessingSteps = append(data.ProcessingSteps, step)
+	} else if len(operations) == 1 {
+		// Single operation: use existing templates
+		switch operations[0] {
+		case "encrypt":
+			step := generateProcessingStep(encryptStepTemplate, field.Name, field.Type)
+			data.ProcessingSteps = append(data.ProcessingSteps, step)
+		case "hash_basic":
+			step := generateProcessingStep(hashBasicStepTemplate, field.Name, field.Type)
+			data.ProcessingSteps = append(data.ProcessingSteps, step)
+		case "hash_secure":
 			step := generateProcessingStep(hashSecureStepTemplate, field.Name, field.Type)
 			data.ProcessingSteps = append(data.ProcessingSteps, step)
 		}
@@ -376,6 +406,56 @@ func generateProcessingStep(stepTemplate, fieldName, fieldType string) string {
 	}{
 		FieldName: fieldName,
 		Condition: getNonZeroCondition(fieldName, fieldType),
+	}
+
+	var buf bytes.Buffer
+	tmpl.Execute(&buf, stepData)
+	return buf.String()
+}
+
+// generateOperationCode generates the code for a specific operation (encrypt, hash_basic, hash_secure)
+// This is used when multiple operations are performed on the same serialized bytes
+func generateOperationCode(operation, fieldName string) string {
+	switch operation {
+	case "encrypt":
+		return fmt.Sprintf(`result.%sEncrypted, err = crypto.EncryptData(ctx, %sBytes, dek)
+		if err != nil {
+			errs.Set("%s encryption", err)
+		}`, fieldName, fieldName, fieldName)
+	case "hash_basic":
+		return fmt.Sprintf(`result.%sHash = crypto.HashBasic(ctx, %sBytes)`, fieldName, fieldName)
+	case "hash_secure":
+		return fmt.Sprintf(`result.%sHashSecure, err = crypto.HashSecure(ctx, %sBytes)
+		if err != nil {
+			errs.Set("%s secure hash", err)
+		}`, fieldName, fieldName, fieldName)
+	default:
+		return ""
+	}
+}
+
+// generateMultiOpStep generates a processing step for fields with multiple operations
+func generateMultiOpStep(fieldName, fieldType string, operations []string) string {
+	tmpl, _ := template.New("multiop").Parse(multiOpStepTemplate)
+
+	// Generate operation code for each operation
+	var opSteps []string
+	var opNames []string
+	for _, op := range operations {
+		opSteps = append(opSteps, generateOperationCode(op, fieldName))
+		opNames = append(opNames, op)
+	}
+
+	stepData := struct {
+		FieldName  string
+		Condition  string
+		Operations string
+		OpSteps    []string
+	}{
+		FieldName:  fieldName,
+		Condition:  getNonZeroCondition(fieldName, fieldType),
+		Operations: strings.Join(opNames, " + "),
+		OpSteps:    opSteps,
 	}
 
 	var buf bytes.Buffer
