@@ -140,42 +140,45 @@ func Decrypt{{.StructName}}Encx(ctx context.Context, crypto encx.CryptoService, 
 // Processing step templates
 const encryptStepTemplate = `
 	// Process {{.FieldName}} (encrypt)
-	if source.{{.FieldName}} != {{.ZeroValue}} {
-		{{.FieldName}}Bytes, err := encx.SerializeValue(source.{{.FieldName}})
+	{{if .Condition}}if {{.Condition}} {
+	{{end}}{{.FieldName}}Bytes, err := encx.SerializeValue(source.{{.FieldName}})
+	if err != nil {
+		errs.Set("{{.FieldName}} serialization", err)
+	} else {
+		result.{{.FieldName}}Encrypted, err = crypto.EncryptData(ctx, {{.FieldName}}Bytes, dek)
 		if err != nil {
-			errs.Set("{{.FieldName}} serialization", err)
-		} else {
-			result.{{.FieldName}}Encrypted, err = crypto.EncryptData(ctx, {{.FieldName}}Bytes, dek)
-			if err != nil {
-				errs.Set("{{.FieldName}} encryption", err)
-			}
+			errs.Set("{{.FieldName}} encryption", err)
 		}
-	}`
+	}
+	{{if .Condition}}}
+	{{end}}`
 
 const hashBasicStepTemplate = `
 	// Process {{.FieldName}} (hash_basic)
-	if source.{{.FieldName}} != {{.ZeroValue}} {
-		{{.FieldName}}Bytes, err := encx.SerializeValue(source.{{.FieldName}})
-		if err != nil {
-			errs.Set("{{.FieldName}} serialization", err)
-		} else {
-			result.{{.FieldName}}Hash = crypto.HashBasic(ctx, {{.FieldName}}Bytes)
-		}
-	}`
+	{{if .Condition}}if {{.Condition}} {
+	{{end}}{{.FieldName}}Bytes, err := encx.SerializeValue(source.{{.FieldName}})
+	if err != nil {
+		errs.Set("{{.FieldName}} serialization", err)
+	} else {
+		result.{{.FieldName}}Hash = crypto.HashBasic(ctx, {{.FieldName}}Bytes)
+	}
+	{{if .Condition}}}
+	{{end}}`
 
 const hashSecureStepTemplate = `
 	// Process {{.FieldName}} (hash_secure)
-	if source.{{.FieldName}} != {{.ZeroValue}} {
-		{{.FieldName}}Bytes, err := encx.SerializeValue(source.{{.FieldName}})
+	{{if .Condition}}if {{.Condition}} {
+	{{end}}{{.FieldName}}Bytes, err := encx.SerializeValue(source.{{.FieldName}})
+	if err != nil {
+		errs.Set("{{.FieldName}} serialization", err)
+	} else {
+		result.{{.FieldName}}HashSecure, err = crypto.HashSecure(ctx, {{.FieldName}}Bytes)
 		if err != nil {
-			errs.Set("{{.FieldName}} serialization", err)
-		} else {
-			result.{{.FieldName}}HashSecure, err = crypto.HashSecure(ctx, {{.FieldName}}Bytes)
-			if err != nil {
-				errs.Set("{{.FieldName}} secure hash", err)
-			}
+			errs.Set("{{.FieldName}} secure hash", err)
 		}
-	}`
+	}
+	{{if .Condition}}}
+	{{end}}`
 
 // Decryption step templates
 const decryptStepTemplate = `
@@ -227,10 +230,20 @@ type GenerationConfig struct {
 
 // BuildTemplateData builds template data from struct info
 func BuildTemplateData(structInfo StructInfo, config GenerationConfig) TemplateData {
-	// Collect required imports from the struct
+	// Hardcoded imports that are always included in the template
+	hardcodedImports := map[string]bool{
+		"context":                     true,
+		"time":                        true,
+		"github.com/hengadev/errsx":   true,
+		"github.com/hengadev/encx":    true,
+	}
+
+	// Collect required imports from the struct, excluding hardcoded ones
 	var imports []string
 	for _, importPath := range structInfo.RequiredImports {
-		imports = append(imports, importPath)
+		if !hardcodedImports[importPath] {
+			imports = append(imports, importPath)
+		}
 	}
 
 	data := TemplateData{
@@ -359,10 +372,10 @@ func generateProcessingStep(stepTemplate, fieldName, fieldType string) string {
 
 	stepData := struct {
 		FieldName string
-		ZeroValue string
+		Condition string
 	}{
 		FieldName: fieldName,
-		ZeroValue: getZeroValue(fieldType),
+		Condition: getNonZeroCondition(fieldName, fieldType),
 	}
 
 	var buf bytes.Buffer
@@ -370,20 +383,23 @@ func generateProcessingStep(stepTemplate, fieldName, fieldType string) string {
 	return buf.String()
 }
 
-// getZeroValue returns the zero value for a type
-func getZeroValue(typeName string) string {
-	switch typeName {
-	case "string":
-		return "\"\""
-	case "int", "int8", "int16", "int32", "int64":
-		return "0"
-	case "uint", "uint8", "uint16", "uint32", "uint64":
-		return "0"
-	case "float32", "float64":
-		return "0"
-	case "bool":
-		return "false"
-	default:
-		return "nil"
+// getNonZeroCondition returns a condition expression to check if a field should be processed
+// Returns empty string if the field should always be processed (no condition needed)
+func getNonZeroCondition(fieldName, typeName string) string {
+	// Pointer types - check for nil
+	if strings.HasPrefix(typeName, "*") {
+		return "source." + fieldName + " != nil"
 	}
+
+	// Special struct types with semantic "not set" values
+	if strings.Contains(typeName, "uuid.UUID") {
+		return "source." + fieldName + " != uuid.Nil"
+	}
+	if strings.Contains(typeName, "time.Time") {
+		return "!source." + fieldName + ".IsZero()"
+	}
+
+	// All other types (string, int, bool, etc.) should always be processed
+	// Empty strings, zero integers, and false booleans are valid values
+	return ""
 }
