@@ -52,15 +52,32 @@ encx-gen init
 ```go
 package models
 
+import (
+    "time"
+    "github.com/google/uuid"
+)
+
 type User struct {
-    ID    int    `json:"id"`
-    Email string `json:"email" encx:"encrypt,hash_basic"`
-    Phone string `json:"phone" encx:"encrypt"`
-    SSN   string `json:"ssn" encx:"hash_secure"`
+    // Required fields - always encrypted even if zero value
+    ID       int       `json:"id"`
+    Email    string    `json:"email" encx:"encrypt,hash_basic"`
+    Phone    string    `json:"phone" encx:"encrypt"`
+    SSN      string    `json:"ssn" encx:"hash_secure"`
+    IsActive bool      `json:"is_active" encx:"encrypt"`
+
+    // Struct types with semantic zero values - checked automatically
+    UserID    uuid.UUID `json:"user_id" encx:"encrypt"`    // Checks != uuid.Nil
+    CreatedAt time.Time `json:"created_at" encx:"encrypt"` // Checks !.IsZero()
+
+    // Optional fields - use pointers, checked for nil
+    NickName  *string    `json:"nickname" encx:"encrypt"`
+    UpdatedAt *time.Time `json:"updated_at" encx:"encrypt"`
 
     // No companion fields needed! Code generation creates separate output struct
 }
 ```
+
+**Note on Imports**: The code generator automatically tracks and includes required imports (e.g., `github.com/google/uuid`, `time`) in generated files.
 
 ### 4. Generate Code
 
@@ -192,6 +209,142 @@ Email string `encx:"encrypt"`
 EmailEncrypted string  // Should be []byte
 ```
 
+### Field Types and Zero-Value Handling
+
+The code generator intelligently handles different field types with type-aware zero-value checking:
+
+#### Required Fields (Always Encrypted)
+
+Basic types are always encrypted, even when they have zero values:
+
+```go
+type User struct {
+    Email    string `encx:"encrypt"`  // Empty string "" is encrypted
+    Age      int    `encx:"encrypt"`  // Zero value 0 is encrypted
+    IsActive bool   `encx:"encrypt"`  // false is encrypted
+    Score    float64 `encx:"encrypt"` // 0.0 is encrypted
+}
+```
+
+**Rationale**: Zero values are semantically valid data that should be encrypted. Empty strings, zero integers, and false booleans all represent meaningful state.
+
+#### Optional Fields (Pointer Types)
+
+Use pointer types to indicate truly optional fields:
+
+```go
+import "github.com/google/uuid"
+
+type User struct {
+    // Optional fields checked for nil before encryption
+    NickName    *string     `encx:"encrypt"` // Encrypts only if != nil
+    MiddleName  *string     `encx:"encrypt"` // Skips if nil
+    Age         *int        `encx:"encrypt"` // Encrypts only if != nil
+    TenantID    *uuid.UUID  `encx:"encrypt"` // Skips if nil
+}
+```
+
+**Generated code includes nil checks**:
+```go
+if source.NickName != nil {
+    // Serialize and encrypt
+}
+```
+
+#### Struct Types with Semantic Zero Values
+
+Some struct types have special "not set" values that are automatically detected:
+
+```go
+import (
+    "time"
+    "github.com/google/uuid"
+)
+
+type User struct {
+    // uuid.UUID - checks against uuid.Nil
+    UserID uuid.UUID `encx:"encrypt"` // Skips if == uuid.Nil
+
+    // time.Time - checks .IsZero()
+    CreatedAt time.Time `encx:"encrypt"` // Skips if .IsZero() == true
+}
+```
+
+**Generated code**:
+```go
+// For uuid.UUID
+if source.UserID != uuid.Nil {
+    // Serialize and encrypt
+}
+
+// For time.Time
+if !source.CreatedAt.IsZero() {
+    // Serialize and encrypt
+}
+```
+
+#### Type Decision Matrix
+
+| Type | Example | Zero-Value Behavior | Check Performed |
+|------|---------|---------------------|-----------------|
+| `string` | `Email string` | Always encrypted | None (always process) |
+| `int`, `uint`, `float` | `Age int` | Always encrypted | None (always process) |
+| `bool` | `IsActive bool` | Always encrypted | None (always process) |
+| `*string`, `*int`, etc. | `NickName *string` | Skip if nil | `!= nil` |
+| `uuid.UUID` | `UserID uuid.UUID` | Skip if Nil | `!= uuid.Nil` |
+| `time.Time` | `CreatedAt time.Time` | Skip if zero time | `!.IsZero()` |
+| `*uuid.UUID` | `TenantID *uuid.UUID` | Skip if nil | `!= nil` |
+| `*time.Time` | `UpdatedAt *time.Time` | Skip if nil | `!= nil` |
+
+#### Best Practice: Use Types to Express Intent
+
+```go
+// ✅ GOOD - Type system expresses optionality
+type User struct {
+    Email    string     // Required, empty string is valid
+    NickName *string    // Optional, use nil for "not set"
+    UserID   uuid.UUID  // Required, uuid.Nil means "not set"
+    TenantID *uuid.UUID // Optional, nil means "not set"
+}
+
+// ❌ AVOID - Ambiguous semantics
+type User struct {
+    Email    string     // Is "" a valid value or "not set"?
+    NickName string     // Can't distinguish "not set" from empty
+}
+```
+
+### Automatic Import Tracking
+
+The code generator automatically tracks and includes necessary imports:
+
+```go
+// Your source file
+import "github.com/google/uuid"
+
+type User struct {
+    UserID uuid.UUID `encx:"encrypt"`
+}
+```
+
+**Generated file automatically includes**:
+```go
+// Generated code
+import (
+    "context"
+    "time"
+    "github.com/hengadev/errsx"
+    "github.com/hengadev/encx"
+    "github.com/google/uuid"  // ✅ Automatically added
+)
+```
+
+The generator:
+- Parses all imports from your source file
+- Detects which packages are used by field types
+- Includes only necessary imports in generated code
+- Avoids duplicate imports with hardcoded dependencies
+
 ## Generated Code
 
 ### Example Generated Functions
@@ -228,7 +381,7 @@ type UserEncx struct {
 
 ### Error Handling
 
-Generated functions use structured error handling:
+Generated functions use structured error handling with type-aware zero-value checks:
 
 ```go
 // Generated code includes comprehensive error handling
@@ -242,16 +395,39 @@ func ProcessUserEncx(ctx context.Context, crypto encx.CryptoService, source *Use
         return nil, errs.AsError()
     }
 
-    // Field processing with individual error tracking
-    // Uses internal compact binary serializer automatically
-    if source.Email != "" {
-        emailBytes, err := serialization.Serialize(source.Email)
+    // Required field - always encrypted (no condition)
+    emailBytes, err := encx.SerializeValue(source.Email)
+    if err != nil {
+        errs.Set("Email serialization", err)
+    } else {
+        result.EmailEncrypted, err = crypto.EncryptData(ctx, emailBytes, dek)
         if err != nil {
-            errs.Set("Email serialization", err)
+            errs.Set("Email encryption", err)
+        }
+    }
+
+    // Optional field - checked for nil
+    if source.NickName != nil {
+        nickNameBytes, err := encx.SerializeValue(source.NickName)
+        if err != nil {
+            errs.Set("NickName serialization", err)
         } else {
-            result.EmailEncrypted, err = crypto.EncryptData(ctx, emailBytes, dek)
+            result.NickNameEncrypted, err = crypto.EncryptData(ctx, nickNameBytes, dek)
             if err != nil {
-                errs.Set("Email encryption", err)
+                errs.Set("NickName encryption", err)
+            }
+        }
+    }
+
+    // Struct with semantic zero - checked automatically
+    if source.UserID != uuid.Nil {
+        userIDBytes, err := encx.SerializeValue(source.UserID)
+        if err != nil {
+            errs.Set("UserID serialization", err)
+        } else {
+            result.UserIDEncrypted, err = crypto.EncryptData(ctx, userIDBytes, dek)
+            if err != nil {
+                errs.Set("UserID encryption", err)
             }
         }
     }
@@ -259,6 +435,8 @@ func ProcessUserEncx(ctx context.Context, crypto encx.CryptoService, source *Use
     return result, errs.AsError()
 }
 ```
+
+**Note**: The generator automatically uses the internal compact binary serializer via `encx.SerializeValue()`.
 
 ## CLI Commands
 
@@ -520,29 +698,52 @@ type UserRecord struct {
 ### 1. Struct Design
 
 ```go
-// ✅ GOOD - Clear separation of concerns
+import (
+    "time"
+    "github.com/google/uuid"
+)
+
+// ✅ GOOD - Clear separation and type-based optionality
 type User struct {
     // Business fields
     ID   int    `json:"id"`
     Name string `json:"name"`
 
-    // Sensitive fields with encx tags
-    Email string `json:"email" encx:"encrypt,hash_basic"`
-    Phone string `json:"phone" encx:"encrypt"`
-    SSN   string `json:"ssn" encx:"hash_secure"`
+    // Required sensitive fields - always encrypted
+    Email    string `json:"email" encx:"encrypt,hash_basic"`
+    Phone    string `json:"phone" encx:"encrypt"`
+    SSN      string `json:"ssn" encx:"hash_secure"`
+    IsActive bool   `json:"is_active" encx:"encrypt"` // false is valid and encrypted
 
-    // Companion fields grouped together
-    EmailEncrypted []byte `json:"email_encrypted" db:"email_encrypted"`
-    EmailHash      string `json:"email_hash" db:"email_hash"`
-    PhoneEncrypted []byte `json:"phone_encrypted" db:"phone_encrypted"`
-    SSNHashSecure  string `json:"ssn_hash_secure" db:"ssn_hash_secure"`
+    // Struct types with semantic zero values
+    UserID    uuid.UUID `json:"user_id" encx:"encrypt"`    // Skips if uuid.Nil
+    CreatedAt time.Time `json:"created_at" encx:"encrypt"` // Skips if .IsZero()
 
-    // Essential encryption fields
-    DEKEncrypted []byte `json:"dek_encrypted" db:"dek_encrypted"`
-    KeyVersion   int    `json:"key_version" db:"key_version"`
-    Metadata     string `json:"metadata" db:"metadata"`
+    // Optional fields - use pointers to express optionality
+    NickName  *string    `json:"nickname" encx:"encrypt"`   // nil means "not set"
+    UpdatedAt *time.Time `json:"updated_at" encx:"encrypt"` // nil means "not set"
+
+    // No companion fields needed - code generation creates separate UserEncx struct
+}
+
+// ❌ AVOID - Ambiguous optionality
+type User struct {
+    Email    string `encx:"encrypt"` // Is "" a valid value or "not set"?
+    NickName string `encx:"encrypt"` // Can't distinguish empty from unset
+}
+
+// ✅ BETTER - Use types to express intent
+type User struct {
+    Email    string  `encx:"encrypt"` // Required, "" is valid and encrypted
+    NickName *string `encx:"encrypt"` // Optional, nil means "not set"
 }
 ```
+
+**Key Principles**:
+- Use value types for required fields (even zero values are encrypted)
+- Use pointer types for truly optional fields (nil = "not set")
+- Use `uuid.UUID` and `time.Time` for fields with semantic zero values
+- Let the type system express your intent
 
 ### 2. Package Organization
 
