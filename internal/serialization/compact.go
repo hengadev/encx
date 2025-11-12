@@ -76,6 +76,28 @@ func Serialize(value any) ([]byte, error) {
 		copy(result[4:], v)
 		return result, nil
 
+	case []string:
+		// [4-byte slice length][string1: 4-byte length + bytes][string2: 4-byte length + bytes]...
+		// Calculate total size needed
+		totalSize := 4 // slice length prefix
+		for _, s := range v {
+			totalSize += 4 + len(s) // each string: 4-byte length + UTF-8 bytes
+		}
+		result := make([]byte, totalSize)
+
+		// Write slice length
+		binary.LittleEndian.PutUint32(result[:4], uint32(len(v)))
+
+		// Write each string
+		offset := 4
+		for _, s := range v {
+			data := []byte(s)
+			binary.LittleEndian.PutUint32(result[offset:offset+4], uint32(len(data)))
+			copy(result[offset+4:], data)
+			offset += 4 + len(data)
+		}
+		return result, nil
+
 	case float64:
 		// [8 bytes little-endian]
 		result := make([]byte, 8)
