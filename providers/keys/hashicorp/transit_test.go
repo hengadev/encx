@@ -89,7 +89,9 @@ func TestNew_Success(t *testing.T) {
 	defer server.Close()
 
 	os.Setenv("VAULT_ADDR", server.URL)
+	os.Setenv("VAULT_TOKEN", "test-token")
 	defer os.Unsetenv("VAULT_ADDR")
+	defer os.Unsetenv("VAULT_TOKEN")
 
 	vs, err := NewTransitService()
 	require.NoError(t, err)
@@ -102,8 +104,10 @@ func TestNew_WithNamespace(t *testing.T) {
 	defer server.Close()
 
 	os.Setenv("VAULT_ADDR", server.URL)
+	os.Setenv("VAULT_TOKEN", "test-token")
 	os.Setenv("VAULT_NAMESPACE", "admin/test")
 	defer os.Unsetenv("VAULT_ADDR")
+	defer os.Unsetenv("VAULT_TOKEN")
 	defer os.Unsetenv("VAULT_NAMESPACE")
 
 	vs, err := NewTransitService()
