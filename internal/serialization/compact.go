@@ -1,3 +1,25 @@
+// Package serialization provides compact binary serialization for deterministic encryption.
+//
+// Supported Types:
+//   - Numeric: int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64
+//   - Floating Point: float32, float64
+//   - Boolean: bool
+//   - Text: string
+//   - Binary: []byte
+//   - Collections: []string
+//   - Temporal: time.Time
+//   - Arrays: [N]byte (converted to []byte format)
+//   - Pointers: *T for any supported type T (with nil handling)
+//   - Type Aliases: Custom types based on supported types (e.g., type UserID int64, type Tags []string)
+//
+// Binary Format:
+//   - Fixed-size types (int, float, bool): Direct little-endian encoding
+//   - Variable-length types (string, []byte, []string): [4-byte length prefix][data]
+//   - []string: [4-byte slice length][string1: 4-byte length + UTF-8 bytes][string2: ...]
+//   - Pointers: [1-byte nil marker (0x00=nil, 0x01=non-nil)][serialized value if non-nil]
+//
+// The serialization is deterministic: the same input always produces identical bytes,
+// which is critical for searchable encryption and consistent hashing.
 package serialization
 
 import (

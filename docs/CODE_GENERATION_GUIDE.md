@@ -327,12 +327,14 @@ type State string
 type UserID int64
 type Priority int8
 type Active bool
+type Tags []string  // Collection type aliases also supported
 
 type Order struct {
     Status   State    `encx:"encrypt"` // Always encrypted - correct
     User     UserID   `encx:"encrypt"` // Always encrypted - correct
     Level    Priority `encx:"encrypt"` // Always encrypted - correct
     IsActive Active   `encx:"encrypt"` // Always encrypted - correct
+    Labels   Tags     `encx:"encrypt"` // Slice type aliases work too
 }
 ```
 
@@ -340,6 +342,7 @@ type Order struct {
 - Empty string (`""`) is a valid state value
 - Zero integer (`0`) is a valid ID
 - False (`false`) is a valid active status
+- Empty slice (`[]string{}`) is a valid tags value
 
 #### Special Type Aliases (Limited Support ⚠️)
 
