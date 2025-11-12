@@ -101,7 +101,14 @@ func WithKeyMetadataDBFilename(filename string) Option {
 			return fmt.Errorf("failed to get current working directory for default DB path: %w", err)
 		}
 
-		defaultDataDir := filepath.Join(cwd, ".encx")
+		// Try to find project root (directory with go.mod), fall back to cwd if not found
+		projectRoot, err := FindProjectRoot(cwd)
+		if err != nil {
+			// If go.mod not found, use current directory (for non-Go-module projects)
+			projectRoot = cwd
+		}
+
+		defaultDataDir := filepath.Join(projectRoot, ".encx")
 		if err := os.MkdirAll(defaultDataDir, 0700); err != nil {
 			return fmt.Errorf("failed to create default '.encx' directory: %w", err)
 		}
