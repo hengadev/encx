@@ -1,6 +1,12 @@
 package encx
 
-import "fmt"
+import (
+	"fmt"
+	"os"
+	"path/filepath"
+
+	"github.com/hengadev/encx/internal/config"
+)
 
 // Config holds the configuration for creating a Crypto instance.
 //
@@ -110,7 +116,19 @@ func (c *Config) Validate() error {
 
 	// Apply defaults to optional fields
 	if c.DBPath == "" {
-		c.DBPath = DefaultDBPath
+		// Try to find project root (directory with go.mod), fall back to relative path if not found
+		cwd, err := os.Getwd()
+		if err == nil {
+			if projectRoot, err := config.FindProjectRoot(cwd); err == nil {
+				c.DBPath = filepath.Join(projectRoot, DefaultDBPath)
+			} else {
+				// If go.mod not found, use relative path (for non-Go-module projects)
+				c.DBPath = DefaultDBPath
+			}
+		} else {
+			// If we can't get cwd, fall back to relative path
+			c.DBPath = DefaultDBPath
+		}
 	}
 
 	if c.DBFilename == "" {
