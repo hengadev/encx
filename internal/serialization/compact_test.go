@@ -422,6 +422,7 @@ type SessionState string
 type UserID int64
 type Priority int8
 type Port uint16
+type Tags []string
 
 const (
 	RoleAdmin Role = "admin"
@@ -537,6 +538,32 @@ func TestSerializeDeserializeTypeAliases(t *testing.T) {
 
 				if result != original.(Port) {
 					t.Errorf("Expected %v, got %v", original, result)
+				}
+			},
+		},
+		{
+			name:  "Tags type alias ([]string)",
+			value: Tags{"admin", "user", "moderator"},
+			check: func(t *testing.T, original any) {
+				data, err := Serialize(original)
+				if err != nil {
+					t.Fatalf("Serialize failed: %v", err)
+				}
+
+				var result Tags
+				err = Deserialize(data, &result)
+				if err != nil {
+					t.Fatalf("Deserialize failed: %v", err)
+				}
+
+				orig := original.(Tags)
+				if len(result) != len(orig) {
+					t.Fatalf("Expected length %d, got %d", len(orig), len(result))
+				}
+				for i := range orig {
+					if result[i] != orig[i] {
+						t.Errorf("Expected %v at index %d, got %v", orig[i], i, result[i])
+					}
 				}
 			},
 		},
