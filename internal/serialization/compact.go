@@ -291,6 +291,29 @@ func Deserialize(data []byte, target any) error {
 		copy(*t, data[4:4+length])
 		return nil
 
+	case *[]string:
+		if len(data) < 4 {
+			return fmt.Errorf("insufficient data for []string length")
+		}
+		sliceLen := binary.LittleEndian.Uint32(data[:4])
+		*t = make([]string, sliceLen)
+
+		offset := 4
+		for i := uint32(0); i < sliceLen; i++ {
+			if offset+4 > len(data) {
+				return fmt.Errorf("insufficient data for string %d length in []string", i)
+			}
+			strLen := binary.LittleEndian.Uint32(data[offset : offset+4])
+			offset += 4
+
+			if offset+int(strLen) > len(data) {
+				return fmt.Errorf("insufficient data for string %d content in []string", i)
+			}
+			(*t)[i] = string(data[offset : offset+int(strLen)])
+			offset += int(strLen)
+		}
+		return nil
+
 	case *float64:
 		if len(data) < 8 {
 			return fmt.Errorf("insufficient data for float64")
