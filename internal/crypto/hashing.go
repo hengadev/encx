@@ -159,11 +159,15 @@ func (h *HashingOperations) CompareSecureHashAndValue(ctx context.Context, value
 		return false, fmt.Errorf("failed to decode hash: %w", err)
 	}
 
-	// Serialize value to bytes
-	valueBytes, err := serialization.Serialize(value)
-	if err != nil {
-		return false, fmt.Errorf("failed to serialize value: %w", err)
+	// Get value as bytes
+	// CompareSecureHashAndValue must receive []byte to match HashSecure's signature
+	// HashSecure only accepts []byte, so comparison must also use []byte
+	var valueBytes []byte
+	bytesVal, ok := value.([]byte)
+	if !ok {
+		return false, fmt.Errorf("value must be of type []byte for secure hash comparison, got %T", value)
 	}
+	valueBytes = bytesVal
 
 	// Combine value with pepper
 	peppered := append(valueBytes, h.pepper[:]...)
