@@ -194,6 +194,96 @@ func TestSerializeDeserialize(t *testing.T) {
 			},
 		},
 		{
+			name:  "[]string",
+			value: []string{"hello", "world", "test"},
+			check: func(t *testing.T, original, deserialized any) {
+				var result []string
+				data, err := Serialize(original)
+				if err != nil {
+					t.Fatalf("Serialize failed: %v", err)
+				}
+				err = Deserialize(data, &result)
+				if err != nil {
+					t.Fatalf("Deserialize failed: %v", err)
+				}
+				orig := original.([]string)
+				if len(result) != len(orig) {
+					t.Fatalf("Expected length %d, got %d", len(orig), len(result))
+				}
+				for i := range orig {
+					if result[i] != orig[i] {
+						t.Errorf("Expected %v at index %d, got %v", orig[i], i, result[i])
+					}
+				}
+			},
+		},
+		{
+			name:  "empty []string",
+			value: []string{},
+			check: func(t *testing.T, original, deserialized any) {
+				var result []string
+				data, err := Serialize(original)
+				if err != nil {
+					t.Fatalf("Serialize failed: %v", err)
+				}
+				err = Deserialize(data, &result)
+				if err != nil {
+					t.Fatalf("Deserialize failed: %v", err)
+				}
+				if len(result) != 0 {
+					t.Errorf("Expected empty slice, got %v", result)
+				}
+			},
+		},
+		{
+			name:  "[]string with empty strings",
+			value: []string{"", "hello", "", "world", ""},
+			check: func(t *testing.T, original, deserialized any) {
+				var result []string
+				data, err := Serialize(original)
+				if err != nil {
+					t.Fatalf("Serialize failed: %v", err)
+				}
+				err = Deserialize(data, &result)
+				if err != nil {
+					t.Fatalf("Deserialize failed: %v", err)
+				}
+				orig := original.([]string)
+				if len(result) != len(orig) {
+					t.Fatalf("Expected length %d, got %d", len(orig), len(result))
+				}
+				for i := range orig {
+					if result[i] != orig[i] {
+						t.Errorf("Expected %v at index %d, got %v", orig[i], i, result[i])
+					}
+				}
+			},
+		},
+		{
+			name:  "[]string with unicode",
+			value: []string{"hello", "世界", "🔥", "test"},
+			check: func(t *testing.T, original, deserialized any) {
+				var result []string
+				data, err := Serialize(original)
+				if err != nil {
+					t.Fatalf("Serialize failed: %v", err)
+				}
+				err = Deserialize(data, &result)
+				if err != nil {
+					t.Fatalf("Deserialize failed: %v", err)
+				}
+				orig := original.([]string)
+				if len(result) != len(orig) {
+					t.Fatalf("Expected length %d, got %d", len(orig), len(result))
+				}
+				for i := range orig {
+					if result[i] != orig[i] {
+						t.Errorf("Expected %v at index %d, got %v", orig[i], i, result[i])
+					}
+				}
+			},
+		},
+		{
 			name:  "float64",
 			value: float64(3.14159),
 			check: func(t *testing.T, original, deserialized any) {
