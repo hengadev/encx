@@ -15,17 +15,19 @@ func TestNewCrypto_ValidConfiguration(t *testing.T) {
 	ctx := context.Background()
 	tempDir := t.TempDir()
 
-	// Set required environment variables
-	os.Setenv("ENCX_KEK_ALIAS", "test-kek")
-	os.Setenv("ENCX_ALLOW_IN_MEMORY_PEPPER", "true")
-
-	// Create a test KMS service
+	// Create a test KMS and secrets service
 	kms := testutils.NewSimpleTestKMS()
+	secrets := encx.NewInMemorySecretStore()
 
-	crypto, err := encx.NewCrypto(ctx, kms,
-		encx.WithDBPath(tempDir),
-		encx.WithDBFilename("test.db"),
-	)
+	// Create config
+	cfg := encx.Config{
+		KEKAlias:    "test-kek",
+		PepperAlias: "test-pepper",
+		DBPath:      tempDir,
+		DBFilename:  "test.db",
+	}
+
+	crypto, err := encx.NewCrypto(ctx, kms, secrets, cfg)
 
 	require.NoError(t, err)
 	require.NotNil(t, crypto)
@@ -38,40 +40,57 @@ func TestNewCrypto_MissingRequiredFields(t *testing.T) {
 	ctx := context.Background()
 
 	tests := []struct {
-		name          string
-		setupEnv      func()
-		kmsService    encx.KeyManagementService
-		wantErr       string
+		name       string
+		kmsService encx.KeyManagementService
+		secrets    encx.SecretManagementService
+		cfg        encx.Config
+		wantErr    string
 	}{
 		{
-			name: "nil KMS service",
-			setupEnv: func() {
-				os.Setenv("ENCX_KEK_ALIAS", "test-kek")
-				os.Setenv("ENCX_ALLOW_IN_MEMORY_PEPPER", "true")
-			},
+			name:       "nil KMS service",
 			kmsService: nil,
-			wantErr:    "KMS service is required",
+			secrets:    encx.NewInMemorySecretStore(),
+			cfg: encx.Config{
+				KEKAlias:    "test-kek",
+				PepperAlias: "test-pepper",
+			},
+			wantErr: "KeyManagementService is required",
 		},
 		{
-			name: "missing KEK alias",
-			setupEnv: func() {
-				os.Unsetenv("ENCX_KEK_ALIAS")
-				os.Setenv("ENCX_ALLOW_IN_MEMORY_PEPPER", "true")
-			},
+			name:       "nil SecretManagementService",
 			kmsService: testutils.NewSimpleTestKMS(),
-			wantErr:    "ENCX_KEK_ALIAS environment variable is required",
+			secrets:    nil,
+			cfg: encx.Config{
+				KEKAlias:    "test-kek",
+				PepperAlias: "test-pepper",
+			},
+			wantErr: "SecretManagementService is required",
+		},
+		{
+			name:       "missing KEK alias",
+			kmsService: testutils.NewSimpleTestKMS(),
+			secrets:    encx.NewInMemorySecretStore(),
+			cfg: encx.Config{
+				KEKAlias:    "",
+				PepperAlias: "test-pepper",
+			},
+			wantErr: "KEKAlias is required",
+		},
+		{
+			name:       "missing PepperAlias",
+			kmsService: testutils.NewSimpleTestKMS(),
+			secrets:    encx.NewInMemorySecretStore(),
+			cfg: encx.Config{
+				KEKAlias:    "test-kek",
+				PepperAlias: "",
+			},
+			wantErr: "PepperAlias is required",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Clean up environment before and after test
-			os.Unsetenv("ENCX_KEK_ALIAS")
-			os.Unsetenv("ENCX_PEPPER_SECRET_PATH")
-
-			tt.setupEnv()
-
-			_, err := encx.NewCrypto(ctx, tt.kmsService)
+			_, err := encx.NewCrypto(ctx, tt.kmsService, tt.secrets, tt.cfg)
 			require.Error(t, err)
 			assert.Contains(t, err.Error(), tt.wantErr)
 		})
@@ -82,15 +101,15 @@ func TestEnvironmentVariables_Validation(t *testing.T) {
 	ctx := context.Background()
 
 	tests := []struct {
-		name          string
-		setupEnv      func()
-		wantErr       string
+		name     string
+		setupEnv func()
+		wantErr  string
 	}{
 		{
 			name: "valid environment variables",
 			setupEnv: func() {
 				os.Setenv("ENCX_KEK_ALIAS", "valid-alias")
-				os.Setenv("ENCX_ALLOW_IN_MEMORY_PEPPER", "true")
+				os.Setenv("ENCX_PEPPER_ALIAS", "test-pepper")
 			},
 			wantErr: "",
 		},
@@ -98,7 +117,7 @@ func TestEnvironmentVariables_Validation(t *testing.T) {
 			name: "empty KEK alias",
 			setupEnv: func() {
 				os.Setenv("ENCX_KEK_ALIAS", "")
-				os.Setenv("ENCX_ALLOW_IN_MEMORY_PEPPER", "true")
+				os.Setenv("ENCX_PEPPER_ALIAS", "test-pepper")
 			},
 			wantErr: "ENCX_KEK_ALIAS environment variable is required",
 		},
@@ -106,7 +125,7 @@ func TestEnvironmentVariables_Validation(t *testing.T) {
 			name: "missing KEK alias",
 			setupEnv: func() {
 				os.Unsetenv("ENCX_KEK_ALIAS")
-				os.Setenv("ENCX_ALLOW_IN_MEMORY_PEPPER", "true")
+				os.Setenv("ENCX_PEPPER_ALIAS", "test-pepper")
 			},
 			wantErr: "ENCX_KEK_ALIAS environment variable is required",
 		},
@@ -116,11 +135,11 @@ func TestEnvironmentVariables_Validation(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Clean up environment before and after test
 			os.Unsetenv("ENCX_KEK_ALIAS")
-			os.Unsetenv("ENCX_PEPPER_SECRET_PATH")
+			os.Unsetenv("ENCX_PEPPER_ALIAS")
 
 			tt.setupEnv()
 
-			_, err := encx.NewCrypto(ctx, testutils.NewSimpleTestKMS())
+			_, err := encx.NewCryptoFromEnv(ctx, testutils.NewSimpleTestKMS(), encx.NewInMemorySecretStore())
 
 			if tt.wantErr == "" {
 				assert.NoError(t, err)
@@ -135,25 +154,30 @@ func TestEnvironmentVariables_Validation(t *testing.T) {
 func TestWithDBPath_Validation(t *testing.T) {
 	ctx := context.Background()
 
-	// Set required environment variables
-	os.Setenv("ENCX_KEK_ALIAS", "test-kek")
-	os.Setenv("ENCX_ALLOW_IN_MEMORY_PEPPER", "true")
-
 	t.Run("valid database path", func(t *testing.T) {
 		tempDir := t.TempDir()
 
-		crypto, err := encx.NewCrypto(ctx, testutils.NewSimpleTestKMS(),
-			encx.WithDBPath(tempDir),
-		)
+		cfg := encx.Config{
+			KEKAlias:    "test-kek",
+			PepperAlias: "test-pepper",
+			DBPath:      tempDir,
+			DBFilename:  "test.db",
+		}
+
+		crypto, err := encx.NewCrypto(ctx, testutils.NewSimpleTestKMS(), encx.NewInMemorySecretStore(), cfg)
 
 		require.NoError(t, err)
 		require.NotNil(t, crypto)
 	})
 
 	t.Run("valid database filename", func(t *testing.T) {
-		crypto, err := encx.NewCrypto(ctx, testutils.NewSimpleTestKMS(),
-			encx.WithDBFilename("custom-test.db"),
-		)
+		cfg := encx.Config{
+			KEKAlias:    "test-kek",
+			PepperAlias: "test-pepper",
+			DBFilename:  "custom-test.db",
+		}
+
+		crypto, err := encx.NewCrypto(ctx, testutils.NewSimpleTestKMS(), encx.NewInMemorySecretStore(), cfg)
 
 		require.NoError(t, err)
 		require.NotNil(t, crypto)
@@ -162,10 +186,6 @@ func TestWithDBPath_Validation(t *testing.T) {
 
 func TestWithArgon2Params_Validation(t *testing.T) {
 	ctx := context.Background()
-
-	// Set required environment variables
-	os.Setenv("ENCX_KEK_ALIAS", "test-kek")
-	os.Setenv("ENCX_ALLOW_IN_MEMORY_PEPPER", "true")
 
 	t.Run("valid params", func(t *testing.T) {
 		validParams := &encx.Argon2Params{
@@ -176,7 +196,12 @@ func TestWithArgon2Params_Validation(t *testing.T) {
 			KeyLength:   32,
 		}
 
-		crypto, err := encx.NewCrypto(ctx, testutils.NewSimpleTestKMS(),
+		cfg := encx.Config{
+			KEKAlias:    "test-kek",
+			PepperAlias: "test-pepper",
+		}
+
+		crypto, err := encx.NewCrypto(ctx, testutils.NewSimpleTestKMS(), encx.NewInMemorySecretStore(), cfg,
 			encx.WithArgon2Params(validParams),
 		)
 
@@ -185,7 +210,12 @@ func TestWithArgon2Params_Validation(t *testing.T) {
 	})
 
 	t.Run("nil params should use defaults", func(t *testing.T) {
-		crypto, err := encx.NewCrypto(ctx, testutils.NewSimpleTestKMS())
+		cfg := encx.Config{
+			KEKAlias:    "test-kek",
+			PepperAlias: "test-pepper",
+		}
+
+		crypto, err := encx.NewCrypto(ctx, testutils.NewSimpleTestKMS(), encx.NewInMemorySecretStore(), cfg)
 
 		require.NoError(t, err)
 		require.NotNil(t, crypto)
@@ -200,18 +230,18 @@ func TestWithSerializer_Validation(t *testing.T) {
 func TestConfigurationConflicts(t *testing.T) {
 	ctx := context.Background()
 
-	// Set required environment variables
-	os.Setenv("ENCX_KEK_ALIAS", "test-kek")
-	os.Setenv("ENCX_ALLOW_IN_MEMORY_PEPPER", "true")
-
 	t.Run("database path and filename conflict", func(t *testing.T) {
 		tempDir := t.TempDir()
 
 		// Test that both options can be used together (no conflict)
-		crypto, err := encx.NewCrypto(ctx, testutils.NewSimpleTestKMS(),
-			encx.WithDBPath(tempDir),
-			encx.WithDBFilename("test.db"),
-		)
+		cfg := encx.Config{
+			KEKAlias:    "test-kek",
+			PepperAlias: "test-pepper",
+			DBPath:      tempDir,
+			DBFilename:  "test.db",
+		}
+
+		crypto, err := encx.NewCrypto(ctx, testutils.NewSimpleTestKMS(), encx.NewInMemorySecretStore(), cfg)
 
 		require.NoError(t, err)
 		require.NotNil(t, crypto)
