@@ -197,10 +197,19 @@ func serializeWithReflection(value any) ([]byte, error) {
 
 	case reflect.Slice:
 		// Handle custom slice types
-		if rv.Type().Elem().Kind() == reflect.Uint8 {
+		elemKind := rv.Type().Elem().Kind()
+		if elemKind == reflect.Uint8 {
 			return Serialize(rv.Bytes())
 		}
-		return nil, fmt.Errorf("unsupported type for compact serialization: %T (slice of non-byte)", value)
+		if elemKind == reflect.String {
+			// Convert type alias []string to []string
+			slice := make([]string, rv.Len())
+			for i := 0; i < rv.Len(); i++ {
+				slice[i] = rv.Index(i).String()
+			}
+			return Serialize(slice)
+		}
+		return nil, fmt.Errorf("unsupported type for compact serialization: %T (slice of %v)", value, elemKind)
 
 	default:
 		return nil, fmt.Errorf("unsupported type for compact serialization: %T", value)
@@ -512,7 +521,8 @@ func deserializeWithReflection(data []byte, target any) error {
 
 	case reflect.Slice:
 		// Handle custom slice types
-		if elem.Type().Elem().Kind() == reflect.Uint8 {
+		elemKind := elem.Type().Elem().Kind()
+		if elemKind == reflect.Uint8 {
 			var slice []byte
 			if err := Deserialize(data, &slice); err != nil {
 				return err
@@ -520,7 +530,15 @@ func deserializeWithReflection(data []byte, target any) error {
 			elem.SetBytes(slice)
 			return nil
 		}
-		return fmt.Errorf("unsupported target type for compact deserialization: %T (slice of non-byte)", target)
+		if elemKind == reflect.String {
+			var slice []string
+			if err := Deserialize(data, &slice); err != nil {
+				return err
+			}
+			elem.Set(reflect.ValueOf(slice))
+			return nil
+		}
+		return fmt.Errorf("unsupported target type for compact deserialization: %T (slice of %v)", target, elemKind)
 
 	default:
 		return fmt.Errorf("unsupported target type for compact deserialization: %T", target)
