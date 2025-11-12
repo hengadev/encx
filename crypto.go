@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"fmt"
 	"io"
+	"os"
 	"path/filepath"
 
 	"github.com/hengadev/encx/internal/config"
@@ -258,6 +259,11 @@ func NewCrypto(
 
 	// Initialize KeyMetadataDB if not provided via options
 	if internalCfg.KeyMetadataDB == nil {
+		// Ensure database directory exists before opening database
+		if err := os.MkdirAll(cfg.DBPath, 0700); err != nil {
+			return nil, fmt.Errorf("failed to create database directory '%s': %w", cfg.DBPath, err)
+		}
+
 		dbPath := filepath.Join(cfg.DBPath, cfg.DBFilename)
 		db, err := sql.Open("sqlite3", dbPath)
 		if err != nil {
