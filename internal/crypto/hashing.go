@@ -43,18 +43,24 @@ func NewHashingOperations(pepper []byte, argon2Params Argon2ParamsInterface) (*H
 }
 
 // HashBasic performs a basic SHA256 hash on the byte representation of the input.
+// The input value should be serialized bytes. For comparing hashed values, use CompareBasicHashAndValue
+// which handles serialization internally.
 func HashBasic(ctx context.Context, value []byte) string {
 	valueHash := sha256.Sum256(value)
 	return hex.EncodeToString(valueHash[:])
 }
 
 // HashBasic performs a basic SHA256 hash on the byte representation of the input.
+// The input value should be serialized bytes. For comparing hashed values, use CompareBasicHashAndValue
+// which handles serialization internally.
 func (h *HashingOperations) HashBasic(ctx context.Context, value []byte) string {
 	return HashBasic(ctx, value)
 }
 
 // HashSecure performs a secure Argon2id hash on the byte representation of the input,
 // incorporating the configured Argon2 parameters and pepper.
+// The input value should be serialized bytes. For comparing hashed values, use CompareSecureHashAndValue
+// which handles serialization internally.
 func (h *HashingOperations) HashSecure(ctx context.Context, value []byte) (string, error) {
 	if isZeroPepper(h.pepper) {
 		return "", fmt.Errorf("pepper is uninitialized")
@@ -93,7 +99,9 @@ func (h *HashingOperations) HashSecure(ctx context.Context, value []byte) (strin
 	return params, nil
 }
 
-// CompareSecureHashAndValue compares a secure hash with a value
+// CompareSecureHashAndValue compares a secure hash with a value.
+// The value parameter can be of any type and will be serialized internally using the compact serializer.
+// This serialization must match the serialization used when generating the hash with HashSecure.
 func (h *HashingOperations) CompareSecureHashAndValue(ctx context.Context, value any, hashValue string) (bool, error) {
 	if value == nil {
 		return false, fmt.Errorf("value cannot be nil")
@@ -159,18 +167,14 @@ func (h *HashingOperations) CompareSecureHashAndValue(ctx context.Context, value
 		return false, fmt.Errorf("failed to decode hash: %w", err)
 	}
 
-	// Get value as bytes
-	// CompareSecureHashAndValue must receive []byte to match HashSecure's signature
-	// HashSecure only accepts []byte, so comparison must also use []byte
-	var valueBytes []byte
-	bytesVal, ok := value.([]byte)
-	if !ok {
-		return false, fmt.Errorf("value must be of type []byte for secure hash comparison, got %T", value)
+	// Serialize the value using compact serializer
+	serializedValue, err := serialization.Serialize(value)
+	if err != nil {
+		return false, fmt.Errorf("failed to serialize value: %w", err)
 	}
-	valueBytes = bytesVal
 
 	// Combine value with pepper
-	peppered := append(valueBytes, h.pepper[:]...)
+	peppered := append(serializedValue, h.pepper[:]...)
 
 	// Generate hash using the extracted salt and parameters
 	computedHash := argon2.IDKey(
@@ -189,7 +193,9 @@ func (h *HashingOperations) CompareSecureHashAndValue(ctx context.Context, value
 	return false, nil
 }
 
-// CompareBasicHashAndValue compares a basic hash with a value
+// CompareBasicHashAndValue compares a basic hash with a value.
+// The value parameter can be of any type and will be serialized internally using the compact serializer.
+// This serialization must match the serialization used when generating the hash with HashBasic.
 func (h *HashingOperations) CompareBasicHashAndValue(ctx context.Context, value any, hashValue string) (bool, error) {
 	if value == nil {
 		return false, fmt.Errorf("value cannot be nil")
