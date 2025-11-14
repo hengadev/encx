@@ -143,4 +143,3 @@ func (e *DataEncryption) DecryptStream(ctx context.Context, reader io.Reader, wr
 	}
 	return nil
 }
-
