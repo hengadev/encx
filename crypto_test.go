@@ -369,8 +369,11 @@ func TestCompareSecureHashAndValue(t *testing.T) {
 	crypto, err := encx.NewTestCrypto(nil)
 	require.NoError(t, err)
 
+	// Serialize the value before hashing
 	value := []byte("SecurePassword123!")
-	hash, err := crypto.HashSecure(ctx, value)
+	serialized, err := serialization.Serialize(value)
+	require.NoError(t, err)
+	hash, err := crypto.HashSecure(ctx, serialized)
 	require.NoError(t, err)
 
 	tests := []struct {
@@ -398,6 +401,7 @@ func TestCompareSecureHashAndValue(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			// CompareSecureHashAndValue now serializes internally, so pass original value
 			match, err := crypto.CompareSecureHashAndValue(ctx, tt.value, tt.hash)
 			if tt.wantErr {
 				assert.Error(t, err)
