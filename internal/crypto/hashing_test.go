@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/hengadev/encx/internal/config"
+	"github.com/hengadev/encx/internal/serialization"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -389,16 +390,20 @@ func TestHashingOperations_CompareSecureHashAndValue(t *testing.T) {
 			var err error
 
 			if tt.name == "non-matching value" {
-				// Hash a different value
-				hashValue, err = ho.HashSecure(ctx, []byte("test-password"))
+				// Hash a different value - serialize first
+				serialized, err := serialization.Serialize([]byte("test-password"))
+				require.NoError(t, err)
+				hashValue, err = ho.HashSecure(ctx, serialized)
 				require.NoError(t, err)
 			} else {
-				// Hash the same value
-				hashValue, err = ho.HashSecure(ctx, tt.value)
+				// Hash the same value - serialize first
+				serialized, err := serialization.Serialize(tt.value)
+				require.NoError(t, err)
+				hashValue, err = ho.HashSecure(ctx, serialized)
 				require.NoError(t, err)
 			}
 
-			// Test comparison
+			// Test comparison - pass original value (will be serialized internally)
 			match, err := ho.CompareSecureHashAndValue(ctx, tt.value, hashValue)
 
 			if tt.wantErr {
@@ -432,15 +437,36 @@ func TestHashingOperations_CompareEdgeCases(t *testing.T) {
 		assert.False(t, match)
 	})
 
-	t.Run("invalid value type for secure compare", func(t *testing.T) {
-		// First generate a valid hash for testing
-		validHash, err := ho.HashSecure(ctx, []byte("test"))
+	t.Run("accepts different value types for secure compare", func(t *testing.T) {
+		// First generate a valid hash for testing by serializing a string value
+		testString := "test-string-value"
+		serialized, err := serialization.Serialize(testString)
+		require.NoError(t, err)
+		validHash, err := ho.HashSecure(ctx, serialized)
 		require.NoError(t, err)
 
-		// Try to compare with a string instead of []byte - this should fail with our type assertion fix
-		match, err := ho.CompareSecureHashAndValue(ctx, "not-a-byte-slice", validHash)
+		// Now compare with the original string - this should work now since we serialize internally
+		match, err := ho.CompareSecureHashAndValue(ctx, testString, validHash)
+		require.NoError(t, err)
+		assert.True(t, match, "Should accept string type and serialize it internally")
+
+		// Also test with non-matching value
+		match, err = ho.CompareSecureHashAndValue(ctx, "different-string", validHash)
+		require.NoError(t, err)
+		assert.False(t, match, "Different values should not match")
+	})
+
+	t.Run("nil value for secure compare", func(t *testing.T) {
+		// First generate a valid hash for testing
+		serialized, err := serialization.Serialize([]byte("test"))
+		require.NoError(t, err)
+		validHash, err := ho.HashSecure(ctx, serialized)
+		require.NoError(t, err)
+
+		// Try to compare with nil value - this should fail
+		match, err := ho.CompareSecureHashAndValue(ctx, nil, validHash)
 		assert.Error(t, err)
 		assert.False(t, match)
-		assert.Contains(t, err.Error(), "value must be of type []byte")
+		assert.Contains(t, err.Error(), "value cannot be nil")
 	})
 }
