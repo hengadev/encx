@@ -256,3 +256,132 @@ func findField(fields []FieldInfo, name string) *FieldInfo {
 	}
 	return nil
 }
+
+func TestDiscoverStructsWithEmbeddedFields(t *testing.T) {
+	// Create a temporary directory for test files
+	tempDir := t.TempDir()
+
+	// Create test file with embedded structs (similar to the user's DocumentBase and Estimate)
+	testFile := filepath.Join(tempDir, "embedded.go")
+	err := os.WriteFile(testFile, []byte(`package test
+
+import "time"
+
+// DocumentBase contains metadata shared by all document types
+type DocumentBase struct {
+	ID        int       `+"`json:\"id\"`"+`
+	CaseID    int       `+"`json:\"case_id\" encx:\"encrypt\"`"+`
+	ClientID  int       `+"`json:\"client_id\" encx:\"encrypt\"`"+`
+	Status    string    `+"`json:\"status\"`"+`
+	CreatedAt time.Time `+"`json:\"created_at\"`"+`
+	UpdatedAt time.Time `+"`json:\"updated_at\"`"+`
+}
+
+// Estimate represents a price quotation with embedded DocumentBase
+type Estimate struct {
+	DocumentBase
+
+	EstimateNumber string    `+"`encx:\"encrypt\" json:\"estimate_number\"`"+`
+	IssueDate      time.Time `+"`json:\"issue_date\"`"+`
+	ValidUntil     *time.Time `+"`json:\"valid_until,omitempty\"`"+`
+	EstimatedTotal float64   `+"`encx:\"encrypt\" json:\"estimated_total\"`"+`
+	Notes          *string   `+"`encx:\"encrypt\" json:\"notes,omitempty\"`"+`
+	Accepted       bool      `+"`json:\"accepted\"`"+`
+}
+`), 0644)
+	require.NoError(t, err)
+
+	config := &DiscoveryConfig{}
+	structs, err := DiscoverStructs(tempDir, config)
+
+	require.NoError(t, err)
+
+	// Find the Estimate struct (DocumentBase has encx tags but they're only in CaseID and ClientID)
+	var estimateStruct *StructInfo
+	var documentBaseStruct *StructInfo
+	for i := range structs {
+		if structs[i].StructName == "Estimate" {
+			estimateStruct = &structs[i]
+		} else if structs[i].StructName == "DocumentBase" {
+			documentBaseStruct = &structs[i]
+		}
+	}
+
+	// Both structs should be discovered since they have encx tags
+	require.NotNil(t, estimateStruct, "Estimate struct should be discovered")
+	require.NotNil(t, documentBaseStruct, "DocumentBase struct should be discovered")
+
+	// Test that Estimate includes all fields from DocumentBase
+	assert.Equal(t, "Estimate", estimateStruct.StructName)
+	assert.True(t, estimateStruct.HasEncxTags)
+
+	// Estimate should have fields from both DocumentBase and itself
+	// DocumentBase: ID, CaseID, ClientID, Status, CreatedAt, UpdatedAt (6 fields)
+	// Estimate: EstimateNumber, IssueDate, ValidUntil, EstimatedTotal, Notes, Accepted (6 fields)
+	// Total: 12 fields
+	assert.Len(t, estimateStruct.Fields, 12, "Estimate should have all fields from DocumentBase plus its own")
+
+	// Verify DocumentBase fields are included
+	idField := findField(estimateStruct.Fields, "ID")
+	assert.NotNil(t, idField, "ID from DocumentBase should be included")
+	assert.Equal(t, "int", idField.Type)
+
+	caseIDField := findField(estimateStruct.Fields, "CaseID")
+	assert.NotNil(t, caseIDField, "CaseID from DocumentBase should be included")
+	assert.Equal(t, "int", caseIDField.Type)
+	assert.Contains(t, caseIDField.EncxTags, "encrypt", "CaseID should have encrypt tag")
+
+	clientIDField := findField(estimateStruct.Fields, "ClientID")
+	assert.NotNil(t, clientIDField, "ClientID from DocumentBase should be included")
+	assert.Equal(t, "int", clientIDField.Type)
+	assert.Contains(t, clientIDField.EncxTags, "encrypt", "ClientID should have encrypt tag")
+
+	statusField := findField(estimateStruct.Fields, "Status")
+	assert.NotNil(t, statusField, "Status from DocumentBase should be included")
+	assert.Equal(t, "string", statusField.Type)
+
+	createdAtField := findField(estimateStruct.Fields, "CreatedAt")
+	assert.NotNil(t, createdAtField, "CreatedAt from DocumentBase should be included")
+	assert.Equal(t, "time.Time", createdAtField.Type)
+
+	updatedAtField := findField(estimateStruct.Fields, "UpdatedAt")
+	assert.NotNil(t, updatedAtField, "UpdatedAt from DocumentBase should be included")
+	assert.Equal(t, "time.Time", updatedAtField.Type)
+
+	// Verify Estimate's own fields
+	estimateNumberField := findField(estimateStruct.Fields, "EstimateNumber")
+	assert.NotNil(t, estimateNumberField, "EstimateNumber should be included")
+	assert.Equal(t, "string", estimateNumberField.Type)
+	assert.Contains(t, estimateNumberField.EncxTags, "encrypt")
+
+	issueDateField := findField(estimateStruct.Fields, "IssueDate")
+	assert.NotNil(t, issueDateField, "IssueDate should be included")
+	assert.Equal(t, "time.Time", issueDateField.Type)
+
+	validUntilField := findField(estimateStruct.Fields, "ValidUntil")
+	assert.NotNil(t, validUntilField, "ValidUntil should be included")
+	assert.Equal(t, "*time.Time", validUntilField.Type)
+
+	estimatedTotalField := findField(estimateStruct.Fields, "EstimatedTotal")
+	assert.NotNil(t, estimatedTotalField, "EstimatedTotal should be included")
+	assert.Equal(t, "float64", estimatedTotalField.Type)
+	assert.Contains(t, estimatedTotalField.EncxTags, "encrypt")
+
+	notesField := findField(estimateStruct.Fields, "Notes")
+	assert.NotNil(t, notesField, "Notes should be included")
+	assert.Equal(t, "*string", notesField.Type)
+	assert.Contains(t, notesField.EncxTags, "encrypt")
+
+	acceptedField := findField(estimateStruct.Fields, "Accepted")
+	assert.NotNil(t, acceptedField, "Accepted should be included")
+	assert.Equal(t, "bool", acceptedField.Type)
+
+	// Count fields with encx tags (should be 5: CaseID, ClientID, EstimateNumber, EstimatedTotal, Notes)
+	var fieldsWithEncxTags []FieldInfo
+	for _, field := range estimateStruct.Fields {
+		if len(field.EncxTags) > 0 {
+			fieldsWithEncxTags = append(fieldsWithEncxTags, field)
+		}
+	}
+	assert.Len(t, fieldsWithEncxTags, 5, "Should have 5 fields with encx tags")
+}
