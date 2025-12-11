@@ -257,7 +257,7 @@ func resolveEmbeddedField(field *ast.Field, fileImports map[string]string, struc
 			}
 		}
 		// If not found, the embedded struct might be from another file in the package
-		// For now, we skip it - this could be enhanced to parse multiple files
+		// but should have been collected in the first pass
 	}
 	// If it has a package prefix (e.g., other.Type), we can't resolve it
 	// without parsing that external package, so we skip it
