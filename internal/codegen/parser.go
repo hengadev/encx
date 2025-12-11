@@ -51,8 +51,31 @@ func DiscoverStructs(packagePath string, config *DiscoveryConfig) ([]StructInfo,
 			continue
 		}
 
+		// First pass: collect all struct definitions across all files in the package
+		structDefs := make(map[string]*ast.StructType)
+		fileImportsMap := make(map[string]map[string]string)
+
 		for fileName, file := range pkg.Files {
-			structs = append(structs, discoverStructsInFile(fset, fileName, file, pkgName)...)
+			fileImportsMap[fileName] = extractImports(file)
+
+			ast.Inspect(file, func(n ast.Node) bool {
+				if genDecl, ok := n.(*ast.GenDecl); ok {
+					for _, spec := range genDecl.Specs {
+						if typeSpec, ok := spec.(*ast.TypeSpec); ok {
+							if structType, ok := typeSpec.Type.(*ast.StructType); ok {
+								structDefs[typeSpec.Name.Name] = structType
+							}
+						}
+					}
+				}
+				return true
+			})
+		}
+
+		// Second pass: analyze structs with embedded field resolution
+		for fileName, file := range pkg.Files {
+			fileImports := fileImportsMap[fileName]
+			structs = append(structs, discoverStructsInFile(fset, fileName, file, pkgName, fileImports, structDefs)...)
 		}
 	}
 
@@ -85,12 +108,10 @@ func extractImports(file *ast.File) map[string]string {
 }
 
 // discoverStructsInFile discovers structs in a single file
-func discoverStructsInFile(fset *token.FileSet, fileName string, file *ast.File, pkgName string) []StructInfo {
+func discoverStructsInFile(fset *token.FileSet, fileName string, file *ast.File, pkgName string, fileImports map[string]string, structDefs map[string]*ast.StructType) []StructInfo {
 	var structs []StructInfo
 
-	// Extract imports from the file
-	fileImports := extractImports(file)
-
+	// Analyze structs with embedded field resolution
 	ast.Inspect(file, func(n ast.Node) bool {
 		switch node := n.(type) {
 		case *ast.GenDecl:
@@ -104,7 +125,7 @@ func discoverStructsInFile(fset *token.FileSet, fileName string, file *ast.File,
 							typeSpec.Doc = node.Doc
 						}
 
-						structInfo := analyzeStruct(fset, fileName, pkgName, typeSpec, structType, fileImports)
+						structInfo := analyzeStruct(fset, fileName, pkgName, typeSpec, structType, fileImports, structDefs)
 
 						// Restore original doc to avoid side effects
 						typeSpec.Doc = originalDoc
@@ -123,7 +144,7 @@ func discoverStructsInFile(fset *token.FileSet, fileName string, file *ast.File,
 }
 
 // analyzeStruct analyzes a struct type for encx tags
-func analyzeStruct(fset *token.FileSet, fileName, pkgName string, typeSpec *ast.TypeSpec, structType *ast.StructType, fileImports map[string]string) StructInfo {
+func analyzeStruct(fset *token.FileSet, fileName, pkgName string, typeSpec *ast.TypeSpec, structType *ast.StructType, fileImports map[string]string, structDefs map[string]*ast.StructType) StructInfo {
 	structInfo := StructInfo{
 		PackageName:       pkgName,
 		StructName:        typeSpec.Name.Name,
@@ -147,6 +168,28 @@ func analyzeStruct(fset *token.FileSet, fileName, pkgName string, typeSpec *ast.
 
 	// Analyze each field
 	for _, field := range structType.Fields.List {
+		// Handle embedded fields (anonymous/embedded structs)
+		if len(field.Names) == 0 {
+			// This is an embedded field
+			embeddedFields := resolveEmbeddedField(field, fileImports, structDefs)
+			for _, embeddedField := range embeddedFields {
+				if len(embeddedField.EncxTags) > 0 {
+					structInfo.HasEncxTags = true
+				}
+				structInfo.Fields = append(structInfo.Fields, embeddedField)
+
+				// Track required imports from field types
+				pkgNames := extractPackageNamesFromType(embeddedField.Type)
+				for _, pkgName := range pkgNames {
+					if importPath, found := fileImports[pkgName]; found {
+						structInfo.RequiredImports[pkgName] = importPath
+					}
+				}
+			}
+			continue
+		}
+
+		// Handle regular named fields
 		for _, name := range field.Names {
 			fieldInfo := analyzeField(name.Name, field)
 			if len(fieldInfo.EncxTags) > 0 {
@@ -167,6 +210,59 @@ func analyzeStruct(fset *token.FileSet, fileName, pkgName string, typeSpec *ast.
 	// Note: Companion field validation removed - code generation creates separate structs
 
 	return structInfo
+}
+
+// resolveEmbeddedField resolves an embedded struct field by looking up its definition
+// and recursively extracting all its fields
+func resolveEmbeddedField(field *ast.Field, fileImports map[string]string, structDefs map[string]*ast.StructType) []FieldInfo {
+	var fields []FieldInfo
+
+	// Get the embedded type name
+	typeName := getTypeString(field.Type)
+
+	// Handle pointer types (e.g., *DocumentBase)
+	isPointer := false
+	if strings.HasPrefix(typeName, "*") {
+		isPointer = true
+		typeName = strings.TrimPrefix(typeName, "*")
+	}
+
+	// Check if this is a local struct (no package prefix)
+	if !strings.Contains(typeName, ".") {
+		// Look up the struct definition in the current package
+		if embeddedStructType, found := structDefs[typeName]; found {
+			// Recursively process the embedded struct's fields
+			for _, embeddedField := range embeddedStructType.Fields.List {
+				// Handle nested embedded fields
+				if len(embeddedField.Names) == 0 {
+					nestedFields := resolveEmbeddedField(embeddedField, fileImports, structDefs)
+					fields = append(fields, nestedFields...)
+					continue
+				}
+
+				// Process regular fields from the embedded struct
+				for _, name := range embeddedField.Names {
+					fieldInfo := analyzeField(name.Name, embeddedField)
+
+					// If the embedded struct was a pointer, the fields inherit that
+					// (though in practice, field access syntax is the same)
+					if isPointer && !strings.HasPrefix(fieldInfo.Type, "*") {
+						// Note: We don't modify the type here because in Go,
+						// whether a struct is embedded as pointer or value doesn't
+						// change how you access its fields
+					}
+
+					fields = append(fields, fieldInfo)
+				}
+			}
+		}
+		// If not found, the embedded struct might be from another file in the package
+		// For now, we skip it - this could be enhanced to parse multiple files
+	}
+	// If it has a package prefix (e.g., other.Type), we can't resolve it
+	// without parsing that external package, so we skip it
+
+	return fields
 }
 
 // extractPackageNamesFromType extracts package identifiers from a type string
